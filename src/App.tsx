@@ -7,6 +7,7 @@ import { AuthProvider } from "@/auth/AuthProvider";
 import { WorkspaceProvider } from "@/workspace/WorkspaceProvider";
 import { WorkspaceDataProvider } from "@/data/WorkspaceDataProvider";
 import { ToastProvider } from "@/components/ui/toast";
+import { PWAPrompt } from "@/components/PWAPrompt";
 import { RequireAuth, RequirePermission } from "@/components/ProtectedRoute";
 import { AppShell } from "@/components/AppShell";
 import { Login } from "@/pages/Login";
@@ -32,6 +33,7 @@ export default function App() {
   return (
     <AuthProvider>
       <ToastProvider>
+        <PWAPrompt />
         <BrowserRouter>
           <Routes>
             <Route path="/login" element={<Login />} />
