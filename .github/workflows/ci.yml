@@ -61,11 +61,12 @@ jobs:
           node-version: 20
           cache: npm
 
+      # firebase-tools requires JDK 21+ to run the Firestore emulator.
       - name: Setup Java (Firestore emulator requirement)
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: "21"
 
       - name: Install dependencies
         run: npm ci
