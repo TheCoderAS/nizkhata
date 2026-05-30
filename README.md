@@ -36,7 +36,23 @@ npm run dev              # in another terminal
 
 1. Create a Firebase project; enable **Google** sign-in and **Cloud Firestore**.
 2. Put the web app config into `.env` and set `VITE_USE_EMULATORS=false`.
-3. Deploy rules + indexes: `firebase deploy --only firestore`.
+3. Deploy rules + indexes: `npm run deploy:rules`.
+
+### Deploy (Firebase Hosting)
+
+The app is hosted on Firebase Hosting — same platform as Auth + Firestore, so
+the app, Security Rules and indexes deploy together with one command.
+
+```bash
+firebase login            # once
+npm run deploy            # build + deploy hosting, rules and indexes
+# or target one thing:
+npm run deploy:hosting    # build + deploy only the static site
+npm run deploy:rules      # deploy only firestore rules + indexes
+```
+
+`.firebaserc` already points at the `nizkhata` project. The `dist` build reads
+`VITE_FIREBASE_*` from your local `.env` at build time.
 
 ## Scripts
 
@@ -48,6 +64,9 @@ npm run dev              # in another terminal
 | `npm test` / `npx vitest run` | pure-logic unit tests (FY + transaction engine) |
 | `npm run test:rules` | Security Rules matrix (needs emulator + Java) |
 | `npm run emulators` | Firebase Emulator Suite |
+| `npm run deploy` | build + deploy hosting, rules and indexes |
+| `npm run deploy:hosting` | build + deploy only the static site |
+| `npm run deploy:rules` | deploy only Firestore rules + indexes |
 
 Run the rules tests with the emulator wrapper:
 

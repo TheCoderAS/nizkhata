@@ -1,0 +1,78 @@
+name: CI
+
+# Quality gate. Runs on PRs into main (and on direct pushes to main) so broken
+# code can't merge. Deploys are handled separately by deploy.yml.
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Typecheck · Test · Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Production build
+        run: npm run build
+        env:
+          VITE_USE_EMULATORS: "false"
+          # Firebase web config values are public (they ship in the client
+          # bundle); access is enforced by Security Rules, not these keys.
+          VITE_FIREBASE_API_KEY: AIzaSyAiCtL1MqHDuzpNvCRGIpnuEY1vJTHN03I
+          VITE_FIREBASE_AUTH_DOMAIN: nizkhata.firebaseapp.com
+          VITE_FIREBASE_PROJECT_ID: nizkhata
+          VITE_FIREBASE_STORAGE_BUCKET: nizkhata.firebasestorage.app
+          VITE_FIREBASE_MESSAGING_SENDER_ID: "626552427608"
+          VITE_FIREBASE_APP_ID: 1:626552427608:web:de49ec934a647fce06a62d
+          VITE_FIREBASE_MEASUREMENT_ID: G-N6JH009E7Q
+
+  rules-tests:
+    name: Firestore Security Rules
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      # firebase-tools requires JDK 21+ to run the Firestore emulator.
+      - name: Setup Java (Firestore emulator requirement)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Run the rules matrix against the emulator
+        run: firebase emulators:exec --only firestore --project demo-rules-test "npm run test:rules"

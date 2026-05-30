@@ -12,6 +12,9 @@
     "typecheck": "tsc -b --noEmit",
     "test": "vitest run --config vitest.config.ts",
     "emulators": "firebase emulators:start",
+    "deploy": "npm run build && firebase deploy",
+    "deploy:hosting": "npm run build && firebase deploy --only hosting",
+    "deploy:rules": "firebase deploy --only firestore:rules,firestore:indexes",
     "test:rules": "vitest run --config vitest.rules.config.ts",
     "test:rules:watch": "vitest --config vitest.rules.config.ts"
   },
