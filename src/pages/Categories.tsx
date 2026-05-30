@@ -95,14 +95,12 @@ export function Categories() {
     <div>
       <PageHeader
         title="Categories"
-        description="Classify income and expense lines. System categories are read-only."
-        actions={
-          manage && (
-            <Button onClick={() => setEditing("new")}>
-              <Plus /> New category
-            </Button>
-          )
-        }
+        primaryAction={{
+          label: "New category",
+          icon: Plus,
+          onClick: () => setEditing("new"),
+          hidden: !manage,
+        }}
       />
 
       <Tabs value={kind} onValueChange={(v) => setKind(v as CategoryKind)} className="mb-4">

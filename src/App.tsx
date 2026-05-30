@@ -1,7 +1,7 @@
 // Routing + provider composition. Every feature route is wrapped in both an
 // auth gate and a permission gate (§6). Rules are the real guard.
 
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import type { ReactNode } from "react";
 import { AuthProvider } from "@/auth/AuthProvider";
 import { WorkspaceProvider } from "@/workspace/WorkspaceProvider";
@@ -23,6 +23,7 @@ import { Reports } from "@/pages/Reports";
 import { Members } from "@/pages/Members";
 import { Roles } from "@/pages/Roles";
 import { WorkspaceSettings } from "@/pages/WorkspaceSettings";
+import { Account } from "@/pages/Account";
 import type { Permission } from "@/types/permissions";
 
 function Gated({ perm, children }: { perm: Permission; children: ReactNode }) {
@@ -82,22 +83,6 @@ export default function App() {
                 }
               />
               <Route
-                path="accounts"
-                element={
-                  <Gated perm="accounts.view">
-                    <Accounts />
-                  </Gated>
-                }
-              />
-              <Route
-                path="categories"
-                element={
-                  <Gated perm="categories.view">
-                    <Categories />
-                  </Gated>
-                }
-              />
-              <Route
                 path="debts"
                 element={
                   <Gated perm="debts.view">
@@ -110,6 +95,23 @@ export default function App() {
                 element={
                   <Gated perm="reports.view">
                     <Reports />
+                  </Gated>
+                }
+              />
+              {/* Settings group: data setup + admin + personal account */}
+              <Route
+                path="settings/accounts"
+                element={
+                  <Gated perm="accounts.view">
+                    <Accounts />
+                  </Gated>
+                }
+              />
+              <Route
+                path="settings/categories"
+                element={
+                  <Gated perm="categories.view">
+                    <Categories />
                   </Gated>
                 }
               />
@@ -137,6 +139,10 @@ export default function App() {
                   </Gated>
                 }
               />
+              <Route path="settings/account" element={<Account />} />
+              {/* legacy redirects: old top-level paths now live under settings */}
+              <Route path="accounts" element={<Navigate to="/settings/accounts" replace />} />
+              <Route path="categories" element={<Navigate to="/settings/categories" replace />} />
             </Route>
           </Routes>
         </BrowserRouter>

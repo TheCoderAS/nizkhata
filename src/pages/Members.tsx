@@ -82,14 +82,12 @@ export function Members() {
     <div>
       <PageHeader
         title="Members"
-        description="People with access to this workspace."
-        actions={
-          canInvite && (
-            <Button onClick={() => setInviteOpen(true)}>
-              <Plus /> Invite
-            </Button>
-          )
-        }
+        primaryAction={{
+          label: "Invite",
+          icon: Plus,
+          onClick: () => setInviteOpen(true),
+          hidden: !canInvite,
+        }}
       />
 
       <Table>

@@ -1,20 +1,17 @@
-// App shell: responsive top bar (mobile menu + theme toggle + user menu) +
-// desktop sidebar rail + mobile drawer + routed content (§6).
+// App shell: responsive top bar (mobile menu + a single avatar menu holding
+// workspace switch / theme / sign out) + desktop sidebar rail + mobile drawer +
+// routed content (§6).
 
 import { useState } from "react";
 import { Outlet, useLocation } from "react-router-dom";
-import { Menu, LogOut } from "lucide-react";
+import { Menu, LogOut, Check, Sun, Moon, Laptop, Building2 } from "lucide-react";
 import { useAuth } from "@/auth/AuthProvider";
 import { useWorkspace } from "@/workspace/WorkspaceProvider";
+import { useTheme, type Theme } from "@/theme/ThemeProvider";
 import { Sidebar, SidebarContent } from "./Sidebar";
-import { ThemeToggle } from "./ThemeToggle";
 import { ErrorState, LoadingState } from "./states";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,6 +20,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { cn } from "@/lib/utils";
 
 function initials(nameOrEmail: string): string {
   const base = nameOrEmail.trim();
@@ -31,9 +29,17 @@ function initials(nameOrEmail: string): string {
   return (parts[0]?.[0] ?? "?").toUpperCase() + (parts[1]?.[0]?.toUpperCase() ?? "");
 }
 
+const THEME_OPTIONS: { value: Theme; label: string; icon: typeof Sun }[] = [
+  { value: "light", label: "Light", icon: Sun },
+  { value: "dark", label: "Dark", icon: Moon },
+  { value: "system", label: "System", icon: Laptop },
+];
+
 export function AppShell() {
   const { firebaseUser, signOut } = useAuth();
-  const { loading, error, memberships } = useWorkspace();
+  const { loading, error, memberships, workspaces, activeWorkspaceId, switchWorkspace } =
+    useWorkspace();
+  const { theme, setTheme } = useTheme();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const location = useLocation();
 
@@ -64,35 +70,69 @@ export function AppShell() {
             <span className="font-semibold tracking-tight md:hidden">NizKhata</span>
           </div>
 
-          <div className="flex items-center gap-1 sm:gap-2">
-            <ThemeToggle />
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  className="h-9 gap-2 px-2"
-                  aria-label="Account menu"
-                >
-                  <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
-                    {initials(displayName)}
-                  </span>
-                  <span className="hidden max-w-[160px] truncate text-sm sm:inline">
-                    {firebaseUser?.email}
-                  </span>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuLabel className="truncate font-normal text-muted-foreground">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" className="h-9 gap-2 px-2" aria-label="Account menu">
+                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
+                  {initials(displayName)}
+                </span>
+                <span className="hidden max-w-[160px] truncate text-sm sm:inline">
                   {firebaseUser?.email}
-                </DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => void signOut()}>
-                  <LogOut className="mr-2 h-4 w-4" />
-                  Sign out
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
+                </span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-64">
+              <DropdownMenuLabel className="truncate font-normal text-muted-foreground">
+                {firebaseUser?.email}
+              </DropdownMenuLabel>
+
+              {workspaces.length > 0 && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuLabel className="flex items-center gap-2 text-xs uppercase tracking-wide text-muted-foreground/70">
+                    <Building2 className="h-3.5 w-3.5" /> Workspace
+                  </DropdownMenuLabel>
+                  {workspaces.map((w) => (
+                    <DropdownMenuItem
+                      key={w.id}
+                      onClick={() => switchWorkspace(w.id)}
+                      className={cn(activeWorkspaceId === w.id && "bg-accent")}
+                    >
+                      <span className="truncate">{w.name}</span>
+                      {activeWorkspaceId === w.id && (
+                        <Check className="ml-auto h-4 w-4" />
+                      )}
+                    </DropdownMenuItem>
+                  ))}
+                </>
+              )}
+
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel className="text-xs uppercase tracking-wide text-muted-foreground/70">
+                Theme
+              </DropdownMenuLabel>
+              {THEME_OPTIONS.map((opt) => {
+                const Icon = opt.icon;
+                return (
+                  <DropdownMenuItem
+                    key={opt.value}
+                    onClick={() => setTheme(opt.value)}
+                    className={cn(theme === opt.value && "bg-accent")}
+                  >
+                    <Icon className="mr-2 h-4 w-4" />
+                    {opt.label}
+                    {theme === opt.value && <Check className="ml-auto h-4 w-4" />}
+                  </DropdownMenuItem>
+                );
+              })}
+
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => void signOut()}>
+                <LogOut className="mr-2 h-4 w-4" />
+                Sign out
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </header>
 
         <main className="min-h-0 flex-1 overflow-auto">
@@ -108,7 +148,10 @@ export function AppShell() {
 
       {/* Mobile drawer */}
       <Dialog open={drawerOpen} onOpenChange={setDrawerOpen}>
-        <DialogContent className="left-0 top-0 h-full max-w-[17rem] translate-x-0 translate-y-0 gap-0 rounded-none border-y-0 border-l-0 p-0 data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left sm:rounded-none">
+        <DialogContent
+          hideClose
+          className="left-0 top-0 h-full max-w-[17rem] translate-x-0 translate-y-0 gap-0 rounded-none border-y-0 border-l-0 p-0 data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left sm:rounded-none"
+        >
           <DialogTitle className="sr-only">Navigation</DialogTitle>
           <SidebarContent onNavigate={() => setDrawerOpen(false)} />
         </DialogContent>

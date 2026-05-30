@@ -79,10 +79,7 @@ export function Dashboard() {
 
   return (
     <div>
-      <PageHeader
-        title="Dashboard"
-        description={`${activeWorkspace?.name ?? ""} · FY ${fy}`}
-      />
+      <PageHeader title="Dashboard" />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Metric label="Income (FY)" value={formatMoney(fyTotals.income, currency)} positive />

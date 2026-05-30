@@ -1,8 +1,12 @@
 // Generic detail modal: a titled dialog that renders label/value field rows and
 // an optional actions menu in the header + footer. Used when a table row is
 // clicked, across every screen, for a consistent "view details" experience.
+//
+// Keeps itself mounted briefly after close so Radix can play the exit
+// animation (callers conditionally render this, which would otherwise unmount
+// it instantly and skip the closing transition).
 
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   Dialog,
   DialogContent,
@@ -38,16 +42,36 @@ export function DetailDialog({
   actions?: RowAction[];
   children?: ReactNode;
 }) {
+  // Mirror `open` into local state so we can run the close animation before the
+  // parent unmounts us.
+  const [show, setShow] = useState(open);
+  useEffect(() => setShow(open), [open]);
+
+  function handleOpenChange(next: boolean) {
+    if (!next) {
+      setShow(false);
+      // let the exit animation (~200ms) finish before the parent unmounts
+      window.setTimeout(onClose, 200);
+    }
+  }
+
   const visible = fields.filter((f) => !f.hidden);
+
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-lg">
+    <Dialog open={show} onOpenChange={handleOpenChange}>
+      {/* hide the built-in close so the kebab + close share one row */}
+      <DialogContent className="max-w-lg" hideClose>
         <DialogHeader>
-          <div className="flex items-start justify-between gap-2 pr-6">
-            <DialogTitle className="text-lg">{title}</DialogTitle>
-            {actions.length > 0 && <RowActions actions={actions} />}
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0 space-y-1">
+              <DialogTitle className="truncate text-lg">{title}</DialogTitle>
+              {subtitle && <DialogDescription>{subtitle}</DialogDescription>}
+            </div>
+            <div className="flex shrink-0 items-center gap-1">
+              {actions.length > 0 && <RowActions actions={actions} />}
+              <CloseButton onClick={() => handleOpenChange(false)} />
+            </div>
           </div>
-          {subtitle && <DialogDescription>{subtitle}</DialogDescription>}
         </DialogHeader>
 
         <dl className="divide-y">
@@ -56,18 +80,11 @@ export function DetailDialog({
               key={f.label}
               className={cn(
                 "py-2.5",
-                f.block
-                  ? "space-y-1"
-                  : "flex items-start justify-between gap-4",
+                f.block ? "space-y-1" : "flex items-start justify-between gap-4",
               )}
             >
               <dt className="shrink-0 text-sm text-muted-foreground">{f.label}</dt>
-              <dd
-                className={cn(
-                  "text-sm font-medium",
-                  !f.block && "text-right",
-                )}
-              >
+              <dd className={cn("text-sm font-medium", !f.block && "text-right")}>
                 {f.value}
               </dd>
             </div>
@@ -77,5 +94,28 @@ export function DetailDialog({
         {children}
       </DialogContent>
     </Dialog>
+  );
+}
+
+function CloseButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label="Close"
+      className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground opacity-70 transition-opacity hover:bg-accent hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring"
+    >
+      <svg
+        className="h-4 w-4"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M18 6 6 18M6 6l12 12" />
+      </svg>
+    </button>
   );
 }

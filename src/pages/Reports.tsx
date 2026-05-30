@@ -85,7 +85,6 @@ export function Reports() {
     <div>
       <PageHeader
         title="Reports"
-        description={`Financial year ${fy}. Debts and transfers are excluded from the tax summary.`}
         actions={
           <Select value={fy} onValueChange={setFy}>
             <SelectTrigger className="w-36">

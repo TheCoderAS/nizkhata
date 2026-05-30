@@ -103,3 +103,37 @@
 ::-webkit-scrollbar-thumb:hover {
   background: hsl(var(--muted-foreground) / 0.4);
 }
+
+/* Normalize native date/time inputs so they match other fields:
+   WebKit centers and over-sizes the value and hides the picker icon in dark
+   mode. Force left alignment, inherited sizing, and a theme-aware icon. */
+input[type="date"],
+input[type="time"],
+input[type="datetime-local"],
+input[type="month"] {
+  text-align: left;
+  -webkit-appearance: none;
+  appearance: none;
+  min-height: 0;
+}
+input[type="date"]::-webkit-date-and-time-value {
+  text-align: left;
+  margin: 0;
+}
+input[type="date"]::-webkit-datetime-edit {
+  padding: 0;
+  line-height: 1.25rem;
+}
+input[type="date"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.6;
+  /* tint the picker glyph to the foreground colour in both themes */
+  filter: invert(var(--cal-invert, 0));
+}
+.dark input[type="date"]::-webkit-calendar-picker-indicator {
+  --cal-invert: 1;
+}
+input[type="date"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+}
+

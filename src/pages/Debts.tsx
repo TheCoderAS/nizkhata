@@ -119,14 +119,12 @@ export function Debts() {
     <div>
       <PageHeader
         title="Debts"
-        description="Loans, lendings and custodial savings. Outstanding is derived from transactions."
-        actions={
-          manage && (
-            <Button onClick={() => setEditing("new")}>
-              <Plus /> New debt
-            </Button>
-          )
-        }
+        primaryAction={{
+          label: "New debt",
+          icon: Plus,
+          onClick: () => setEditing("new"),
+          hidden: !manage,
+        }}
       />
 
       {debts.length === 0 ? (

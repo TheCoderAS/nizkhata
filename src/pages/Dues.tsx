@@ -138,14 +138,12 @@ export function Dues() {
     <div>
       <PageHeader
         title="Dues"
-        description="Pay-later bills and expected receipts. Settle them with a transaction."
-        actions={
-          manage && (
-            <Button onClick={() => setEditing("new")}>
-              <Plus /> New due
-            </Button>
-          )
-        }
+        primaryAction={{
+          label: "New due",
+          icon: Plus,
+          onClick: () => setEditing("new"),
+          hidden: !manage,
+        }}
       />
 
       {dues.length === 0 ? (

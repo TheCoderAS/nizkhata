@@ -7,7 +7,6 @@ import { ArrowLeft } from "lucide-react";
 import { useWorkspace } from "@/workspace/WorkspaceProvider";
 import { useData } from "@/data/WorkspaceDataProvider";
 import type { DebtPurpose } from "@/types/models";
-import { PageHeader } from "@/components/PageHeader";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -63,10 +62,12 @@ export function ContactDetail() {
       <Link to="/contacts" className="mb-2 inline-flex items-center gap-1 text-sm text-muted-foreground hover:underline">
         <ArrowLeft className="h-4 w-4" /> Contacts
       </Link>
-      <PageHeader
-        title={contact.name}
-        description={contact.type === "business" ? "Business" : "Person"}
-      />
+      <div className="mb-6 flex items-center gap-3">
+        <h1 className="text-2xl font-semibold tracking-tight">{contact.name}</h1>
+        <Badge variant="secondary">
+          {contact.type === "business" ? "Business" : "Person"}
+        </Badge>
+      </div>
 
       <div className="mb-6 grid gap-4 sm:grid-cols-3">
         <Card>
