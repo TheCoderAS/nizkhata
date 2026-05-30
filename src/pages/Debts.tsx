@@ -1,21 +1,27 @@
-// Debts (§6.8). Obligations grouped by direction & purpose; create; settle via a
-// repayment transaction (opens the multi-line form pre-seeded with a repayment
-// line for the debt).
+// Debts (§6.8). Obligations grouped by direction & purpose; create / edit /
+// delete; settle via a repayment transaction (opens the multi-line form
+// pre-seeded with a repayment line). Sortable headers, clickable rows -> detail
+// modal, kebab row actions.
 
 import { useState } from "react";
-import { Plus, HandCoins } from "lucide-react";
+import { Plus, HandCoins, Pencil, Trash2, Eye } from "lucide-react";
 import { useAuth } from "@/auth/AuthProvider";
 import { useWorkspace } from "@/workspace/WorkspaceProvider";
 import { useData } from "@/data/WorkspaceDataProvider";
 import {
   createDebt,
   createTransaction,
+  deleteDebt,
   updateDebt,
   type TransactionInput,
 } from "@/data/mutations";
 import type { Debt, DebtDirection, DebtPurpose } from "@/types/models";
 import { PageHeader } from "@/components/PageHeader";
 import { TransactionFormDialog } from "@/components/TransactionForm";
+import { RowActions, type RowAction } from "@/components/RowActions";
+import { SortableHead } from "@/components/SortableHead";
+import { DetailDialog, type DetailField } from "@/components/DetailDialog";
+import { useSort, type SortAccessor } from "@/lib/useSort";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -42,6 +48,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { useToast } from "@/components/ui/toast";
 import { formatMoney } from "@/lib/utils";
@@ -54,6 +61,8 @@ const PURPOSE_LABELS: Record<DebtPurpose, string> = {
   informal: "Informal",
 };
 
+type SortKey = "label" | "contact" | "purpose" | "status" | "outstanding";
+
 export function Debts() {
   const { firebaseUser } = useAuth();
   const { activeWorkspaceId, activeWorkspace, can } = useWorkspace();
@@ -63,14 +72,38 @@ export function Debts() {
   const manage = can("debts.manage");
   const canTxn = can("transactions.create");
 
-  const [creating, setCreating] = useState(false);
+  const [editing, setEditing] = useState<Debt | "new" | null>(null);
+  const [viewing, setViewing] = useState<Debt | null>(null);
   const [settling, setSettling] = useState<Debt | null>(null);
+  const [toDelete, setToDelete] = useState<Debt | null>(null);
 
   if (loading) return <LoadingState />;
   if (error) return <ErrorState message={error} />;
 
   const owed = debts.filter((d) => d.direction === "owed");
   const owe = debts.filter((d) => d.direction === "owe");
+
+  function rowActions(d: Debt): RowAction[] {
+    const outstanding = outstandingOf(d.id);
+    return [
+      { label: "View details", icon: Eye, onSelect: () => setViewing(d) },
+      {
+        label: d.direction === "owed" ? "Record receipt" : "Record repayment",
+        icon: HandCoins,
+        onSelect: () => setSettling(d),
+        hidden: !canTxn || d.status !== "open" || outstanding <= 0,
+      },
+      { label: "Edit", icon: Pencil, onSelect: () => setEditing(d), hidden: !manage },
+      {
+        label: "Delete",
+        icon: Trash2,
+        onSelect: () => setToDelete(d),
+        destructive: true,
+        separatorBefore: true,
+        hidden: !manage,
+      },
+    ];
+  }
 
   async function handleSettle(input: TransactionInput) {
     if (!activeWorkspaceId || !firebaseUser) return;
@@ -89,7 +122,7 @@ export function Debts() {
         description="Loans, lendings and custodial savings. Outstanding is derived from transactions."
         actions={
           manage && (
-            <Button onClick={() => setCreating(true)}>
+            <Button onClick={() => setEditing("new")}>
               <Plus /> New debt
             </Button>
           )
@@ -100,7 +133,7 @@ export function Debts() {
         <EmptyState
           title="No debts yet"
           hint="Track money you owe or money owed to you."
-          action={manage && <Button onClick={() => setCreating(true)}>New debt</Button>}
+          action={manage && <Button onClick={() => setEditing("new")}>New debt</Button>}
         />
       ) : (
         <div className="space-y-8">
@@ -110,8 +143,8 @@ export function Debts() {
             currency={currency}
             contactName={(id) => contactsById[id]?.name ?? "—"}
             outstandingOf={outstandingOf}
-            onSettle={canTxn ? setSettling : undefined}
-            settleLabel="Record receipt"
+            onRowClick={setViewing}
+            rowActions={rowActions}
           />
           <DebtGroup
             title="You owe"
@@ -119,17 +152,31 @@ export function Debts() {
             currency={currency}
             contactName={(id) => contactsById[id]?.name ?? "—"}
             outstandingOf={outstandingOf}
-            onSettle={canTxn ? setSettling : undefined}
-            settleLabel="Record repayment"
+            onRowClick={setViewing}
+            rowActions={rowActions}
           />
         </div>
       )}
 
-      {creating && activeWorkspaceId && (
+      {viewing && (
+        <DebtDetail
+          debt={viewing}
+          currency={currency}
+          outstanding={outstandingOf(viewing.id)}
+          contactName={contactsById[viewing.contactId]?.name ?? "—"}
+          actions={rowActions(viewing).filter((a) => a.label !== "View details")}
+          onClose={() => setViewing(null)}
+        />
+      )}
+
+      {editing && activeWorkspaceId && (
         <DebtDialog
           workspaceId={activeWorkspaceId}
-          onClose={() => setCreating(false)}
-          onSaved={() => toast({ title: "Debt created", variant: "success" })}
+          debt={editing === "new" ? null : editing}
+          onClose={() => setEditing(null)}
+          onSaved={() =>
+            toast({ title: editing === "new" ? "Debt created" : "Debt updated", variant: "success" })
+          }
         />
       )}
 
@@ -153,6 +200,22 @@ export function Debts() {
           }}
         />
       )}
+
+      <ConfirmDialog
+        open={!!toDelete}
+        onOpenChange={(o) => !o && setToDelete(null)}
+        title={`Delete "${toDelete?.label ?? "debt"}"?`}
+        description="Linked transactions keep their reference but this debt will no longer be tracked."
+        destructive
+        confirmLabel="Delete"
+        onConfirm={async () => {
+          if (toDelete) {
+            await deleteDebt(toDelete.id);
+            setViewing(null);
+            toast({ title: "Debt deleted", variant: "success" });
+          }
+        }}
+      />
     </div>
   );
 }
@@ -163,17 +226,29 @@ function DebtGroup({
   currency,
   contactName,
   outstandingOf,
-  onSettle,
-  settleLabel,
+  onRowClick,
+  rowActions,
 }: {
   title: string;
   debts: Debt[];
   currency: string;
   contactName: (id: string) => string;
   outstandingOf: (id: string) => number;
-  onSettle?: (d: Debt) => void;
-  settleLabel: string;
+  onRowClick: (d: Debt) => void;
+  rowActions: (d: Debt) => RowAction[];
 }) {
+  const accessors: Record<SortKey, SortAccessor<Debt>> = {
+    label: (d) => d.label ?? "",
+    contact: (d) => contactName(d.contactId),
+    purpose: (d) => PURPOSE_LABELS[d.purpose],
+    status: (d) => d.status,
+    outstanding: (d) => outstandingOf(d.id),
+  };
+  const { sorted, sort, toggle } = useSort(debts, accessors, {
+    key: "label",
+    direction: "asc",
+  });
+
   if (debts.length === 0) return null;
   return (
     <div>
@@ -183,78 +258,134 @@ function DebtGroup({
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Label</TableHead>
-            <TableHead>Contact</TableHead>
-            <TableHead>Purpose</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead className="text-right">Outstanding</TableHead>
-            {onSettle && <TableHead className="w-40" />}
+            <SortableHead sortKey="label" sort={sort} onToggle={toggle}>
+              Label
+            </SortableHead>
+            <SortableHead sortKey="contact" sort={sort} onToggle={toggle}>
+              Contact
+            </SortableHead>
+            <SortableHead sortKey="purpose" sort={sort} onToggle={toggle}>
+              Purpose
+            </SortableHead>
+            <SortableHead sortKey="status" sort={sort} onToggle={toggle}>
+              Status
+            </SortableHead>
+            <SortableHead sortKey="outstanding" sort={sort} onToggle={toggle} className="text-right">
+              Outstanding
+            </SortableHead>
+            <TableHead className="w-12" />
           </TableRow>
         </TableHeader>
         <TableBody>
-          {debts.map((d) => {
-            const outstanding = outstandingOf(d.id);
-            return (
-              <TableRow key={d.id}>
-                <TableCell className="font-medium">{d.label ?? "—"}</TableCell>
-                <TableCell>{contactName(d.contactId)}</TableCell>
-                <TableCell>
-                  <Badge variant="secondary">{PURPOSE_LABELS[d.purpose]}</Badge>
-                </TableCell>
-                <TableCell>
-                  <Badge variant={d.status === "open" ? "warning" : "success"}>
-                    {d.status}
-                  </Badge>
-                </TableCell>
-                <TableCell className="text-right tabular-nums">
-                  {formatMoney(outstanding, currency)}
-                </TableCell>
-                {onSettle && (
-                  <TableCell className="text-right">
-                    {d.status === "open" && outstanding > 0 && (
-                      <Button size="sm" variant="outline" onClick={() => onSettle(d)}>
-                        <HandCoins /> {settleLabel}
-                      </Button>
-                    )}
-                  </TableCell>
-                )}
-              </TableRow>
-            );
-          })}
+          {sorted.map((d) => (
+            <TableRow
+              key={d.id}
+              onClick={() => onRowClick(d)}
+              className="cursor-pointer"
+            >
+              <TableCell className="font-medium">{d.label ?? "—"}</TableCell>
+              <TableCell>{contactName(d.contactId)}</TableCell>
+              <TableCell>
+                <Badge variant="secondary">{PURPOSE_LABELS[d.purpose]}</Badge>
+              </TableCell>
+              <TableCell>
+                <Badge variant={d.status === "open" ? "warning" : "success"}>
+                  {d.status}
+                </Badge>
+              </TableCell>
+              <TableCell className="text-right tabular-nums">
+                {formatMoney(outstandingOf(d.id), currency)}
+              </TableCell>
+              <TableCell>
+                <RowActions actions={rowActions(d)} />
+              </TableCell>
+            </TableRow>
+          ))}
         </TableBody>
       </Table>
     </div>
   );
 }
 
+function DebtDetail({
+  debt,
+  currency,
+  outstanding,
+  contactName,
+  actions,
+  onClose,
+}: {
+  debt: Debt;
+  currency: string;
+  outstanding: number;
+  contactName: string;
+  actions: RowAction[];
+  onClose: () => void;
+}) {
+  const fields: DetailField[] = [
+    { label: "Contact", value: contactName },
+    {
+      label: "Direction",
+      value: debt.direction === "owed" ? "They owe you" : "You owe them",
+    },
+    { label: "Purpose", value: PURPOSE_LABELS[debt.purpose] },
+    { label: "Status", value: debt.status },
+    { label: "Principal (reference)", value: formatMoney(debt.principal, currency) },
+    { label: "Outstanding", value: formatMoney(outstanding, currency) },
+  ];
+  return (
+    <DetailDialog
+      open
+      onClose={onClose}
+      title={debt.label ?? PURPOSE_LABELS[debt.purpose]}
+      subtitle={contactName}
+      fields={fields}
+      actions={actions}
+    />
+  );
+}
+
 function DebtDialog({
   workspaceId,
+  debt,
   onClose,
   onSaved,
 }: {
   workspaceId: string;
+  debt: Debt | null;
   onClose: () => void;
   onSaved: () => void;
 }) {
   const { contacts } = useData();
-  const [contactId, setContactId] = useState("");
-  const [direction, setDirection] = useState<DebtDirection>("owe");
-  const [purpose, setPurpose] = useState<DebtPurpose>("loan");
-  const [label, setLabel] = useState("");
-  const [principal, setPrincipal] = useState("0");
+  const [contactId, setContactId] = useState(debt?.contactId ?? "");
+  const [direction, setDirection] = useState<DebtDirection>(debt?.direction ?? "owe");
+  const [purpose, setPurpose] = useState<DebtPurpose>(debt?.purpose ?? "loan");
+  const [label, setLabel] = useState(debt?.label ?? "");
+  const [principal, setPrincipal] = useState(String(debt?.principal ?? 0));
+  const [status, setStatus] = useState(debt?.status ?? "open");
   const [busy, setBusy] = useState(false);
 
   async function save() {
     if (!contactId) return;
     setBusy(true);
     try {
-      await createDebt(workspaceId, {
-        contactId,
-        direction,
-        purpose,
-        principal: Number(principal) || 0,
-        label: label.trim() || undefined,
-      });
+      if (debt) {
+        // direction / purpose / contact are structural; allow label, principal,
+        // and manual status (re-open / settle) edits.
+        await updateDebt(debt.id, {
+          label: label.trim() || undefined,
+          principal: Number(principal) || 0,
+          status,
+        });
+      } else {
+        await createDebt(workspaceId, {
+          contactId,
+          direction,
+          purpose,
+          principal: Number(principal) || 0,
+          label: label.trim() || undefined,
+        });
+      }
       onSaved();
       onClose();
     } finally {
@@ -266,12 +397,12 @@ function DebtDialog({
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>New debt</DialogTitle>
+          <DialogTitle>{debt ? "Edit debt" : "New debt"}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
           <div className="space-y-1.5">
             <Label>Contact</Label>
-            <Select value={contactId} onValueChange={setContactId}>
+            <Select value={contactId} onValueChange={setContactId} disabled={!!debt}>
               <SelectTrigger>
                 <SelectValue placeholder="Select contact" />
               </SelectTrigger>
@@ -287,7 +418,11 @@ function DebtDialog({
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>Direction</Label>
-              <Select value={direction} onValueChange={(v) => setDirection(v as DebtDirection)}>
+              <Select
+                value={direction}
+                onValueChange={(v) => setDirection(v as DebtDirection)}
+                disabled={!!debt}
+              >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -299,7 +434,11 @@ function DebtDialog({
             </div>
             <div className="space-y-1.5">
               <Label>Purpose</Label>
-              <Select value={purpose} onValueChange={(v) => setPurpose(v as DebtPurpose)}>
+              <Select
+                value={purpose}
+                onValueChange={(v) => setPurpose(v as DebtPurpose)}
+                disabled={!!debt}
+              >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -321,21 +460,43 @@ function DebtDialog({
               placeholder="Car loan - HDFC"
             />
           </div>
-          <div className="space-y-1.5">
-            <Label>Principal (reference)</Label>
-            <Input
-              type="number"
-              value={principal}
-              onChange={(e) => setPrincipal(e.target.value)}
-            />
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label>Principal (reference)</Label>
+              <Input
+                type="number"
+                value={principal}
+                onChange={(e) => setPrincipal(e.target.value)}
+              />
+            </div>
+            {debt && (
+              <div className="space-y-1.5">
+                <Label>Status</Label>
+                <Select value={status} onValueChange={(v) => setStatus(v as Debt["status"])}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="open">Open</SelectItem>
+                    <SelectItem value="settled">Settled</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
+          {debt && (
+            <p className="text-xs text-muted-foreground">
+              Contact, direction and purpose are fixed after creation to keep
+              linked transactions consistent.
+            </p>
+          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={busy}>
             Cancel
           </Button>
           <Button onClick={() => void save()} disabled={busy || !contactId}>
-            {busy ? "Saving…" : "Create debt"}
+            {busy ? "Saving…" : debt ? "Save changes" : "Create debt"}
           </Button>
         </DialogFooter>
       </DialogContent>

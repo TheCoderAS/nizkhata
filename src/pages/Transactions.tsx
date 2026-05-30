@@ -1,8 +1,9 @@
 // Transactions (§6.3). List with filters (date, account, category, contact,
-// type, has-split) + search + the multi-line entry form.
+// type, has-split) + search + pagination + sortable headers. Rows open a detail
+// modal; row actions live in a kebab menu (both on the row and in the modal).
 
 import { useMemo, useState } from "react";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Eye } from "lucide-react";
 import { useAuth } from "@/auth/AuthProvider";
 import { useWorkspace } from "@/workspace/WorkspaceProvider";
 import { useData } from "@/data/WorkspaceDataProvider";
@@ -15,6 +16,10 @@ import {
 import type { LineType, Transaction } from "@/types/models";
 import { PageHeader } from "@/components/PageHeader";
 import { TransactionFormDialog } from "@/components/TransactionForm";
+import { RowActions, type RowAction } from "@/components/RowActions";
+import { SortableHead } from "@/components/SortableHead";
+import { DetailDialog, type DetailField } from "@/components/DetailDialog";
+import { useSort, type SortAccessor } from "@/lib/useSort";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -41,6 +46,8 @@ import { cn, formatDate, formatMoney } from "@/lib/utils";
 
 const PAGE_SIZE = 25;
 
+type SortKey = "date" | "account" | "contact" | "amount";
+
 export function Transactions() {
   const { firebaseUser } = useAuth();
   const { activeWorkspaceId, activeWorkspace, can } = useWorkspace();
@@ -62,6 +69,7 @@ export function Transactions() {
 
   const [formOpen, setFormOpen] = useState(false);
   const [editTxn, setEditTxn] = useState<Transaction | null>(null);
+  const [viewTxn, setViewTxn] = useState<Transaction | null>(null);
   const [toDelete, setToDelete] = useState<Transaction | null>(null);
 
   const filtered = useMemo(() => {
@@ -78,8 +86,22 @@ export function Transactions() {
     });
   }, [transactions, accountFilter, contactFilter, splitOnly, typeFilter, search, contactsById]);
 
-  const pageItems = filtered.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE);
-  const pageCount = Math.ceil(filtered.length / PAGE_SIZE);
+  const accessors: Record<SortKey, SortAccessor<Transaction>> = useMemo(
+    () => ({
+      date: (t) => toDate(t.date),
+      account: (t) => accountsById[t.accountId]?.name ?? "",
+      contact: (t) => (t.contactId ? contactsById[t.contactId]?.name ?? "" : ""),
+      amount: (t) => t.totalAmount,
+    }),
+    [accountsById, contactsById],
+  );
+  const { sorted, sort, toggle } = useSort(filtered, accessors, {
+    key: "date",
+    direction: "desc",
+  });
+
+  const pageItems = sorted.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE);
+  const pageCount = Math.ceil(sorted.length / PAGE_SIZE);
 
   if (loading) return <LoadingState />;
   if (error) return <ErrorState message={error} />;
@@ -93,6 +115,21 @@ export function Transactions() {
     if (!activeWorkspaceId || !editTxn) return;
     await updateTransaction(editTxn.id, activeWorkspaceId, editTxn.createdBy, input);
     toast({ title: "Transaction updated", variant: "success" });
+  }
+
+  function rowActions(t: Transaction): RowAction[] {
+    return [
+      { label: "View details", icon: Eye, onSelect: () => setViewTxn(t) },
+      { label: "Edit", icon: Pencil, onSelect: () => setEditTxn(t), hidden: !edit },
+      {
+        label: "Delete",
+        icon: Trash2,
+        onSelect: () => setToDelete(t),
+        destructive: true,
+        separatorBefore: true,
+        hidden: !del,
+      },
+    ];
   }
 
   return (
@@ -160,7 +197,7 @@ export function Transactions() {
         </Button>
       </div>
 
-      {filtered.length === 0 ? (
+      {sorted.length === 0 ? (
         <EmptyState
           title="No transactions"
           hint={transactions.length > 0 ? "Try clearing filters." : "Record your first transaction."}
@@ -173,18 +210,30 @@ export function Transactions() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Date</TableHead>
-                <TableHead>Account</TableHead>
-                <TableHead>Contact</TableHead>
+                <SortableHead sortKey="date" sort={sort} onToggle={toggle}>
+                  Date
+                </SortableHead>
+                <SortableHead sortKey="account" sort={sort} onToggle={toggle}>
+                  Account
+                </SortableHead>
+                <SortableHead sortKey="contact" sort={sort} onToggle={toggle}>
+                  Contact
+                </SortableHead>
                 <TableHead>Lines</TableHead>
                 <TableHead>Note</TableHead>
-                <TableHead className="text-right">Amount</TableHead>
-                {(edit || del) && <TableHead className="w-24" />}
+                <SortableHead sortKey="amount" sort={sort} onToggle={toggle} className="text-right">
+                  Amount
+                </SortableHead>
+                <TableHead className="w-12" />
               </TableRow>
             </TableHeader>
             <TableBody>
               {pageItems.map((t) => (
-                <TableRow key={t.id}>
+                <TableRow
+                  key={t.id}
+                  onClick={() => setViewTxn(t)}
+                  className="cursor-pointer"
+                >
                   <TableCell className="whitespace-nowrap">{formatDate(toDate(t.date))}</TableCell>
                   <TableCell>{accountsById[t.accountId]?.name ?? "—"}</TableCell>
                   <TableCell>{t.contactId ? contactsById[t.contactId]?.name ?? "—" : "—"}</TableCell>
@@ -214,22 +263,9 @@ export function Transactions() {
                   >
                     {formatMoney(t.totalAmount, currency)}
                   </TableCell>
-                  {(edit || del) && (
-                    <TableCell>
-                      <div className="flex justify-end gap-1">
-                        {edit && (
-                          <Button size="icon" variant="ghost" onClick={() => setEditTxn(t)}>
-                            <Pencil />
-                          </Button>
-                        )}
-                        {del && (
-                          <Button size="icon" variant="ghost" onClick={() => setToDelete(t)}>
-                            <Trash2 />
-                          </Button>
-                        )}
-                      </div>
-                    </TableCell>
-                  )}
+                  <TableCell>
+                    <RowActions actions={rowActions(t)} />
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -238,7 +274,7 @@ export function Transactions() {
           {pageCount > 1 && (
             <div className="mt-4 flex items-center justify-between text-sm">
               <span className="text-muted-foreground">
-                {filtered.length} transactions · page {page + 1} of {pageCount}
+                {sorted.length} transactions · page {page + 1} of {pageCount}
               </span>
               <div className="flex gap-2">
                 <Button
@@ -261,6 +297,17 @@ export function Transactions() {
             </div>
           )}
         </>
+      )}
+
+      {viewTxn && (
+        <TransactionDetail
+          txn={viewTxn}
+          currency={currency}
+          accountName={(id) => accountsById[id]?.name ?? "—"}
+          contactName={(id) => contactsById[id]?.name ?? "—"}
+          actions={rowActions(viewTxn).filter((a) => a.label !== "View details")}
+          onClose={() => setViewTxn(null)}
+        />
       )}
 
       {formOpen && (
@@ -291,11 +338,89 @@ export function Transactions() {
         onConfirm={async () => {
           if (toDelete) {
             await deleteTransaction(toDelete.id);
+            setViewTxn(null);
             toast({ title: "Transaction deleted", variant: "success" });
           }
         }}
       />
     </div>
+  );
+}
+
+function TransactionDetail({
+  txn,
+  currency,
+  accountName,
+  contactName,
+  actions,
+  onClose,
+}: {
+  txn: Transaction;
+  currency: string;
+  accountName: (id: string) => string;
+  contactName: (id: string) => string;
+  actions: RowAction[];
+  onClose: () => void;
+}) {
+  const fields: DetailField[] = [
+    { label: "Date", value: formatDate(toDate(txn.date)) },
+    { label: "Account", value: accountName(txn.accountId) },
+    {
+      label: "Contact",
+      value: txn.contactId ? contactName(txn.contactId) : "—",
+    },
+    { label: "Financial year", value: txn.financialYear },
+    {
+      label: "Total",
+      value: (
+        <span
+          className={cn(
+            "tabular-nums",
+            txn.totalAmount < 0 && "text-destructive",
+            txn.totalAmount > 0 && "text-green-600",
+          )}
+        >
+          {formatMoney(txn.totalAmount, currency)}
+        </span>
+      ),
+    },
+    { label: "Note", value: txn.note ?? "—", block: true, hidden: !txn.note },
+  ];
+
+  return (
+    <DetailDialog
+      open
+      onClose={onClose}
+      title="Transaction"
+      subtitle={`${txn.lines.length} line${txn.lines.length > 1 ? "s" : ""}`}
+      fields={fields}
+      actions={actions}
+    >
+      <div className="mt-2">
+        <p className="mb-2 text-sm font-medium">Lines</p>
+        <div className="space-y-2">
+          {txn.lines.map((l) => (
+            <div
+              key={l.lineId}
+              className="flex items-center justify-between rounded-md border p-2 text-sm"
+            >
+              <div className="flex items-center gap-2">
+                <Badge variant="secondary" className="text-[10px]">
+                  {l.type}
+                </Badge>
+                {l.tax?.taxable && (
+                  <Badge variant="outline" className="text-[10px]">
+                    tax: {l.tax.head}
+                  </Badge>
+                )}
+                {l.note && <span className="text-muted-foreground">{l.note}</span>}
+              </div>
+              <span className="tabular-nums">{formatMoney(l.amount, currency)}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </DetailDialog>
   );
 }
 

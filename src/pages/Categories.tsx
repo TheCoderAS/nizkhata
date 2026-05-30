@@ -1,12 +1,17 @@
 // Categories (§6.7). CRUD; income/expense; system categories read-only.
+// Sortable headers; rows open a detail modal; actions in a kebab menu.
 
 import { useState } from "react";
-import { Plus, Pencil, Trash2, Lock } from "lucide-react";
+import { Plus, Pencil, Trash2, Lock, Eye } from "lucide-react";
 import { useWorkspace } from "@/workspace/WorkspaceProvider";
 import { useData } from "@/data/WorkspaceDataProvider";
 import { createCategory, deleteCategory, updateCategory } from "@/data/mutations";
 import type { Category, CategoryKind } from "@/types/models";
 import { PageHeader } from "@/components/PageHeader";
+import { RowActions, type RowAction } from "@/components/RowActions";
+import { SortableHead } from "@/components/SortableHead";
+import { DetailDialog } from "@/components/DetailDialog";
+import { useSort, type SortAccessor } from "@/lib/useSort";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -38,6 +43,8 @@ import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { useToast } from "@/components/ui/toast";
 
+type SortKey = "name" | "source";
+
 export function Categories() {
   const { activeWorkspaceId, can } = useWorkspace();
   const { categories, loading, error } = useData();
@@ -46,14 +53,43 @@ export function Categories() {
 
   const [kind, setKind] = useState<CategoryKind>("expense");
   const [editing, setEditing] = useState<Category | "new" | null>(null);
+  const [viewing, setViewing] = useState<Category | null>(null);
   const [toDelete, setToDelete] = useState<Category | null>(null);
 
   if (loading) return <LoadingState />;
   if (error) return <ErrorState message={error} />;
 
-  const filtered = categories
-    .filter((c) => c.kind === kind)
-    .sort((a, b) => a.name.localeCompare(b.name));
+  const filtered = categories.filter((c) => c.kind === kind);
+  const accessors: Record<SortKey, SortAccessor<Category>> = {
+    name: (c) => c.name,
+    source: (c) => (c.isSystem ? "System" : "Custom"),
+  };
+  const { sorted, sort, toggle } = useSort(filtered, accessors, {
+    key: "name",
+    direction: "asc",
+  });
+
+  function rowActions(c: Category): RowAction[] {
+    return [
+      { label: "View details", icon: Eye, onSelect: () => setViewing(c) },
+      {
+        label: "Edit",
+        icon: Pencil,
+        onSelect: () => setEditing(c),
+        hidden: !manage,
+        disabled: c.isSystem,
+      },
+      {
+        label: "Delete",
+        icon: Trash2,
+        onSelect: () => setToDelete(c),
+        destructive: true,
+        separatorBefore: true,
+        hidden: !manage,
+        disabled: c.isSystem,
+      },
+    ];
+  }
 
   return (
     <div>
@@ -76,20 +112,28 @@ export function Categories() {
         </TabsList>
       </Tabs>
 
-      {filtered.length === 0 ? (
+      {sorted.length === 0 ? (
         <EmptyState title={`No ${kind} categories`} />
       ) : (
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Source</TableHead>
-              {manage && <TableHead className="w-24" />}
+              <SortableHead sortKey="name" sort={sort} onToggle={toggle}>
+                Name
+              </SortableHead>
+              <SortableHead sortKey="source" sort={sort} onToggle={toggle}>
+                Source
+              </SortableHead>
+              <TableHead className="w-12" />
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filtered.map((c) => (
-              <TableRow key={c.id}>
+            {sorted.map((c) => (
+              <TableRow
+                key={c.id}
+                onClick={() => setViewing(c)}
+                className="cursor-pointer"
+              >
                 <TableCell className="font-medium">{c.name}</TableCell>
                 <TableCell>
                   {c.isSystem ? (
@@ -100,32 +144,27 @@ export function Categories() {
                     <Badge variant="secondary">Custom</Badge>
                   )}
                 </TableCell>
-                {manage && (
-                  <TableCell>
-                    <div className="flex justify-end gap-1">
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        disabled={c.isSystem}
-                        onClick={() => setEditing(c)}
-                      >
-                        <Pencil />
-                      </Button>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        disabled={c.isSystem}
-                        onClick={() => setToDelete(c)}
-                      >
-                        <Trash2 />
-                      </Button>
-                    </div>
-                  </TableCell>
-                )}
+                <TableCell>
+                  <RowActions actions={rowActions(c)} />
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
+      )}
+
+      {viewing && (
+        <DetailDialog
+          open
+          onClose={() => setViewing(null)}
+          title={viewing.name}
+          subtitle={viewing.kind === "income" ? "Income category" : "Expense category"}
+          fields={[
+            { label: "Kind", value: viewing.kind === "income" ? "Income" : "Expense" },
+            { label: "Source", value: viewing.isSystem ? "System (read-only)" : "Custom" },
+          ]}
+          actions={rowActions(viewing).filter((a) => a.label !== "View details")}
+        />
       )}
 
       {editing && activeWorkspaceId && (
