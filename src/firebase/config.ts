@@ -1,0 +1,36 @@
+// Firebase app initialization. Reads config from Vite env vars (see .env.example).
+// When VITE_USE_EMULATORS=true, connects Auth + Firestore to the local Emulator
+// Suite instead of a real project (build order step 1).
+
+import { initializeApp, type FirebaseOptions } from "firebase/app";
+import { getAuth, connectAuthEmulator, GoogleAuthProvider } from "firebase/auth";
+import { getFirestore, connectFirestoreEmulator } from "firebase/firestore";
+
+const firebaseConfig: FirebaseOptions = {
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+};
+
+export const app = initializeApp(firebaseConfig);
+export const auth = getAuth(app);
+export const db = getFirestore(app);
+export const googleProvider = new GoogleAuthProvider();
+
+const useEmulators = import.meta.env.VITE_USE_EMULATORS === "true";
+
+if (useEmulators) {
+  // Guard against double-connecting during HMR.
+  // @ts-expect-error internal flag we set ourselves
+  if (!globalThis.__EMULATORS_CONNECTED__) {
+    connectAuthEmulator(auth, "http://127.0.0.1:9099", { disableWarnings: true });
+    connectFirestoreEmulator(db, "127.0.0.1", 8080);
+    // @ts-expect-error internal flag we set ourselves
+    globalThis.__EMULATORS_CONNECTED__ = true;
+    // eslint-disable-next-line no-console
+    console.info("[firebase] connected to local emulators");
+  }
+}
