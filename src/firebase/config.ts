@@ -13,6 +13,7 @@ const firebaseConfig: FirebaseOptions = {
   storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
 };
 
 export const app = initializeApp(firebaseConfig);
@@ -33,4 +34,12 @@ if (useEmulators) {
     // eslint-disable-next-line no-console
     console.info("[firebase] connected to local emulators");
   }
+} else if (import.meta.env.PROD && import.meta.env.VITE_FIREBASE_MEASUREMENT_ID) {
+  // Analytics only in production builds against the real project, and only if
+  // the browser supports it (avoids SSR/unsupported-environment errors).
+  void import("firebase/analytics").then(({ getAnalytics, isSupported }) =>
+    isSupported().then((ok) => {
+      if (ok) getAnalytics(app);
+    }),
+  );
 }
