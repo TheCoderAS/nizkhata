@@ -98,14 +98,12 @@ export function Accounts() {
     <div>
       <PageHeader
         title="Accounts"
-        description="Cash, bank and credit-card accounts. Balances are derived from transactions."
-        actions={
-          manage && (
-            <Button onClick={() => setEditing("new")}>
-              <Plus /> New account
-            </Button>
-          )
-        }
+        primaryAction={{
+          label: "New account",
+          icon: Plus,
+          onClick: () => setEditing("new"),
+          hidden: !manage,
+        }}
       />
 
       {accounts.length === 0 ? (

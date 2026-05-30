@@ -60,7 +60,7 @@ export function WorkspaceSettings() {
 
   return (
     <div className="max-w-xl">
-      <PageHeader title="Workspace" description="Name, currency and financial-year start." />
+      <PageHeader title="Workspace" />
 
       <Card>
         <CardHeader>

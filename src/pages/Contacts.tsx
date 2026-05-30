@@ -95,14 +95,12 @@ export function Contacts() {
     <div>
       <PageHeader
         title="Contacts"
-        description="People and businesses you transact with."
-        actions={
-          manage && (
-            <Button onClick={() => setEditing("new")}>
-              <Plus /> New contact
-            </Button>
-          )
-        }
+        primaryAction={{
+          label: "New contact",
+          icon: Plus,
+          onClick: () => setEditing("new"),
+          hidden: !manage,
+        }}
       />
 
       <Input

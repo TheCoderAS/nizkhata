@@ -56,14 +56,12 @@ export function Roles() {
     <div>
       <PageHeader
         title="Roles"
-        description="Custom permission sets. System roles can be duplicated to customize."
-        actions={
-          manage && (
-            <Button onClick={() => setEditing("new")}>
-              <Plus /> New role
-            </Button>
-          )
-        }
+        primaryAction={{
+          label: "New role",
+          icon: Plus,
+          onClick: () => setEditing("new"),
+          hidden: !manage,
+        }}
       />
 
       <div className="grid gap-4 md:grid-cols-2">

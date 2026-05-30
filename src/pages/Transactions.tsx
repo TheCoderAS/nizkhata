@@ -136,14 +136,12 @@ export function Transactions() {
     <div>
       <PageHeader
         title="Transactions"
-        description="Multi-line entries. Each line carries its own type, category/debt and tax."
-        actions={
-          create && (
-            <Button onClick={() => setFormOpen(true)}>
-              <Plus /> New transaction
-            </Button>
-          )
-        }
+        primaryAction={{
+          label: "New transaction",
+          icon: Plus,
+          onClick: () => setFormOpen(true),
+          hidden: !create,
+        }}
       />
 
       {/* filters */}
