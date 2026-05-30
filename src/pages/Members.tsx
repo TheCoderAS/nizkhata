@@ -1,0 +1,306 @@
+// Settings › Members (§6.10). List members + roles; invite; change role; remove
+// (owner protected). Note: per Security Rules a member can only read their own
+// users/{uid} profile, so other members are shown by uid + their role.
+
+import { useState } from "react";
+import { Plus, Trash2, Mail } from "lucide-react";
+import { useAuth } from "@/auth/AuthProvider";
+import { useWorkspace } from "@/workspace/WorkspaceProvider";
+import { useAdminData } from "@/data/useAdminData";
+import {
+  GuardrailError,
+  changeMemberRole,
+  createInvite,
+  removeMember,
+  revokeInvite,
+} from "@/data/adminMutations";
+import type { Membership } from "@/types/models";
+import { PageHeader } from "@/components/PageHeader";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { ErrorState, LoadingState } from "@/components/states";
+import { useToast } from "@/components/ui/toast";
+
+export function Members() {
+  const { firebaseUser } = useAuth();
+  const { activeWorkspace, can } = useWorkspace();
+  const { memberships, roles, rolesById, invites, loading, error } = useAdminData();
+  const { toast } = useToast();
+
+  const canInvite = can("members.invite");
+  const canRemove = can("members.remove");
+  const ownerId = activeWorkspace?.ownerId;
+
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [toRemove, setToRemove] = useState<Membership | null>(null);
+
+  if (loading) return <LoadingState />;
+  if (error) return <ErrorState message={error} />;
+
+  const pendingInvites = invites.filter((i) => i.status === "pending");
+
+  async function handleRoleChange(m: Membership, roleId: string) {
+    try {
+      await changeMemberRole(m, roleId, ownerId ?? "");
+      toast({ title: "Role updated", variant: "success" });
+    } catch (e) {
+      toast({
+        title: "Couldn't change role",
+        description: e instanceof GuardrailError ? e.message : String(e),
+        variant: "error",
+      });
+    }
+  }
+
+  return (
+    <div>
+      <PageHeader
+        title="Members"
+        description="People with access to this workspace."
+        actions={
+          canInvite && (
+            <Button onClick={() => setInviteOpen(true)}>
+              <Plus /> Invite
+            </Button>
+          )
+        }
+      />
+
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Member</TableHead>
+            <TableHead>Role</TableHead>
+            <TableHead>Status</TableHead>
+            {canRemove && <TableHead className="w-20" />}
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {memberships.map((m) => {
+            const isOwner = m.uid === ownerId;
+            const isSelf = m.uid === firebaseUser?.uid;
+            return (
+              <TableRow key={m.id}>
+                <TableCell className="font-medium">
+                  {isSelf ? "You" : `${m.uid.slice(0, 8)}…`}
+                  {isOwner && (
+                    <Badge variant="outline" className="ml-2">
+                      Owner
+                    </Badge>
+                  )}
+                </TableCell>
+                <TableCell>
+                  {canInvite && !isOwner ? (
+                    <Select value={m.roleId} onValueChange={(v) => handleRoleChange(m, v)}>
+                      <SelectTrigger className="w-40">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {roles.map((r) => (
+                          <SelectItem key={r.id} value={r.id}>
+                            {r.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Badge variant="secondary">{rolesById[m.roleId]?.name ?? "—"}</Badge>
+                  )}
+                </TableCell>
+                <TableCell>
+                  <Badge variant="success">active</Badge>
+                </TableCell>
+                {canRemove && (
+                  <TableCell className="text-right">
+                    {!isOwner && (
+                      <Button size="icon" variant="ghost" onClick={() => setToRemove(m)}>
+                        <Trash2 />
+                      </Button>
+                    )}
+                  </TableCell>
+                )}
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
+
+      {pendingInvites.length > 0 && (
+        <div className="mt-8">
+          <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+            Pending invites
+          </h2>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Email</TableHead>
+                <TableHead>Role</TableHead>
+                {canInvite && <TableHead className="w-20" />}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {pendingInvites.map((i) => (
+                <TableRow key={i.id}>
+                  <TableCell className="font-medium">
+                    <Mail className="mr-1 inline h-3 w-3" /> {i.email}
+                  </TableCell>
+                  <TableCell>{rolesById[i.roleId]?.name ?? "—"}</TableCell>
+                  {canInvite && (
+                    <TableCell className="text-right">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={async () => {
+                          await revokeInvite(i.id);
+                          toast({ title: "Invite revoked", variant: "success" });
+                        }}
+                      >
+                        Revoke
+                      </Button>
+                    </TableCell>
+                  )}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
+
+      {inviteOpen && activeWorkspace && (
+        <InviteDialog
+          workspaceId={activeWorkspace.id}
+          invitedBy={firebaseUser?.uid ?? ""}
+          roles={roles}
+          onClose={() => setInviteOpen(false)}
+          onSaved={() => toast({ title: "Invite sent", variant: "success" })}
+        />
+      )}
+
+      <ConfirmDialog
+        open={!!toRemove}
+        onOpenChange={(o) => !o && setToRemove(null)}
+        title="Remove member?"
+        description="They will lose access to this workspace."
+        destructive
+        confirmLabel="Remove"
+        onConfirm={async () => {
+          if (toRemove) {
+            try {
+              await removeMember(toRemove, ownerId ?? "");
+              toast({ title: "Member removed", variant: "success" });
+            } catch (e) {
+              toast({
+                title: "Couldn't remove",
+                description: e instanceof GuardrailError ? e.message : String(e),
+                variant: "error",
+              });
+            }
+          }
+        }}
+      />
+    </div>
+  );
+}
+
+function InviteDialog({
+  workspaceId,
+  invitedBy,
+  roles,
+  onClose,
+  onSaved,
+}: {
+  workspaceId: string;
+  invitedBy: string;
+  roles: { id: string; name: string }[];
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [email, setEmail] = useState("");
+  const [roleId, setRoleId] = useState(roles[0]?.id ?? "");
+  const [busy, setBusy] = useState(false);
+
+  async function save() {
+    if (!email.trim() || !roleId) return;
+    setBusy(true);
+    try {
+      await createInvite(workspaceId, email.trim(), roleId, invitedBy);
+      onSaved();
+      onClose();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Invite member</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="inv-email">Email</Label>
+            <Input
+              id="inv-email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="person@example.com"
+            />
+            <p className="text-xs text-muted-foreground">
+              They'll join with this role on their next sign-in.
+            </p>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Role</Label>
+            <Select value={roleId} onValueChange={setRoleId}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {roles.map((r) => (
+                  <SelectItem key={r.id} value={r.id}>
+                    {r.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={busy}>
+            Cancel
+          </Button>
+          <Button onClick={() => void save()} disabled={busy || !email.trim()}>
+            {busy ? "Sending…" : "Send invite"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}

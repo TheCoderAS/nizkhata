@@ -120,15 +120,6 @@ export interface ValidationIssue {
   message: string;
 }
 
-const LINE_TYPES_NEEDING_CATEGORY: LineType[] = [
-  "income",
-  "expense",
-  "interest_income",
-  "interest_expense",
-  "fee",
-  "tax",
-];
-
 const LINE_TYPES_NEEDING_DEBT: LineType[] = ["borrow", "lend", "repayment"];
 
 /**
