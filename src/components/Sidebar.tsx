@@ -118,7 +118,7 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-base font-bold text-primary-foreground">
           ₹
         </div>
-        <span className="font-semibold tracking-tight">Nizkhata</span>
+        <span className="font-semibold tracking-tight">NizKhata</span>
       </div>
       <WorkspaceSwitcher />
       <NavSection items={MAIN_NAV} onNavigate={onNavigate} />

@@ -1,4 +1,6 @@
-# Shared Accounting App
+# NizKhata
+
+**Every rupee, accounted for.**
 
 Multi-workspace, single-entry accounting with multi-line transactions, contacts,
 debts, dues, transfers, and per-line tax tagging.

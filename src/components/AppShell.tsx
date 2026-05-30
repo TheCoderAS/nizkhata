@@ -61,7 +61,7 @@ export function AppShell() {
                 <Menu className="h-5 w-5" />
               </Button>
             )}
-            <span className="font-semibold tracking-tight md:hidden">Nizkhata</span>
+            <span className="font-semibold tracking-tight md:hidden">NizKhata</span>
           </div>
 
           <div className="flex items-center gap-1 sm:gap-2">

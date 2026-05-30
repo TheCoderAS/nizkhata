@@ -11,10 +11,10 @@ export default defineConfig({
       registerType: "autoUpdate",
       includeAssets: ["favicon.svg", "apple-touch-icon.png"],
       manifest: {
-        name: "Nizkhata — Shared Accounting",
-        short_name: "Nizkhata",
+        name: "NizKhata — Every rupee, accounted for.",
+        short_name: "NizKhata",
         description:
-          "Multi-workspace shared accounting: multi-line transactions, debts, dues and FY tax reports.",
+          "Shared, multi-workspace accounting: multi-line transactions, accounts, contacts, debts, dues and financial-year tax summaries with role-based access.",
         theme_color: "#4338ca",
         background_color: "#0b1120",
         display: "standalone",
