@@ -1,11 +1,18 @@
-# Shared Accounting App
+# NizKhata
+
+**Every rupee, accounted for.**
 
 Multi-workspace, single-entry accounting with multi-line transactions, contacts,
 debts, dues, transfers, and per-line tax tagging.
 
 **Stack:** React + Vite + TypeScript · Firebase (Firestore + Google Auth) ·
-Firestore Security Rules · Tailwind CSS. Pure client + Firestore + Rules (no
-Cloud Functions).
+Firestore Security Rules · Tailwind CSS + shadcn/ui. Pure client + Firestore +
+Rules (no Cloud Functions).
+
+**UX:** installable **PWA** (offline app-shell via `vite-plugin-pwa` /
+Workbox), **light / dark / system theme** (persisted, no flash-of-wrong-theme),
+fully **responsive** (desktop sidebar rail ↔ mobile drawer), with entrance
+animations and reduced-motion support.
 
 > Status: **Foundation phase** (build-order steps 1–4) is implemented — data
 > model, seed logic, Security Rules + tests, auth, onboarding, workspace +

@@ -144,7 +144,9 @@ export async function createDue(
 }
 export async function updateDue(
   id: string,
-  data: Partial<Pick<Due, "title" | "amount" | "dueDate" | "status" | "contactId" | "accountId">>,
+  data: Partial<
+    Pick<Due, "direction" | "title" | "amount" | "dueDate" | "status" | "contactId" | "accountId">
+  >,
 ) {
   await updateDoc(doc(db, "dues", id), stripUndefined(data));
 }

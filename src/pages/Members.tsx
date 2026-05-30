@@ -3,7 +3,7 @@
 // users/{uid} profile, so other members are shown by uid + their role.
 
 import { useState } from "react";
-import { Plus, Trash2, Mail } from "lucide-react";
+import { Plus, Trash2, Mail, Ban } from "lucide-react";
 import { useAuth } from "@/auth/AuthProvider";
 import { useWorkspace } from "@/workspace/WorkspaceProvider";
 import { useAdminData } from "@/data/useAdminData";
@@ -16,6 +16,7 @@ import {
 } from "@/data/adminMutations";
 import type { Membership } from "@/types/models";
 import { PageHeader } from "@/components/PageHeader";
+import { RowActions } from "@/components/RowActions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -136,11 +137,18 @@ export function Members() {
                   <Badge variant="success">active</Badge>
                 </TableCell>
                 {canRemove && (
-                  <TableCell className="text-right">
+                  <TableCell>
                     {!isOwner && (
-                      <Button size="icon" variant="ghost" onClick={() => setToRemove(m)}>
-                        <Trash2 />
-                      </Button>
+                      <RowActions
+                        actions={[
+                          {
+                            label: "Remove member",
+                            icon: Trash2,
+                            destructive: true,
+                            onSelect: () => setToRemove(m),
+                          },
+                        ]}
+                      />
                     )}
                   </TableCell>
                 )}
@@ -171,17 +179,20 @@ export function Members() {
                   </TableCell>
                   <TableCell>{rolesById[i.roleId]?.name ?? "—"}</TableCell>
                   {canInvite && (
-                    <TableCell className="text-right">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={async () => {
-                          await revokeInvite(i.id);
-                          toast({ title: "Invite revoked", variant: "success" });
-                        }}
-                      >
-                        Revoke
-                      </Button>
+                    <TableCell>
+                      <RowActions
+                        actions={[
+                          {
+                            label: "Revoke invite",
+                            icon: Ban,
+                            destructive: true,
+                            onSelect: async () => {
+                              await revokeInvite(i.id);
+                              toast({ title: "Invite revoked", variant: "success" });
+                            },
+                          },
+                        ]}
+                      />
                     </TableCell>
                   )}
                 </TableRow>

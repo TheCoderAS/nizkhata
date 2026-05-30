@@ -2,13 +2,16 @@
 // (green = owes you, red = you owe them).
 
 import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Plus, Pencil, Trash2, Eye } from "lucide-react";
 import { useWorkspace } from "@/workspace/WorkspaceProvider";
 import { useData } from "@/data/WorkspaceDataProvider";
 import { createContact, deleteContact, updateContact } from "@/data/mutations";
 import type { Contact, ContactType } from "@/types/models";
 import { PageHeader } from "@/components/PageHeader";
+import { RowActions, type RowAction } from "@/components/RowActions";
+import { SortableHead } from "@/components/SortableHead";
+import { useSort, type SortAccessor } from "@/lib/useSort";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -41,7 +44,10 @@ import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { useToast } from "@/components/ui/toast";
 import { cn, formatMoney } from "@/lib/utils";
 
+type SortKey = "name" | "type" | "net";
+
 export function Contacts() {
+  const navigate = useNavigate();
   const { activeWorkspaceId, activeWorkspace, can } = useWorkspace();
   const { contacts, positionOf, loading, error } = useData();
   const { toast } = useToast();
@@ -53,15 +59,37 @@ export function Contacts() {
   const [toDelete, setToDelete] = useState<Contact | null>(null);
 
   const filtered = useMemo(
-    () =>
-      contacts
-        .filter((c) => c.name.toLowerCase().includes(search.toLowerCase()))
-        .sort((a, b) => a.name.localeCompare(b.name)),
+    () => contacts.filter((c) => c.name.toLowerCase().includes(search.toLowerCase())),
     [contacts, search],
   );
 
+  const accessors: Record<SortKey, SortAccessor<Contact>> = {
+    name: (c) => c.name,
+    type: (c) => c.type,
+    net: (c) => positionOf(c.id).net,
+  };
+  const { sorted, sort, toggle } = useSort(filtered, accessors, {
+    key: "name",
+    direction: "asc",
+  });
+
   if (loading) return <LoadingState />;
   if (error) return <ErrorState message={error} />;
+
+  function rowActions(c: Contact): RowAction[] {
+    return [
+      { label: "View details", icon: Eye, onSelect: () => navigate(`/contacts/${c.id}`) },
+      { label: "Edit", icon: Pencil, onSelect: () => setEditing(c), hidden: !manage },
+      {
+        label: "Delete",
+        icon: Trash2,
+        onSelect: () => setToDelete(c),
+        destructive: true,
+        separatorBefore: true,
+        hidden: !manage,
+      },
+    ];
+  }
 
   return (
     <div>
@@ -84,7 +112,7 @@ export function Contacts() {
         className="mb-4 max-w-sm"
       />
 
-      {filtered.length === 0 ? (
+      {sorted.length === 0 ? (
         <EmptyState
           title={search ? "No matches" : "No contacts yet"}
           action={
@@ -97,22 +125,28 @@ export function Contacts() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Type</TableHead>
-              <TableHead className="text-right">Net position</TableHead>
-              {manage && <TableHead className="w-24" />}
+              <SortableHead sortKey="name" sort={sort} onToggle={toggle}>
+                Name
+              </SortableHead>
+              <SortableHead sortKey="type" sort={sort} onToggle={toggle}>
+                Type
+              </SortableHead>
+              <SortableHead sortKey="net" sort={sort} onToggle={toggle} className="text-right">
+                Net position
+              </SortableHead>
+              <TableHead className="w-12" />
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filtered.map((c) => {
+            {sorted.map((c) => {
               const { net } = positionOf(c.id);
               return (
-                <TableRow key={c.id}>
-                  <TableCell className="font-medium">
-                    <Link to={`/contacts/${c.id}`} className="hover:underline">
-                      {c.name}
-                    </Link>
-                  </TableCell>
+                <TableRow
+                  key={c.id}
+                  onClick={() => navigate(`/contacts/${c.id}`)}
+                  className="cursor-pointer"
+                >
+                  <TableCell className="font-medium">{c.name}</TableCell>
                   <TableCell>
                     <Badge variant="secondary">
                       {c.type === "business" ? "Business" : "Person"}
@@ -131,18 +165,9 @@ export function Contacts() {
                         ? `${formatMoney(net, currency)} owes you`
                         : `${formatMoney(-net, currency)} you owe`}
                   </TableCell>
-                  {manage && (
-                    <TableCell>
-                      <div className="flex justify-end gap-1">
-                        <Button size="icon" variant="ghost" onClick={() => setEditing(c)}>
-                          <Pencil />
-                        </Button>
-                        <Button size="icon" variant="ghost" onClick={() => setToDelete(c)}>
-                          <Trash2 />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  )}
+                  <TableCell>
+                    <RowActions actions={rowActions(c)} />
+                  </TableCell>
                 </TableRow>
               );
             })}

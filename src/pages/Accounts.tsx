@@ -1,12 +1,17 @@
 // Accounts (§6.6). CRUD; derived balance; credit-card shows outstanding.
+// Sortable headers; rows open a detail modal; actions in a kebab menu.
 
-import { useState } from "react";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Plus, Pencil, Trash2, Eye } from "lucide-react";
 import { useWorkspace } from "@/workspace/WorkspaceProvider";
 import { useData } from "@/data/WorkspaceDataProvider";
 import { createAccount, deleteAccount, updateAccount } from "@/data/mutations";
 import type { Account, AccountType } from "@/types/models";
 import { PageHeader } from "@/components/PageHeader";
+import { RowActions, type RowAction } from "@/components/RowActions";
+import { SortableHead } from "@/components/SortableHead";
+import { DetailDialog, type DetailField } from "@/components/DetailDialog";
+import { useSort, type SortAccessor } from "@/lib/useSort";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -44,6 +49,8 @@ const TYPE_LABELS: Record<AccountType, string> = {
   credit_card: "Credit Card",
 };
 
+type SortKey = "name" | "type" | "opening" | "balance";
+
 export function Accounts() {
   const { activeWorkspaceId, activeWorkspace, can } = useWorkspace();
   const { accounts, balanceOf, loading, error } = useData();
@@ -52,10 +59,40 @@ export function Accounts() {
   const manage = can("accounts.manage");
 
   const [editing, setEditing] = useState<Account | "new" | null>(null);
+  const [viewing, setViewing] = useState<Account | null>(null);
   const [toDelete, setToDelete] = useState<Account | null>(null);
+
+  const accessors: Record<SortKey, SortAccessor<Account>> = useMemo(
+    () => ({
+      name: (a) => a.name,
+      type: (a) => TYPE_LABELS[a.type],
+      opening: (a) => a.openingBalance,
+      balance: (a) => balanceOf(a.id),
+    }),
+    [balanceOf],
+  );
+  const { sorted, sort, toggle } = useSort(accounts, accessors, {
+    key: "name",
+    direction: "asc",
+  });
 
   if (loading) return <LoadingState />;
   if (error) return <ErrorState message={error} />;
+
+  function rowActions(a: Account): RowAction[] {
+    return [
+      { label: "View details", icon: Eye, onSelect: () => setViewing(a) },
+      { label: "Edit", icon: Pencil, onSelect: () => setEditing(a), hidden: !manage },
+      {
+        label: "Delete",
+        icon: Trash2,
+        onSelect: () => setToDelete(a),
+        destructive: true,
+        separatorBefore: true,
+        hidden: !manage,
+      },
+    ];
+  }
 
   return (
     <div>
@@ -83,19 +120,31 @@ export function Accounts() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Type</TableHead>
-              <TableHead className="text-right">Opening</TableHead>
-              <TableHead className="text-right">Balance</TableHead>
-              {manage && <TableHead className="w-24" />}
+              <SortableHead sortKey="name" sort={sort} onToggle={toggle}>
+                Name
+              </SortableHead>
+              <SortableHead sortKey="type" sort={sort} onToggle={toggle}>
+                Type
+              </SortableHead>
+              <SortableHead sortKey="opening" sort={sort} onToggle={toggle} className="text-right">
+                Opening
+              </SortableHead>
+              <SortableHead sortKey="balance" sort={sort} onToggle={toggle} className="text-right">
+                Balance
+              </SortableHead>
+              <TableHead className="w-12" />
             </TableRow>
           </TableHeader>
           <TableBody>
-            {accounts.map((a) => {
+            {sorted.map((a) => {
               const bal = balanceOf(a.id);
               const isCard = a.type === "credit_card";
               return (
-                <TableRow key={a.id}>
+                <TableRow
+                  key={a.id}
+                  onClick={() => setViewing(a)}
+                  className="cursor-pointer"
+                >
                   <TableCell className="font-medium">{a.name}</TableCell>
                   <TableCell>
                     <Badge variant="secondary">{TYPE_LABELS[a.type]}</Badge>
@@ -113,23 +162,24 @@ export function Accounts() {
                       ? `${formatMoney(-bal, currency)} owed`
                       : formatMoney(bal, currency)}
                   </TableCell>
-                  {manage && (
-                    <TableCell>
-                      <div className="flex justify-end gap-1">
-                        <Button size="icon" variant="ghost" onClick={() => setEditing(a)}>
-                          <Pencil />
-                        </Button>
-                        <Button size="icon" variant="ghost" onClick={() => setToDelete(a)}>
-                          <Trash2 />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  )}
+                  <TableCell>
+                    <RowActions actions={rowActions(a)} />
+                  </TableCell>
                 </TableRow>
               );
             })}
           </TableBody>
         </Table>
+      )}
+
+      {viewing && (
+        <AccountDetail
+          account={viewing}
+          balance={balanceOf(viewing.id)}
+          currency={currency}
+          actions={rowActions(viewing).filter((a) => a.label !== "View details")}
+          onClose={() => setViewing(null)}
+        />
       )}
 
       {editing && activeWorkspaceId && (
@@ -153,6 +203,7 @@ export function Accounts() {
         onConfirm={async () => {
           if (toDelete) {
             await deleteAccount(toDelete.id);
+            setViewing(null);
             toast({ title: "Account deleted", variant: "success" });
           }
         }}
@@ -160,6 +211,47 @@ export function Accounts() {
     </div>
   );
 }
+
+function AccountDetail({
+  account,
+  balance,
+  currency,
+  actions,
+  onClose,
+}: {
+  account: Account;
+  balance: number;
+  currency: string;
+  actions: RowAction[];
+  onClose: () => void;
+}) {
+  const isCard = account.type === "credit_card";
+  const fields: DetailField[] = [
+    { label: "Type", value: TYPE_LABELS[account.type] },
+    { label: "Opening balance", value: formatMoney(account.openingBalance, currency) },
+    {
+      label: "Current balance",
+      value: (
+        <span className={cn("tabular-nums", balance < 0 && "text-destructive")}>
+          {isCard && balance < 0
+            ? `${formatMoney(-balance, currency)} owed`
+            : formatMoney(balance, currency)}
+        </span>
+      ),
+    },
+  ];
+  return (
+    <DetailDialog
+      open
+      onClose={onClose}
+      title={account.name}
+      subtitle={TYPE_LABELS[account.type]}
+      fields={fields}
+      actions={actions}
+    />
+  );
+}
+
 
 function AccountDialog({
   workspaceId,
