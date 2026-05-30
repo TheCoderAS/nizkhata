@@ -1,0 +1,222 @@
+rules_version = '2';
+
+// =============================================================================
+// Shared Accounting App — Firestore Security Rules
+//
+// This file follows §4 of the build spec but TIGHTENS two security holes that
+// exist in the spec's draft rules. Both deviations are called out below so they
+// can be reviewed:
+//
+//   [FIX 1] Membership self-create privilege escalation.
+//     Spec draft: `allow create if request.resource.data.uid == auth.uid`
+//     — that lets ANY signed-in user mint a membership in ANY workspace with
+//     ANY roleId (e.g. assign themselves the Owner role of someone else's
+//     book). We instead require either (a) the caller can `members.invite`,
+//     (b) the caller is the workspace owner bootstrapping their own workspace,
+//     or (c) a matching *pending* invite exists for the caller's email whose
+//     roleId equals the membership being created. To make (c) checkable inside
+//     rules (which can only `get` a known doc id, not query), invite doc IDs
+//     are DETERMINISTIC: `${workspaceId}_${lowercased-email}` (see §onboarding
+//     in the client). This is a data-model deviation from the spec's random
+//     invite id and should be confirmed.
+//
+//   [FIX 2] Bootstrap chicken-and-egg.
+//     Seeding the 4 system roles + owner membership + default categories on
+//     first login requires `roles.manage` / `members.invite` perms that don't
+//     exist yet. We allow the workspace OWNER to seed roles/memberships/
+//     categories directly (isOwner bypass). The client MUST create the
+//     `workspaces/{ws}` doc as its own committed write FIRST, then seed in a
+//     batch, so `get(workspace).ownerId` resolves during the seed writes.
+//
+// Not enforceable in rules (enforced in app logic, see §3 guardrails):
+//   - cannot delete a role still assigned to a membership
+//   - cannot remove the last holder of roles.manage / members.remove
+//   - totalAmount == signed sum of lines (rules can't sum arrays cheaply)
+// =============================================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() { return request.auth != null; }
+
+    function mId(ws) { return ws + '_' + request.auth.uid; }
+
+    function membership(ws) {
+      return get(/databases/$(database)/documents/memberships/$(mId(ws)));
+    }
+
+    function isMember(ws) {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/memberships/$(mId(ws)));
+    }
+
+    function roleOf(ws) {
+      return get(/databases/$(database)/documents/roles/$(membership(ws).data.roleId));
+    }
+
+    function can(ws, perm) {
+      return isMember(ws) && roleOf(ws).data.permissions[perm] == true;
+    }
+
+    function workspaceDoc(ws) {
+      return get(/databases/$(database)/documents/workspaces/$(ws));
+    }
+
+    function isOwner(ws) {
+      return isSignedIn() && workspaceDoc(ws).data.ownerId == request.auth.uid;
+    }
+
+    function exWs() { return resource.data.workspaceId; }
+    function inWs() { return request.resource.data.workspaceId; }
+
+    // workspaceId must never change on update.
+    function wsImmutable() {
+      return request.resource.data.workspaceId == resource.data.workspaceId;
+    }
+
+    function authEmail() {
+      return request.auth.token.email != null
+        ? request.auth.token.email.lower()
+        : '';
+    }
+
+    // [FIX 1] deterministic invite doc for the current caller in a workspace.
+    function inviteDoc(ws) {
+      return get(/databases/$(database)/documents/invites/$(ws + '_' + authEmail()));
+    }
+    function hasPendingInvite(ws, roleId) {
+      return authEmail() != '' &&
+        exists(/databases/$(database)/documents/invites/$(ws + '_' + authEmail())) &&
+        inviteDoc(ws).data.status == 'pending' &&
+        inviteDoc(ws).data.roleId == roleId;
+    }
+
+    // ---- users -------------------------------------------------------------
+    match /users/{uid} {
+      allow read, create, update: if isSignedIn() && request.auth.uid == uid;
+      allow delete: if false;
+    }
+
+    // ---- workspaces --------------------------------------------------------
+    match /workspaces/{ws} {
+      allow read:   if isMember(ws);
+      allow create: if isSignedIn()
+        && request.resource.data.ownerId == request.auth.uid
+        && request.resource.data.id == ws;
+      allow update: if can(ws, 'workspace.edit')
+        && request.resource.data.ownerId == resource.data.ownerId;
+      allow delete: if isOwner(ws) && can(ws, 'workspace.delete');
+    }
+
+    // ---- memberships -------------------------------------------------------
+    match /memberships/{id} {
+      allow read: if isSignedIn() && (
+        resource.data.uid == request.auth.uid ||
+        can(resource.data.workspaceId, 'members.view')
+      );
+
+      // [FIX 1] no open self-join. Only invited users, inviters, or the owner.
+      allow create: if isSignedIn()
+        && request.resource.data.id == id
+        && id == request.resource.data.workspaceId + '_' + request.resource.data.uid
+        && (
+          can(inWs(), 'members.invite') ||
+          isOwner(inWs()) ||
+          (
+            request.resource.data.uid == request.auth.uid &&
+            hasPendingInvite(inWs(), request.resource.data.roleId)
+          )
+        );
+
+      // role changes: must keep workspace; cannot change the owner's membership.
+      allow update: if can(exWs(), 'members.invite')
+        && wsImmutable()
+        && resource.data.uid != workspaceDoc(exWs()).data.ownerId;
+
+      allow delete: if can(exWs(), 'members.remove')
+        && resource.data.uid != workspaceDoc(exWs()).data.ownerId;
+    }
+
+    // ---- roles -------------------------------------------------------------
+    match /roles/{id} {
+      allow read:   if isMember(exWs());
+      // [FIX 2] owner bypass for first-login seeding.
+      allow create: if (can(inWs(), 'roles.manage') || isOwner(inWs()))
+        && request.resource.data.id == id;
+      allow update: if can(exWs(), 'roles.manage') && wsImmutable();
+      allow delete: if can(exWs(), 'roles.manage') && resource.data.isSystem == false;
+    }
+
+    // ---- invites -----------------------------------------------------------
+    match /invites/{id} {
+      allow read: if can(exWs(), 'members.view')
+        || (isSignedIn() && resource.data.email == authEmail());
+      allow create: if can(inWs(), 'members.invite')
+        && request.resource.data.id == id;
+      // an inviter can manage; the invitee may flip their own invite to accepted.
+      allow update: if (can(exWs(), 'members.invite') && wsImmutable())
+        || (
+          isSignedIn()
+          && resource.data.email == authEmail()
+          && request.resource.data.status == 'accepted'
+          && wsImmutable()
+          && request.resource.data.roleId == resource.data.roleId
+        );
+      allow delete: if can(exWs(), 'members.invite');
+    }
+
+    // ---- generic workspace-scoped collections ------------------------------
+    match /accounts/{id} {
+      allow read:           if can(exWs(), 'accounts.view');
+      allow create:         if can(inWs(), 'accounts.manage');
+      allow update:         if can(exWs(), 'accounts.manage') && wsImmutable();
+      allow delete:         if can(exWs(), 'accounts.manage');
+    }
+
+    match /categories/{id} {
+      allow read:           if can(exWs(), 'categories.view');
+      // [FIX 2] owner bypass for first-login seeding of default categories.
+      allow create:         if can(inWs(), 'categories.manage') || isOwner(inWs());
+      allow update:         if can(exWs(), 'categories.manage') && wsImmutable();
+      allow delete:         if can(exWs(), 'categories.manage')
+                              && resource.data.isSystem == false;
+    }
+
+    match /contacts/{id} {
+      allow read:           if can(exWs(), 'contacts.view');
+      allow create:         if can(inWs(), 'contacts.manage');
+      allow update:         if can(exWs(), 'contacts.manage') && wsImmutable();
+      allow delete:         if can(exWs(), 'contacts.manage');
+    }
+
+    match /debts/{id} {
+      allow read:           if can(exWs(), 'debts.view');
+      allow create:         if can(inWs(), 'debts.manage');
+      allow update:         if can(exWs(), 'debts.manage') && wsImmutable();
+      allow delete:         if can(exWs(), 'debts.manage');
+    }
+
+    match /dues/{id} {
+      allow read:           if can(exWs(), 'dues.view');
+      allow create:         if can(inWs(), 'dues.manage');
+      allow update:         if can(exWs(), 'dues.manage') && wsImmutable();
+      allow delete:         if can(exWs(), 'dues.manage');
+    }
+
+    // ---- transactions ------------------------------------------------------
+    match /transactions/{id} {
+      allow read:   if can(exWs(), 'transactions.view');
+      allow create: if can(inWs(), 'transactions.create')
+        && request.resource.data.createdBy == request.auth.uid;
+      allow update: if can(exWs(), 'transactions.edit')
+        && wsImmutable()
+        && request.resource.data.createdBy == resource.data.createdBy;
+      allow delete: if can(exWs(), 'transactions.delete');
+    }
+
+    // default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
