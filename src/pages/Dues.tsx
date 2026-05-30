@@ -4,6 +4,7 @@
 
 import { useState } from "react";
 import { Plus, Receipt } from "lucide-react";
+import { Timestamp } from "firebase/firestore";
 import { useAuth } from "@/auth/AuthProvider";
 import { useWorkspace } from "@/workspace/WorkspaceProvider";
 import { useData } from "@/data/WorkspaceDataProvider";
@@ -211,7 +212,6 @@ function DueDialog({
     if (!title.trim()) return;
     setBusy(true);
     try {
-      const { Timestamp } = await import("firebase/firestore");
       await createDue(workspaceId, {
         direction,
         title: title.trim(),
