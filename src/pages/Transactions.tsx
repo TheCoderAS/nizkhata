@@ -47,6 +47,7 @@ import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { useToast } from "@/components/ui/toast";
 import { toDate } from "@/lib/derive";
+import { lineTypeLabel } from "@/lib/lineTypes";
 import { cn, formatDate, formatMoney } from "@/lib/utils";
 
 const PAGE_SIZE = 25;
@@ -362,7 +363,7 @@ export function Transactions() {
                       <div className="flex flex-wrap gap-1">
                         {t.lines.slice(0, 3).map((l) => (
                           <Badge key={l.lineId} variant="secondary" className="text-[10px]">
-                            {l.type}
+                            {lineTypeLabel(l.type)}
                           </Badge>
                         ))}
                         {t.lines.length > 3 && (
