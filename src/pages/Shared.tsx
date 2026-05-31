@@ -18,11 +18,26 @@ import { memberBalances, simplifyDebts, toDate } from "@/lib/derive";
 import { roundMoney } from "@/lib/txn";
 import { cn, formatDate, formatMoney } from "@/lib/utils";
 import { PageHeader } from "@/components/PageHeader";
+import { RowActions, type RowAction } from "@/components/RowActions";
+import { SortableHead } from "@/components/SortableHead";
+import { ColumnsMenu } from "@/components/ColumnsMenu";
+import { Toolbar } from "@/components/Toolbar";
+import { DetailDialog, type DetailField } from "@/components/DetailDialog";
+import { useColumnPrefs, type ColumnDef } from "@/lib/useColumnPrefs";
+import { useSort, type SortAccessor } from "@/lib/useSort";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import {
   Dialog,
   DialogContent,
@@ -38,7 +53,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
-import { RowActions } from "@/components/RowActions";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { useToast } from "@/components/ui/toast";
 import type { Membership, SharedExpense } from "@/types/models";
@@ -52,6 +66,17 @@ function memberName(m: Membership): string {
   return m.displayName || m.email || `User ${m.uid.slice(0, 6)}`;
 }
 
+type SortKey = "description" | "paidBy" | "date" | "amount";
+type ColKey = "description" | "paidBy" | "date" | "split" | "amount";
+
+const COLUMNS: ColumnDef<ColKey>[] = [
+  { key: "description", label: "Description", defaultVisible: true, locked: true },
+  { key: "paidBy", label: "Paid by", defaultVisible: true },
+  { key: "date", label: "Date", defaultVisible: true },
+  { key: "split", label: "Split", defaultVisible: false },
+  { key: "amount", label: "Amount", defaultVisible: true },
+];
+
 export function Shared() {
   const { activeWorkspaceId, activeWorkspace, can } = useWorkspace();
   const { firebaseUser } = useAuth();
@@ -63,9 +88,11 @@ export function Shared() {
   const canDelete = can("transactions.delete");
   const myUid = firebaseUser?.uid ?? "";
 
+  const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<SharedExpense | "new" | null>(null);
   const [settle, setSettle] = useState<{ from: Member; to: Member; amount: number } | null>(null);
   const [toDelete, setToDelete] = useState<SharedExpense | null>(null);
+  const [viewing, setViewing] = useState<SharedExpense | null>(null);
 
   // The current user's own name comes from auth, which always has it — even if
   // their membership doc predates denormalized identity.
@@ -88,8 +115,51 @@ export function Shared() {
   const label = (uid: string, fallback?: string) =>
     nameForUid(uid, fallback) + (uid === myUid ? " (you)" : "");
 
+  const cols = useColumnPrefs<ColKey>("sharedExpenses", COLUMNS);
+
+  const filtered = useMemo(
+    () =>
+      sharedExpenses.filter((e) => {
+        if (!search) return true;
+        const hay = `${e.description} ${nameForUid(e.paidBy, e.paidByName)}`.toLowerCase();
+        return hay.includes(search.toLowerCase());
+      }),
+    // nameForUid depends on memberList; recompute when those change
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [sharedExpenses, search, memberList],
+  );
+
+  const accessors: Record<SortKey, SortAccessor<SharedExpense>> = useMemo(
+    () => ({
+      description: (e) => e.description,
+      paidBy: (e) => nameForUid(e.paidBy, e.paidByName),
+      date: (e) => toDate(e.date),
+      amount: (e) => e.amount,
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [memberList],
+  );
+  const { sorted, sort, toggle } = useSort(filtered, accessors, {
+    key: "date",
+    direction: "desc",
+  });
+
   if (loading) return <LoadingState />;
   if (error) return <ErrorState message={error} />;
+
+  function rowActions(e: SharedExpense): RowAction[] {
+    return [
+      { label: "Edit", icon: Pencil, onSelect: () => setEditing(e), hidden: !canEdit },
+      {
+        label: "Delete",
+        icon: Trash2,
+        onSelect: () => setToDelete(e),
+        destructive: true,
+        separatorBefore: true,
+        hidden: !canDelete,
+      },
+    ];
+  }
 
   return (
     <div>
@@ -103,26 +173,24 @@ export function Shared() {
         }}
       />
 
-      <div className="mt-4" />
-
       {/* Balances */}
-      <Card className="mb-6">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">Who owes whom</CardTitle>
+      <Card className="mb-4">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium">Who owes whom</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-0">
           {transfers.length === 0 ? (
-            <p className="text-sm text-muted-foreground">All settled up. 🎉</p>
+            <p className="text-xs text-muted-foreground">All settled up. 🎉</p>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               {transfers.map((t, i) => (
                 <div
                   key={`${t.fromUid}-${t.toUid}-${i}`}
-                  className="flex items-center justify-between gap-2 text-sm"
+                  className="flex items-center justify-between gap-2 text-xs"
                 >
                   <span className="flex min-w-0 items-center gap-1.5">
                     <span className="truncate font-medium">{label(t.fromUid, t.fromName)}</span>
-                    <ArrowRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                    <ArrowRight className="h-3 w-3 shrink-0 text-muted-foreground" />
                     <span className="truncate font-medium">{label(t.toUid, t.toName)}</span>
                   </span>
                   <span className="flex shrink-0 items-center gap-2">
@@ -131,6 +199,7 @@ export function Shared() {
                       <Button
                         size="sm"
                         variant="outline"
+                        className="h-7 px-2 text-xs"
                         onClick={() =>
                           setSettle({
                             from: { uid: t.fromUid, name: t.fromName },
@@ -150,52 +219,107 @@ export function Shared() {
         </CardContent>
       </Card>
 
+      <Toolbar search={search} onSearch={setSearch} placeholder="Search description / payer…">
+        <ColumnsMenu
+          columns={cols.columns}
+          isVisible={cols.isVisible}
+          toggle={cols.toggle}
+          reset={cols.reset}
+        />
+      </Toolbar>
+
       {/* History */}
-      {sharedExpenses.length === 0 ? (
+      {sorted.length === 0 ? (
         <EmptyState
-          title="Nothing shared yet"
-          hint="Add a shared expense to start tracking who owes whom."
-          action={canAdd && <Button onClick={() => setEditing("new")}>Add shared expense</Button>}
+          title={search ? "No matches" : "Nothing shared yet"}
+          hint={search ? undefined : "Add a shared expense to start tracking who owes whom."}
+          action={
+            canAdd && !search && (
+              <Button onClick={() => setEditing("new")}>Add shared expense</Button>
+            )
+          }
         />
       ) : (
-        <div className="space-y-2">
-          {sharedExpenses.map((e) => (
-            <Card key={e.id}>
-              <CardContent className="flex items-start justify-between gap-3 py-3">
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                    <span className="font-medium">{e.description}</span>
-                    {e.kind === "settlement" && <Badge variant="secondary">settlement</Badge>}
-                  </div>
-                  <p className="mt-0.5 text-xs text-muted-foreground">
-                    {nameForUid(e.paidBy, e.paidByName)} paid · {formatDate(toDate(e.date))}
-                    {e.kind === "expense" && ` · split ${e.splits.length} ways`}
-                  </p>
-                </div>
-                <div className="flex shrink-0 items-center gap-1">
-                  <span className="tabular-nums">{formatMoney(e.amount, currency)}</span>
-                  <RowActions
-                    actions={[
-                      {
-                        label: "Edit",
-                        icon: Pencil,
-                        onSelect: () => setEditing(e),
-                        hidden: !canEdit,
-                      },
-                      {
-                        label: "Delete",
-                        icon: Trash2,
-                        onSelect: () => setToDelete(e),
-                        destructive: true,
-                        hidden: !canDelete,
-                      },
-                    ]}
-                  />
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              {cols.isVisible("description") && (
+                <SortableHead sortKey="description" sort={sort} onToggle={toggle}>
+                  Description
+                </SortableHead>
+              )}
+              {cols.isVisible("paidBy") && (
+                <SortableHead sortKey="paidBy" sort={sort} onToggle={toggle}>
+                  Paid by
+                </SortableHead>
+              )}
+              {cols.isVisible("date") && (
+                <SortableHead sortKey="date" sort={sort} onToggle={toggle}>
+                  Date
+                </SortableHead>
+              )}
+              {cols.isVisible("split") && <TableHead>Split</TableHead>}
+              {cols.isVisible("amount") && (
+                <SortableHead sortKey="amount" sort={sort} onToggle={toggle} className="text-right">
+                  Amount
+                </SortableHead>
+              )}
+              <TableHead className="w-12" />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {sorted.map((e) => (
+              <TableRow key={e.id} onClick={() => setViewing(e)} className="cursor-pointer">
+                {cols.isVisible("description") && (
+                  <TableCell className="font-medium">
+                    <span className="flex items-center gap-2">
+                      <span className="truncate">{e.description}</span>
+                      {e.kind === "settlement" && (
+                        <Badge variant="secondary" className="shrink-0">
+                          settlement
+                        </Badge>
+                      )}
+                    </span>
+                  </TableCell>
+                )}
+                {cols.isVisible("paidBy") && (
+                  <TableCell className="text-muted-foreground">
+                    {nameForUid(e.paidBy, e.paidByName)}
+                  </TableCell>
+                )}
+                {cols.isVisible("date") && (
+                  <TableCell className="text-muted-foreground">
+                    {formatDate(toDate(e.date))}
+                  </TableCell>
+                )}
+                {cols.isVisible("split") && (
+                  <TableCell className="text-muted-foreground">
+                    {e.kind === "settlement" ? "—" : `${e.splits.length} ways`}
+                  </TableCell>
+                )}
+                {cols.isVisible("amount") && (
+                  <TableCell className="text-right tabular-nums font-medium">
+                    {formatMoney(e.amount, currency)}
+                  </TableCell>
+                )}
+                <TableCell>
+                  <RowActions actions={rowActions(e)} />
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      )}
+
+      {viewing && (
+        <SharedExpenseDetailDialog
+          expense={viewing}
+          currency={currency}
+          nameForUid={nameForUid}
+          onClose={() => setViewing(null)}
+          onEdit={canEdit ? (e) => setEditing(e) : undefined}
+          onDelete={canDelete ? (e) => setToDelete(e) : undefined}
+        />
       )}
 
       {editing && activeWorkspaceId && (
@@ -234,6 +358,89 @@ export function Shared() {
         }}
       />
     </div>
+  );
+}
+
+function SharedExpenseDetailDialog({
+  expense,
+  currency,
+  nameForUid,
+  onClose,
+  onEdit,
+  onDelete,
+}: {
+  expense: SharedExpense;
+  currency: string;
+  nameForUid: (uid: string, fallback?: string) => string;
+  onClose: () => void;
+  onEdit?: (e: SharedExpense) => void;
+  onDelete?: (e: SharedExpense) => void;
+}) {
+  const fields: DetailField[] = [
+    {
+      label: "Type",
+      value: expense.kind === "settlement" ? "Settlement" : "Shared expense",
+    },
+    { label: "Paid by", value: nameForUid(expense.paidBy, expense.paidByName) },
+    { label: "Date", value: formatDate(toDate(expense.date)) },
+    {
+      label: "Amount",
+      value: <span className="tabular-nums">{formatMoney(expense.amount, currency)}</span>,
+    },
+  ];
+
+  const actions: RowAction[] = [
+    onEdit && { label: "Edit", icon: Pencil, onSelect: () => onEdit(expense) },
+    onDelete && {
+      label: "Delete",
+      icon: Trash2,
+      onSelect: () => onDelete(expense),
+      destructive: true,
+      separatorBefore: true,
+    },
+  ].filter(Boolean) as RowAction[];
+
+  return (
+    <DetailDialog
+      open
+      onClose={onClose}
+      title={expense.description}
+      fields={fields}
+      actions={actions}
+      entityId={expense.id}
+      audit={{
+        createdBy: expense.createdBy,
+        createdAt: expense.createdAt,
+        updatedBy: expense.updatedBy,
+        updatedAt: expense.updatedAt,
+      }}
+    >
+      <div className="mt-2">
+        <p className="mb-2 text-sm font-medium">
+          {expense.kind === "settlement" ? "Paid to" : "Split between"}
+        </p>
+        <div className="overflow-hidden rounded-md border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Member</TableHead>
+                <TableHead className="text-right">Share</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {expense.splits.map((s) => (
+                <TableRow key={s.uid}>
+                  <TableCell>{nameForUid(s.uid, s.name)}</TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {formatMoney(s.share, currency)}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      </div>
+    </DetailDialog>
   );
 }
 
