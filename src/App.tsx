@@ -23,6 +23,7 @@ const lazyPage = <K extends string>(loader: () => Promise<Record<K, React.Compon
   lazy(() => loader().then((m) => ({ default: m[key] })));
 
 const Accounts = lazyPage(() => import("@/pages/Accounts"), "Accounts");
+const AccountLedger = lazyPage(() => import("@/pages/AccountLedger"), "AccountLedger");
 const Categories = lazyPage(() => import("@/pages/Categories"), "Categories");
 const Budgets = lazyPage(() => import("@/pages/Budgets"), "Budgets");
 const Contacts = lazyPage(() => import("@/pages/Contacts"), "Contacts");
@@ -134,6 +135,14 @@ export default function App() {
                 element={
                   <Gated perm="accounts.view">
                     <Accounts />
+                  </Gated>
+                }
+              />
+              <Route
+                path="settings/accounts/:accountId/ledger"
+                element={
+                  <Gated perm="accounts.view">
+                    <AccountLedger />
                   </Gated>
                 }
               />

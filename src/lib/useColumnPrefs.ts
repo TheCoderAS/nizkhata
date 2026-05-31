@@ -1,7 +1,7 @@
-// Persisted per-table column visibility. Each table declares its columns with a
-// `defaultVisible` flag (keep the default set minimal — max ~4). The user's
-// show/hide choices are saved to localStorage under the table key and restored
-// on refresh.
+// Persisted per-table column visibility + widths. Each table declares its
+// columns with a `defaultVisible` flag (keep the default set minimal — max ~4).
+// The user's show/hide choices and any drag-resized column widths are saved to
+// localStorage under the table key and restored on refresh.
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -15,6 +15,11 @@ export interface ColumnDef<K extends string> {
 }
 
 const STORAGE_PREFIX = "table-cols:";
+const WIDTH_PREFIX = "table-colw:";
+
+// Clamp drag-resized widths to something usable.
+export const MIN_COL_WIDTH = 64;
+export const MAX_COL_WIDTH = 720;
 
 function load(tableKey: string): Record<string, boolean> | null {
   try {
@@ -30,6 +35,23 @@ function save(tableKey: string, value: Record<string, boolean>) {
     localStorage.setItem(STORAGE_PREFIX + tableKey, JSON.stringify(value));
   } catch {
     /* storage unavailable — keep in-memory only */
+  }
+}
+
+function loadWidths(tableKey: string): Record<string, number> {
+  try {
+    const raw = localStorage.getItem(WIDTH_PREFIX + tableKey);
+    return raw ? (JSON.parse(raw) as Record<string, number>) : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveWidths(tableKey: string, value: Record<string, number>) {
+  try {
+    localStorage.setItem(WIDTH_PREFIX + tableKey, JSON.stringify(value));
+  } catch {
+    /* storage unavailable */
   }
 }
 
@@ -55,9 +77,17 @@ export function useColumnPrefs<K extends string>(
     return merged;
   });
 
+  // Per-column widths (px). Empty until the user drags a column; once any width
+  // is set the table switches to fixed layout so the widths take effect.
+  const [widths, setWidths] = useState<Record<string, number>>(() => loadWidths(tableKey));
+
   useEffect(() => {
     save(tableKey, visible);
   }, [tableKey, visible]);
+
+  useEffect(() => {
+    saveWidths(tableKey, widths);
+  }, [tableKey, widths]);
 
   const isVisible = useCallback((key: K) => visible[key] !== false, [visible]);
 
@@ -70,7 +100,33 @@ export function useColumnPrefs<K extends string>(
     [columns],
   );
 
-  const reset = useCallback(() => setVisible(defaults), [defaults]);
+  const widthOf = useCallback((key: K): number | undefined => widths[key], [widths]);
 
-  return { columns, isVisible, toggle, reset };
+  const setWidth = useCallback((key: K, px: number) => {
+    const clamped = Math.max(MIN_COL_WIDTH, Math.min(MAX_COL_WIDTH, Math.round(px)));
+    setWidths((prev) => ({ ...prev, [key]: clamped }));
+  }, []);
+
+  // True once any column has been manually sized — drives table-layout: fixed.
+  const hasCustomWidths = Object.keys(widths).length > 0;
+
+  const resetWidths = useCallback(() => setWidths({}), []);
+
+  const reset = useCallback(() => {
+    setVisible(defaults);
+    setWidths({});
+  }, [defaults]);
+
+  return {
+    columns,
+    isVisible,
+    toggle,
+    reset,
+    widthOf,
+    setWidth,
+    hasCustomWidths,
+    resetWidths,
+  };
 }
+
+export type ColumnPrefs<K extends string> = ReturnType<typeof useColumnPrefs<K>>;
