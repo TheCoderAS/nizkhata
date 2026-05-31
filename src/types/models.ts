@@ -38,6 +38,10 @@ export interface Membership {
   roleId: Id;
   status: "active";
   joinedAt: Ts;
+  // Denormalized identity so members can be listed by name/email without
+  // reading other users' profiles (Security Rules only allow reading your own).
+  email?: string; // lowercased
+  displayName?: string | null;
 }
 
 // ---- roles -----------------------------------------------------------------

@@ -92,6 +92,8 @@ async function claimInvites(
       roleId: invite.roleId,
       status: "active",
       joinedAt: serverTimestamp(),
+      email: (user.email ?? "").toLowerCase(),
+      displayName: user.displayName ?? null,
     });
     batch.set(
       doc(fdb, "invites", inviteSnap.id),
@@ -168,6 +170,8 @@ async function createPersonalWorkspace(
     roleId: ownerRoleId,
     status: "active",
     joinedAt: serverTimestamp(),
+    email: (user.email ?? "").toLowerCase(),
+    displayName: user.displayName ?? null,
   });
 
   for (const cat of DEFAULT_CATEGORIES) {
