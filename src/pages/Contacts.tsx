@@ -21,6 +21,8 @@ import { ResizableTable } from "@/components/ResizableTable";
 import { Toolbar } from "@/components/Toolbar";
 import { useColumnPrefs, type ColumnDef } from "@/lib/useColumnPrefs";
 import { useSort, type SortAccessor } from "@/lib/useSort";
+import { usePagination } from "@/lib/usePagination";
+import { Pagination } from "@/components/Pagination";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -100,6 +102,8 @@ export function Contacts() {
     key: "name",
     direction: "asc",
   });
+  const pagination = usePagination(sorted);
+  const { pageItems } = pagination;
 
   if (loading) return <LoadingState />;
   if (error) return <ErrorState message={error} />;
@@ -130,7 +134,11 @@ export function Contacts() {
         }}
       />
 
-      <Toolbar search={search} onSearch={setSearch} placeholder="Search contacts…">
+      <Toolbar
+        search={search}
+        onSearch={(v) => { setSearch(v); pagination.reset(); }}
+        placeholder="Search contacts…"
+      >
         <ColumnsMenu columns={cols.columns} isVisible={cols.isVisible} toggle={cols.toggle} reset={cols.reset} hasCustomWidths={cols.hasCustomWidths} onResetWidths={cols.resetWidths} />
       </Toolbar>
 
@@ -166,7 +174,7 @@ export function Contacts() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {sorted.map((c) => {
+            {pageItems.map((c) => {
               const { net } = positionOf(c.id);
               return (
                 <TableRow
@@ -213,6 +221,8 @@ export function Contacts() {
           </TableBody>
         </ResizableTable>
       )}
+
+      {sorted.length > 0 && <Pagination state={pagination} noun="contacts" />}
 
       {editing && activeWorkspaceId && (
         <ContactDialog

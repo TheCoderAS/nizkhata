@@ -12,6 +12,8 @@ import { RowActions, type RowAction } from "@/components/RowActions";
 import { SortableHead } from "@/components/SortableHead";
 import { DetailDialog } from "@/components/DetailDialog";
 import { useSort, type SortAccessor } from "@/lib/useSort";
+import { usePagination } from "@/lib/usePagination";
+import { Pagination } from "@/components/Pagination";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -68,6 +70,8 @@ export function Categories() {
     key: "name",
     direction: "asc",
   });
+  const pagination = usePagination(sorted);
+  const { pageItems } = pagination;
 
   function rowActions(c: Category): RowAction[] {
     return [
@@ -102,7 +106,11 @@ export function Categories() {
         }}
       />
 
-      <Tabs value={kind} onValueChange={(v) => setKind(v as CategoryKind)} className="mb-4">
+      <Tabs
+        value={kind}
+        onValueChange={(v) => { setKind(v as CategoryKind); pagination.reset(); }}
+        className="mb-4"
+      >
         <TabsList>
           <TabsTrigger value="expense">Expense</TabsTrigger>
           <TabsTrigger value="income">Income</TabsTrigger>
@@ -125,7 +133,7 @@ export function Categories() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {sorted.map((c) => (
+            {pageItems.map((c) => (
               <TableRow
                 key={c.id}
                 onClick={() => setViewing(c)}
@@ -149,6 +157,8 @@ export function Categories() {
           </TableBody>
         </Table>
       )}
+
+      {sorted.length > 0 && <Pagination state={pagination} noun="categories" />}
 
       {viewing && (
         <DetailDialog

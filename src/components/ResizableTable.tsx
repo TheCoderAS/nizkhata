@@ -17,6 +17,7 @@ import {
   type ReactNode,
 } from "react";
 import { cn } from "@/lib/utils";
+import { TableHead } from "@/components/ui/table";
 import type { ColumnPrefs } from "@/lib/useColumnPrefs";
 
 interface Ctx {
@@ -90,6 +91,34 @@ export function ResizableTable<K extends string>({
 
 export function useColumnWidth() {
   return useContext(ColumnWidthContext);
+}
+
+/**
+ * A plain (non-sortable) <TableHead> that is drag-resizable inside a
+ * <ResizableTable>. Use for tables that don't use SortableHead (e.g. the
+ * account ledger). `colKey` keys the persisted width.
+ */
+export function ResizableHead({
+  colKey,
+  className,
+  children,
+}: {
+  colKey: string;
+  className?: string;
+  children: ReactNode;
+}) {
+  const ctx = useColumnWidth();
+  const width = ctx?.widthOf(colKey);
+  return (
+    <TableHead
+      className={cn("relative", className)}
+      data-col-key={colKey}
+      style={width ? { width, maxWidth: width } : undefined}
+    >
+      <span className="block max-w-full truncate">{children}</span>
+      <ColResizer colKey={colKey} />
+    </TableHead>
+  );
 }
 
 /** A grab handle on the right edge of a header cell that resizes its column. */
