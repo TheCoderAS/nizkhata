@@ -47,6 +47,14 @@ import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { ErrorState, LoadingState } from "@/components/states";
 import { useToast } from "@/components/ui/toast";
 
+/**
+ * Best display label for a member: denormalized name, then email, then a short
+ * uid fallback (older memberships created before identity was stored).
+ */
+function memberLabel(m: Membership): string {
+  return m.displayName || m.email || `${m.uid.slice(0, 8)}…`;
+}
+
 export function Members() {
   const { firebaseUser } = useAuth();
   const { activeWorkspace, can } = useWorkspace();
@@ -106,12 +114,19 @@ export function Members() {
             return (
               <TableRow key={m.id}>
                 <TableCell className="font-medium">
-                  {isSelf ? "You" : `${m.uid.slice(0, 8)}…`}
-                  {isOwner && (
-                    <Badge variant="outline" className="ml-2">
-                      Owner
-                    </Badge>
-                  )}
+                  <div className="flex flex-col">
+                    <span>
+                      {isSelf ? "You" : memberLabel(m)}
+                      {isOwner && (
+                        <Badge variant="outline" className="ml-2">
+                          Owner
+                        </Badge>
+                      )}
+                    </span>
+                    {!isSelf && m.displayName && m.email && (
+                      <span className="text-xs text-muted-foreground">{m.email}</span>
+                    )}
+                  </div>
                 </TableCell>
                 <TableCell>
                   {canInvite && !isOwner ? (

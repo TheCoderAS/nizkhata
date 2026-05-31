@@ -4,7 +4,7 @@
 // Stops click propagation so opening the menu from a clickable row doesn't also
 // trigger the row's onClick (e.g. the detail modal).
 
-import { MoreHorizontal, type LucideIcon } from "lucide-react";
+import { MoreVertical, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -48,7 +48,7 @@ export function RowActions({
           aria-label={label}
           className={cn(size === "sm" && "gap-1")}
         >
-          <MoreHorizontal className="h-4 w-4" />
+          <MoreVertical className="h-4 w-4" />
           {size === "sm" && <span>{label}</span>}
         </Button>
       </DropdownMenuTrigger>

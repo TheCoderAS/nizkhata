@@ -114,6 +114,18 @@ export async function removeMember(
   await deleteDoc(doc(db, "memberships", membership.id));
 }
 
+/** Leave a workspace (delete your own membership). Owner must transfer/delete. */
+export async function leaveWorkspace(
+  membership: Membership,
+  ownerId: string,
+): Promise<void> {
+  if (membership.uid === ownerId)
+    throw new GuardrailError(
+      "The owner can't leave — transfer ownership or delete the workspace.",
+    );
+  await deleteDoc(doc(db, "memberships", membership.id));
+}
+
 // ---- invites ---------------------------------------------------------------
 
 export async function createInvite(

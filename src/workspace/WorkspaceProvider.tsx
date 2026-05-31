@@ -23,6 +23,8 @@ import {
   where,
 } from "firebase/firestore";
 import { db } from "@/firebase/config";
+import { subscribeWithRetry } from "@/lib/firestoreRetry";
+import { setCurrentWorkspaceId } from "@/data/actor";
 import { useAuth } from "@/auth/AuthProvider";
 import type { Membership, Role, Workspace } from "@/types/models";
 import type { Permission } from "@/types/permissions";
@@ -123,16 +125,24 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     const ids = memberships.map((m) => m.workspaceId);
     // Firestore `in` supports up to 30 ids; fine for typical membership counts.
     const q = query(collection(db, "workspaces"), where("__name__", "in", ids));
-    const unsub = onSnapshot(
+    // Retry on transient permission-denied: when a new workspace+membership
+    // batch is created, listeners re-fire optimistically before the server
+    // commits, briefly failing the rules check.
+    const unsub = subscribeWithRetry(
       q,
-      (snap) => setWorkspaces(snap.docs.map((d) => d.data() as Workspace)),
+      (snap) => {
+        setWorkspaces(snap.docs.map((d) => d.data() as Workspace));
+        setError(null);
+      },
       (e) => setError(e.message),
     );
     return unsub;
   }, [memberships]);
 
-  // persist this tab's active workspace whenever it changes
+  // persist this tab's active workspace whenever it changes + expose it to the
+  // mutation layer (for audit/revision stamping)
   useEffect(() => {
+    setCurrentWorkspaceId(activeWorkspaceId);
     if (uid && activeWorkspaceId) writeTabWorkspace(uid, activeWorkspaceId);
   }, [uid, activeWorkspaceId]);
 
@@ -147,9 +157,12 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       setRole(null);
       return;
     }
-    const unsub = onSnapshot(
+    const unsub = subscribeWithRetry(
       doc(db, "roles", membership.roleId),
-      (snap) => setRole(snap.exists() ? (snap.data() as Role) : null),
+      (snap) => {
+        setRole(snap.exists() ? (snap.data() as Role) : null);
+        setError(null);
+      },
       (e) => setError(e.message),
     );
     return unsub;

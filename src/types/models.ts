@@ -38,6 +38,10 @@ export interface Membership {
   roleId: Id;
   status: "active";
   joinedAt: Ts;
+  // Denormalized identity so members can be listed by name/email without
+  // reading other users' profiles (Security Rules only allow reading your own).
+  email?: string; // lowercased
+  displayName?: string | null;
 }
 
 // ---- roles -----------------------------------------------------------------
@@ -73,6 +77,9 @@ export interface Account {
   type: AccountType;
   openingBalance: number;
   createdAt: Ts;
+  createdBy?: Actor;
+  updatedBy?: Actor;
+  updatedAt?: Ts;
 }
 
 // ---- categories ------------------------------------------------------------
@@ -84,6 +91,9 @@ export interface Category {
   kind: CategoryKind;
   isSystem: boolean;
   createdAt: Ts;
+  createdBy?: Actor;
+  updatedBy?: Actor;
+  updatedAt?: Ts;
 }
 
 // ---- contacts --------------------------------------------------------------
@@ -97,6 +107,9 @@ export interface Contact {
   email?: string;
   notes?: string;
   createdAt: Ts;
+  createdBy?: Actor;
+  updatedBy?: Actor;
+  updatedAt?: Ts;
 }
 
 // ---- debts -----------------------------------------------------------------
@@ -119,6 +132,9 @@ export interface Debt {
   principal: number;
   status: DebtStatus;
   createdAt: Ts;
+  createdBy?: Actor;
+  updatedBy?: Actor;
+  updatedAt?: Ts;
 }
 
 // ---- transactions (header + lines) -----------------------------------------
@@ -158,6 +174,9 @@ export interface TransactionLine {
   toAccountId?: Id; // transfer_in destination
   tax?: LineTax;
   note?: string;
+  // External lines record a debt movement (borrow/lend/repayment) but do NOT
+  // move any account balance — e.g. an opening balance against "External / none".
+  external?: boolean;
 }
 
 export interface Transaction {
@@ -171,9 +190,48 @@ export interface Transaction {
   hasSplit: boolean; // lines.length > 1
   dueId?: Id; // set if this txn settles a due
   financialYear: string; // e.g. "2025-26"
-  createdBy: Id;
+  createdBy: Actor;
   createdAt: Ts;
+  updatedBy?: Actor;
+  updatedAt?: Ts;
   lines: TransactionLine[];
+}
+
+// ---- audit / revisions -----------------------------------------------------
+// Multi-user workspaces track who created/updated each entity and keep a
+// revision log. Actor identity is denormalized (uid + name) so it can be shown
+// without reading other users' profiles (Security Rules forbid that).
+
+export interface Actor {
+  uid: Id;
+  name: string; // displayName || email || short uid, captured at write time
+}
+
+/** Audit fields mixed into mutable workspace entities. */
+export interface AuditFields {
+  createdBy?: Actor;
+  createdAt: Ts;
+  updatedBy?: Actor;
+  updatedAt?: Ts;
+}
+
+export type RevisionAction = "create" | "update" | "delete";
+
+// revisions/{revisionId}. Append-only history; written by the client today,
+// designed so a Firestore-trigger Cloud Function can take over later with no
+// migration. `entityType` is the collection name (e.g. "transactions").
+export interface Revision {
+  id: Id;
+  workspaceId: Id;
+  entityType: string;
+  entityId: Id;
+  action: RevisionAction;
+  at: Ts;
+  by: Actor;
+  // shallow snapshot of the doc after the change (omitted for deletes)
+  snapshot?: Record<string, unknown>;
+  // changed field names for updates (best-effort, client-computed)
+  changedFields?: string[];
 }
 
 // ---- dues ------------------------------------------------------------------
@@ -191,4 +249,7 @@ export interface Due {
   dueDate: Ts;
   status: DueStatus;
   createdAt: Ts;
+  createdBy?: Actor;
+  updatedBy?: Actor;
+  updatedAt?: Ts;
 }

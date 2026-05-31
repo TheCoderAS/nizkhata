@@ -4,12 +4,12 @@
 // modal, kebab row actions.
 
 import { useState } from "react";
-import { Plus, HandCoins, Pencil, Trash2, Eye } from "lucide-react";
+import { Plus, HandCoins, Pencil, Trash2 } from "lucide-react";
 import { useAuth } from "@/auth/AuthProvider";
 import { useWorkspace } from "@/workspace/WorkspaceProvider";
 import { useData } from "@/data/WorkspaceDataProvider";
 import {
-  createDebt,
+  createDebtWithOpening,
   createTransaction,
   deleteDebt,
   updateDebt,
@@ -99,7 +99,6 @@ export function Debts() {
   function rowActions(d: Debt): RowAction[] {
     const outstanding = outstandingOf(d.id);
     return [
-      { label: "View details", icon: Eye, onSelect: () => setViewing(d) },
       {
         label: d.direction === "owed" ? "Record receipt" : "Record repayment",
         icon: HandCoins,
@@ -183,7 +182,7 @@ export function Debts() {
           currency={currency}
           outstanding={outstandingOf(viewing.id)}
           contactName={contactsById[viewing.contactId]?.name ?? "—"}
-          actions={rowActions(viewing).filter((a) => a.label !== "View details")}
+          actions={rowActions(viewing)}
           onClose={() => setViewing(null)}
         />
       )}
@@ -382,6 +381,13 @@ function DebtDetail({
       subtitle={contactName}
       fields={fields}
       actions={actions}
+      entityId={debt.id}
+      audit={{
+        createdBy: debt.createdBy,
+        createdAt: debt.createdAt,
+        updatedBy: debt.updatedBy,
+        updatedAt: debt.updatedAt,
+      }}
     />
   );
 }
@@ -397,12 +403,17 @@ function DebtDialog({
   onClose: () => void;
   onSaved: () => void;
 }) {
-  const { contacts } = useData();
+  const { firebaseUser } = useAuth();
+  const { activeWorkspace } = useWorkspace();
+  const { contacts, accounts } = useData();
+  const fyStartMonth = activeWorkspace?.fyStartMonth ?? 4;
   const [contactId, setContactId] = useState(debt?.contactId ?? "");
   const [direction, setDirection] = useState<DebtDirection>(debt?.direction ?? "owe");
   const [purpose, setPurpose] = useState<DebtPurpose>(debt?.purpose ?? "loan");
   const [label, setLabel] = useState(debt?.label ?? "");
-  const [principal, setPrincipal] = useState(String(debt?.principal ?? 0));
+  // "Opening amount" seeds an opening-balance transaction on create.
+  const [openingAmount, setOpeningAmount] = useState(String(debt?.principal ?? 0));
+  const [accountId, setAccountId] = useState("__external"); // default External / none
   const [status, setStatus] = useState(debt?.status ?? "open");
   const [busy, setBusy] = useState(false);
 
@@ -415,17 +426,27 @@ function DebtDialog({
         // and manual status (re-open / settle) edits.
         await updateDebt(debt.id, {
           label: label.trim() || undefined,
-          principal: Number(principal) || 0,
+          principal: Number(openingAmount) || 0,
           status,
         });
       } else {
-        await createDebt(workspaceId, {
-          contactId,
-          direction,
-          purpose,
-          principal: Number(principal) || 0,
-          label: label.trim() || undefined,
-        });
+        const amount = Number(openingAmount) || 0;
+        await createDebtWithOpening(
+          workspaceId,
+          firebaseUser?.uid ?? "",
+          fyStartMonth,
+          {
+            contactId,
+            direction,
+            purpose,
+            principal: amount,
+            label: label.trim() || undefined,
+          },
+          {
+            amount,
+            accountId: accountId === "__external" ? undefined : accountId,
+          },
+        );
       }
       onSaved();
       onClose();
@@ -503,14 +524,15 @@ function DebtDialog({
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label>Principal (reference)</Label>
+              <Label>Opening amount</Label>
               <Input
                 type="number"
-                value={principal}
-                onChange={(e) => setPrincipal(e.target.value)}
+                min="0"
+                value={openingAmount}
+                onChange={(e) => setOpeningAmount(e.target.value)}
               />
             </div>
-            {debt && (
+            {debt ? (
               <div className="space-y-1.5">
                 <Label>Status</Label>
                 <Select value={status} onValueChange={(v) => setStatus(v as Debt["status"])}>
@@ -523,8 +545,34 @@ function DebtDialog({
                   </SelectContent>
                 </Select>
               </div>
+            ) : (
+              <div className="space-y-1.5">
+                <Label>Account</Label>
+                <Select value={accountId} onValueChange={setAccountId}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__external">External / none</SelectItem>
+                    {accounts.map((a) => (
+                      <SelectItem key={a.id} value={a.id}>
+                        {a.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             )}
           </div>
+          {!debt && Number(openingAmount) > 0 && (
+            <p className="text-xs text-muted-foreground">
+              {accountId === "__external"
+                ? "Records the debt only — no account balance is affected."
+                : direction === "owe"
+                  ? "Adds the opening amount to the selected account (money received)."
+                  : "Deducts the opening amount from the selected account (money given out)."}
+            </p>
+          )}
           {debt && (
             <p className="text-xs text-muted-foreground">
               Contact, direction and purpose are fixed after creation to keep

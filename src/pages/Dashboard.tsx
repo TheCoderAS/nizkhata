@@ -1,29 +1,39 @@
-// Dashboard (§6.2). Current FY & month income/expense/net; total in accounts vs
-// held-for-others (custodial); spend-by-category; upcoming dues; recent txns.
+// Dashboard (§6.2). A single period selector (week / month / year / FY / custom)
+// drives income / expense / net trend cards (with sparklines), plus "in
+// accounts" vs "held for others", spend-by-category, upcoming dues and recent
+// transactions. Responsive: cards stack cleanly and charts scale on mobile.
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { ArrowDownRight, ArrowUpRight, Wallet, Users } from "lucide-react";
 import { useWorkspace } from "@/workspace/WorkspaceProvider";
 import { useData } from "@/data/WorkspaceDataProvider";
 import {
   custodialHeld,
   dueStatusFromSettled,
-  periodTotals,
   spendByCategory,
   toDate,
 } from "@/lib/derive";
-import { financialYearOf, financialYearRange } from "@/lib/financialYear";
+import { financialYearOf } from "@/lib/financialYear";
+import {
+  PERIOD_LABELS,
+  resolvePeriod,
+  trendSeries,
+  type DateRange,
+  type PeriodKind,
+} from "@/lib/period";
 import { PageHeader } from "@/components/PageHeader";
+import { Sparkline } from "@/components/Sparkline";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { ErrorState, LoadingState } from "@/components/states";
 import { cn, formatDate, formatMoney } from "@/lib/utils";
 
@@ -36,18 +46,24 @@ export function Dashboard() {
   const now = new Date();
   const fy = financialYearOf(now, fyStartMonth);
 
-  const fyTotals = useMemo(() => {
-    const { start, end } = financialYearRange(now, fyStartMonth);
-    return periodTotals(transactions, (d) => d >= start && d < end);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [transactions, fyStartMonth]);
+  const [period, setPeriod] = useState<PeriodKind>("month");
+  const [customStart, setCustomStart] = useState(
+    new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10),
+  );
+  const [customEnd, setCustomEnd] = useState(now.toISOString().slice(0, 10));
 
-  const monthTotals = useMemo(() => {
-    const mStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    const mEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-    return periodTotals(transactions, (d) => d >= mStart && d < mEnd);
+  const range: DateRange = useMemo(() => {
+    if (period === "custom") {
+      const start = new Date(customStart);
+      const end = new Date(customEnd);
+      end.setDate(end.getDate() + 1); // make end inclusive
+      return { start, end };
+    }
+    return resolvePeriod(period, now, fyStartMonth);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [transactions]);
+  }, [period, customStart, customEnd, fyStartMonth]);
+
+  const trend = useMemo(() => trendSeries(transactions, range), [transactions, range]);
 
   const totalInAccounts = useMemo(
     () => accounts.reduce((s, a) => s + balanceOf(a.id), 0),
@@ -78,51 +94,103 @@ export function Dashboard() {
   if (error) return <ErrorState message={error} />;
 
   return (
-    <div>
-      <PageHeader title="Dashboard" />
+    <div className="space-y-4 sm:space-y-6">
+      <PageHeader
+        title="Dashboard"
+        actions={
+          <Select value={period} onValueChange={(v) => setPeriod(v as PeriodKind)}>
+            <SelectTrigger className="w-[150px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {(["week", "month", "year", "fy", "custom"] as PeriodKind[]).map((p) => (
+                <SelectItem key={p} value={p}>
+                  {PERIOD_LABELS[p]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        }
+      />
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Metric label="Income (FY)" value={formatMoney(fyTotals.income, currency)} positive />
-        <Metric label="Expense (FY)" value={formatMoney(fyTotals.expense, currency)} negative />
-        <Metric
-          label="Net (FY)"
-          value={formatMoney(fyTotals.net, currency)}
-          positive={fyTotals.net >= 0}
-          negative={fyTotals.net < 0}
+      {period === "custom" && (
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">From</label>
+            <Input type="date" value={customStart} onChange={(e) => setCustomStart(e.target.value)} />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">To</label>
+            <Input type="date" value={customEnd} onChange={(e) => setCustomEnd(e.target.value)} />
+          </div>
+        </div>
+      )}
+
+      {/* trend cards */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
+        <TrendCard
+          label="Income"
+          value={formatMoney(trend.totals.income, currency)}
+          metric="income"
+          data={trend.buckets}
+          icon={ArrowUpRight}
+          tone="success"
         />
-        <Metric label="Net (this month)" value={formatMoney(monthTotals.net, currency)} />
+        <TrendCard
+          label="Expense"
+          value={formatMoney(trend.totals.expense, currency)}
+          metric="expense"
+          data={trend.buckets}
+          icon={ArrowDownRight}
+          tone="destructive"
+        />
+        <TrendCard
+          label="Net"
+          value={formatMoney(trend.totals.net, currency)}
+          metric="net"
+          data={trend.buckets}
+          kind="bar"
+          tone={trend.totals.net >= 0 ? "success" : "destructive"}
+        />
       </div>
 
-      <div className="mt-4 grid gap-4 sm:grid-cols-2">
-        <Metric label="Total in accounts" value={formatMoney(totalInAccounts, currency)} />
-        <Metric
-          label="Held for others (custodial)"
+      {/* balances */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
+        <StatCard
+          label="Total in accounts"
+          value={formatMoney(totalInAccounts, currency)}
+          icon={Wallet}
+        />
+        <StatCard
+          label="Held for others"
           value={formatMoney(held, currency)}
-          hint="Money you're holding that belongs to contacts"
+          hint="Custodial — money you hold that belongs to contacts"
+          icon={Users}
         />
       </div>
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-2">
+      {/* breakdowns */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Spend by category (FY)</CardTitle>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Spend by category · FY {fy}</CardTitle>
           </CardHeader>
           <CardContent>
             {topSpend.length === 0 ? (
               <p className="text-sm text-muted-foreground">No spend recorded.</p>
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-2.5">
                 {topSpend.map((c) => {
                   const max = topSpend[0].amount || 1;
                   return (
                     <div key={c.categoryId}>
                       <div className="flex justify-between text-sm">
-                        <span>{c.name}</span>
+                        <span className="truncate pr-2">{c.name}</span>
                         <span className="tabular-nums">{formatMoney(c.amount, currency)}</span>
                       </div>
-                      <div className="mt-1 h-1.5 w-full rounded bg-muted">
+                      <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-muted">
                         <div
-                          className="h-1.5 rounded bg-primary"
+                          className="h-2 rounded-full bg-primary transition-all"
                           style={{ width: `${(c.amount / max) * 100}%` }}
                         />
                       </div>
@@ -135,28 +203,28 @@ export function Dashboard() {
         </Card>
 
         <Card>
-          <CardHeader>
+          <CardHeader className="pb-3">
             <CardTitle className="text-base">Upcoming dues</CardTitle>
           </CardHeader>
           <CardContent>
             {upcoming.length === 0 ? (
               <p className="text-sm text-muted-foreground">Nothing due.</p>
             ) : (
-              <div className="space-y-2">
+              <div className="divide-y">
                 {upcoming.map((d) => (
-                  <div key={d.id} className="flex items-center justify-between text-sm">
-                    <div>
-                      <span className="font-medium">{d.title}</span>{" "}
-                      <Badge variant={d.direction === "receivable" ? "success" : "warning"}>
-                        {d.direction}
-                      </Badge>
-                    </div>
-                    <div className="text-right">
-                      <div className="tabular-nums">{formatMoney(d.amount, currency)}</div>
+                  <div key={d.id} className="flex items-center justify-between gap-2 py-2 first:pt-0 last:pb-0 text-sm">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="truncate font-medium">{d.title}</span>
+                        <Badge variant={d.direction === "receivable" ? "success" : "warning"}>
+                          {d.direction}
+                        </Badge>
+                      </div>
                       <div className="text-xs text-muted-foreground">
                         {formatDate(toDate(d.dueDate))}
                       </div>
                     </div>
+                    <span className="shrink-0 tabular-nums">{formatMoney(d.amount, currency)}</span>
                   </div>
                 ))}
               </div>
@@ -165,8 +233,9 @@ export function Dashboard() {
         </Card>
       </div>
 
-      <Card className="mt-6">
-        <CardHeader>
+      {/* recent */}
+      <Card>
+        <CardHeader className="pb-3">
           <CardTitle className="text-base">Recent transactions</CardTitle>
         </CardHeader>
         <CardContent>
@@ -179,32 +248,25 @@ export function Dashboard() {
               .
             </p>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Note</TableHead>
-                  <TableHead className="text-right">Amount</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {recent.map((t) => (
-                  <TableRow key={t.id}>
-                    <TableCell>{formatDate(toDate(t.date))}</TableCell>
-                    <TableCell className="text-muted-foreground">{t.note ?? "—"}</TableCell>
-                    <TableCell
-                      className={cn(
-                        "text-right tabular-nums",
-                        t.totalAmount < 0 && "text-destructive",
-                        t.totalAmount > 0 && "text-green-600",
-                      )}
-                    >
-                      {formatMoney(t.totalAmount, currency)}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            <div className="divide-y">
+              {recent.map((t) => (
+                <div key={t.id} className="flex items-center justify-between gap-3 py-2 first:pt-0 last:pb-0">
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-medium">{t.note ?? "Transaction"}</div>
+                    <div className="text-xs text-muted-foreground">{formatDate(toDate(t.date))}</div>
+                  </div>
+                  <span
+                    className={cn(
+                      "shrink-0 text-sm tabular-nums",
+                      t.totalAmount < 0 && "text-destructive",
+                      t.totalAmount > 0 && "text-green-600",
+                    )}
+                  >
+                    {formatMoney(t.totalAmount, currency)}
+                  </span>
+                </div>
+              ))}
+            </div>
           )}
         </CardContent>
       </Card>
@@ -212,34 +274,72 @@ export function Dashboard() {
   );
 }
 
-function Metric({
+function TrendCard({
   label,
   value,
-  hint,
-  positive,
-  negative,
+  metric,
+  data,
+  icon: Icon,
+  kind = "area",
+  tone,
 }: {
   label: string;
   value: string;
-  hint?: string;
-  positive?: boolean;
-  negative?: boolean;
+  metric: "income" | "expense" | "net";
+  data: import("@/lib/period").TrendBucket[];
+  icon?: typeof Wallet;
+  kind?: "area" | "bar";
+  tone: "success" | "destructive";
 }) {
   return (
-    <Card>
-      <CardHeader className="pb-2">
+    <Card className="overflow-hidden">
+      <CardHeader className="flex-row items-center justify-between space-y-0 pb-1">
         <CardTitle className="text-sm font-normal text-muted-foreground">{label}</CardTitle>
+        {Icon && (
+          <Icon
+            className={cn(
+              "h-4 w-4",
+              tone === "success" ? "text-green-600" : "text-destructive",
+            )}
+          />
+        )}
       </CardHeader>
-      <CardContent>
+      <CardContent className="pb-0">
         <div
           className={cn(
-            "text-2xl font-semibold tabular-nums",
-            positive && "text-green-600",
-            negative && "text-destructive",
+            "text-xl font-semibold tabular-nums sm:text-2xl",
+            tone === "success" ? "text-green-600" : "text-destructive",
           )}
         >
           {value}
         </div>
+        <div className="-mx-2 mt-2">
+          <Sparkline data={data} metric={metric} kind={kind} />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function StatCard({
+  label,
+  value,
+  hint,
+  icon: Icon,
+}: {
+  label: string;
+  value: string;
+  hint?: string;
+  icon?: typeof Wallet;
+}) {
+  return (
+    <Card>
+      <CardHeader className="flex-row items-center justify-between space-y-0 pb-2">
+        <CardTitle className="text-sm font-normal text-muted-foreground">{label}</CardTitle>
+        {Icon && <Icon className="h-4 w-4 text-muted-foreground" />}
+      </CardHeader>
+      <CardContent>
+        <div className="text-xl font-semibold tabular-nums sm:text-2xl">{value}</div>
         {hint && <p className="mt-1 text-xs text-muted-foreground">{hint}</p>}
       </CardContent>
     </Card>

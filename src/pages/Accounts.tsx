@@ -2,7 +2,7 @@
 // Sortable headers; rows open a detail modal; actions in a kebab menu.
 
 import { useMemo, useState } from "react";
-import { Plus, Pencil, Trash2, Eye } from "lucide-react";
+import { Plus, Pencil, Trash2 } from "lucide-react";
 import { useWorkspace } from "@/workspace/WorkspaceProvider";
 import { useData } from "@/data/WorkspaceDataProvider";
 import { createAccount, deleteAccount, updateAccount } from "@/data/mutations";
@@ -92,7 +92,6 @@ export function Accounts() {
 
   function rowActions(a: Account): RowAction[] {
     return [
-      { label: "View details", icon: Eye, onSelect: () => setViewing(a) },
       { label: "Edit", icon: Pencil, onSelect: () => setEditing(a), hidden: !manage },
       {
         label: "Delete",
@@ -208,7 +207,7 @@ export function Accounts() {
           account={viewing}
           balance={balanceOf(viewing.id)}
           currency={currency}
-          actions={rowActions(viewing).filter((a) => a.label !== "View details")}
+          actions={rowActions(viewing)}
           onClose={() => setViewing(null)}
         />
       )}
@@ -279,6 +278,13 @@ function AccountDetail({
       subtitle={TYPE_LABELS[account.type]}
       fields={fields}
       actions={actions}
+      entityId={account.id}
+      audit={{
+        createdBy: account.createdBy,
+        createdAt: account.createdAt,
+        updatedBy: account.updatedBy,
+        updatedAt: account.updatedAt,
+      }}
     />
   );
 }

@@ -3,11 +3,12 @@
 // modal; row actions live in a kebab menu (both on the row and in the modal).
 
 import { useMemo, useState } from "react";
-import { Plus, Pencil, Trash2, Eye } from "lucide-react";
+import { Plus, Pencil, Trash2 } from "lucide-react";
 import { useAuth } from "@/auth/AuthProvider";
 import { useWorkspace } from "@/workspace/WorkspaceProvider";
 import { useData } from "@/data/WorkspaceDataProvider";
 import {
+  EXTERNAL_ACCOUNT,
   createTransaction,
   deleteTransaction,
   updateTransaction,
@@ -148,7 +149,6 @@ export function Transactions() {
 
   function rowActions(t: Transaction): RowAction[] {
     return [
-      { label: "View details", icon: Eye, onSelect: () => setViewTxn(t) },
       { label: "Edit", icon: Pencil, onSelect: () => setEditTxn(t), hidden: !edit },
       {
         label: "Delete",
@@ -286,7 +286,10 @@ export function Transactions() {
                     <TableCell className="whitespace-nowrap">{formatDate(toDate(t.date))}</TableCell>
                   )}
                   {cols.isVisible("account") && (
-                    <TableCell>{accountsById[t.accountId]?.name ?? "—"}</TableCell>
+                    <TableCell>
+                      {accountsById[t.accountId]?.name ??
+                        (t.accountId === EXTERNAL_ACCOUNT ? "External" : "—")}
+                    </TableCell>
                   )}
                   {cols.isVisible("contact") && (
                     <TableCell>{t.contactId ? contactsById[t.contactId]?.name ?? "—" : "—"}</TableCell>
@@ -365,7 +368,7 @@ export function Transactions() {
           currency={currency}
           accountName={(id) => accountsById[id]?.name ?? "—"}
           contactName={(id) => contactsById[id]?.name ?? "—"}
-          actions={rowActions(viewTxn).filter((a) => a.label !== "View details")}
+          actions={rowActions(viewTxn)}
           onClose={() => setViewTxn(null)}
         />
       )}
@@ -455,6 +458,13 @@ function TransactionDetail({
       subtitle={`${txn.lines.length} line${txn.lines.length > 1 ? "s" : ""}`}
       fields={fields}
       actions={actions}
+      entityId={txn.id}
+      audit={{
+        createdBy: txn.createdBy,
+        createdAt: txn.createdAt,
+        updatedBy: txn.updatedBy,
+        updatedAt: txn.updatedAt,
+      }}
     >
       <div className="mt-2">
         <p className="mb-2 text-sm font-medium">Lines</p>

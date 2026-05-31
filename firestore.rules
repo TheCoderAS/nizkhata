@@ -133,8 +133,13 @@ service cloud.firestore {
         && wsImmutable()
         && resource.data.uid != workspaceDoc(exWs()).data.ownerId;
 
-      allow delete: if can(exWs(), 'members.remove')
-        && resource.data.uid != workspaceDoc(exWs()).data.ownerId;
+      // A member can leave on their own; an admin can remove others. The owner
+      // can neither be removed nor leave (ownership must transfer/delete first).
+      allow delete: if resource.data.uid != workspaceDoc(exWs()).data.ownerId
+        && (
+          resource.data.uid == request.auth.uid ||
+          can(exWs(), 'members.remove')
+        );
     }
 
     // ---- roles -------------------------------------------------------------
@@ -204,14 +209,30 @@ service cloud.firestore {
     }
 
     // ---- transactions ------------------------------------------------------
+    // createdBy is a denormalized actor object { uid, name }. Legacy docs may
+    // still store a bare uid string, so accept both shapes for comparisons.
+    function createdUid(data) {
+      return data.createdBy is map ? data.createdBy.uid : data.createdBy;
+    }
     match /transactions/{id} {
       allow read:   if can(exWs(), 'transactions.view');
       allow create: if can(inWs(), 'transactions.create')
-        && request.resource.data.createdBy == request.auth.uid;
+        && createdUid(request.resource.data) == request.auth.uid;
       allow update: if can(exWs(), 'transactions.edit')
         && wsImmutable()
-        && request.resource.data.createdBy == resource.data.createdBy;
+        && createdUid(request.resource.data) == createdUid(resource.data);
       allow delete: if can(exWs(), 'transactions.delete');
+    }
+
+    // ---- revisions (append-only audit log) ---------------------------------
+    // Any workspace member can read the history and append entries; nobody can
+    // edit or delete them. The author must stamp themselves as `by.uid`.
+    // (Client-authored today; a Cloud Function can take over later unchanged.)
+    match /revisions/{id} {
+      allow read:   if isMember(exWs());
+      allow create: if isMember(inWs())
+        && request.resource.data.by.uid == request.auth.uid;
+      allow update, delete: if false;
     }
 
     // default deny
