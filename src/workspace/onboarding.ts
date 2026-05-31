@@ -30,6 +30,15 @@ function inviteId(workspaceId: string, email: string): string {
   return `${workspaceId}_${email.toLowerCase()}`;
 }
 
+/** Run an optional onboarding step without letting its failure abort sign-in. */
+async function bestEffort(label: string, fn: () => Promise<void>): Promise<void> {
+  try {
+    await fn();
+  } catch (e) {
+    console.warn(`[onboarding] optional step "${label}" failed (continuing):`, e);
+  }
+}
+
 /** Upsert the user profile doc. */
 async function upsertUser(fdb: Firestore, user: FirebaseUser): Promise<void> {
   const ref = doc(fdb, "users", user.uid);
@@ -282,8 +291,11 @@ export async function ensureUserAndOnboarding(
 ): Promise<void> {
   await upsertUser(fdb, user);
   await claimInvites(fdb, user);
-  await claimShareInvites(fdb, user);
-  await syncSystemRoles(fdb, user);
+  // Enhancement steps — best-effort. A failure here (e.g. the shared-ledger
+  // rules not yet deployed) must NOT block sign-in, so swallow + log rather
+  // than reject the whole onboarding.
+  await bestEffort("claimShareInvites", () => claimShareInvites(fdb, user));
+  await bestEffort("syncSystemRoles", () => syncSystemRoles(fdb, user));
 
   let workspaceIds = await listMembershipWorkspaceIds(fdb, user.uid);
   if (workspaceIds.length === 0) {
