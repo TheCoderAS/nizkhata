@@ -2,8 +2,9 @@
 // type, has-split) + search + pagination + sortable headers. Rows open a detail
 // modal; row actions live in a kebab menu (both on the row and in the modal).
 
-import { useMemo, useState } from "react";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
+import { Plus, Pencil, Trash2, X } from "lucide-react";
 import { useAuth } from "@/auth/AuthProvider";
 import { useWorkspace } from "@/workspace/WorkspaceProvider";
 import { useData } from "@/data/WorkspaceDataProvider";
@@ -66,10 +67,20 @@ const COLUMNS: ColumnDef<ColKey>[] = [
 export function Transactions() {
   const { firebaseUser } = useAuth();
   const { activeWorkspaceId, activeWorkspace, can } = useWorkspace();
-  const { transactions, accounts, contacts, accountsById, contactsById, loading, error } =
-    useData();
+  const {
+    transactions,
+    accounts,
+    contacts,
+    categories,
+    accountsById,
+    contactsById,
+    categoriesById,
+    loading,
+    error,
+  } = useData();
   const { toast } = useToast();
   const currency = activeWorkspace?.baseCurrency ?? "INR";
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const create = can("transactions.create");
   const edit = can("transactions.edit");
@@ -78,9 +89,24 @@ export function Transactions() {
   const [search, setSearch] = useState("");
   const [accountFilter, setAccountFilter] = useState("__all");
   const [contactFilter, setContactFilter] = useState("__all");
+  const [categoryFilter, setCategoryFilter] = useState("__all");
   const [typeFilter, setTypeFilter] = useState("__all");
   const [splitOnly, setSplitOnly] = useState(false);
   const [page, setPage] = useState(0);
+
+  // Deep-link support: `?category=<id>` (e.g. from a budget card) pre-applies
+  // the category filter. Consume the param once, then drop it from the URL so
+  // the user can clear the filter without it snapping back.
+  useEffect(() => {
+    const cat = searchParams.get("category");
+    if (cat) {
+      setCategoryFilter(cat);
+      setPage(0);
+      const next = new URLSearchParams(searchParams);
+      next.delete("category");
+      setSearchParams(next, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   const [formOpen, setFormOpen] = useState(false);
   const [editTxn, setEditTxn] = useState<Transaction | null>(null);
@@ -92,11 +118,13 @@ export function Transactions() {
   const activeFilterCount =
     (accountFilter !== "__all" ? 1 : 0) +
     (contactFilter !== "__all" ? 1 : 0) +
+    (categoryFilter !== "__all" ? 1 : 0) +
     (typeFilter !== "__all" ? 1 : 0) +
     (splitOnly ? 1 : 0);
   function clearFilters() {
     setAccountFilter("__all");
     setContactFilter("__all");
+    setCategoryFilter("__all");
     setTypeFilter("__all");
     setSplitOnly(false);
     setPage(0);
@@ -106,6 +134,8 @@ export function Transactions() {
     return transactions.filter((t) => {
       if (accountFilter !== "__all" && t.accountId !== accountFilter) return false;
       if (contactFilter !== "__all" && t.contactId !== contactFilter) return false;
+      if (categoryFilter !== "__all" && !t.lines.some((l) => l.categoryId === categoryFilter))
+        return false;
       if (splitOnly && !t.hasSplit) return false;
       if (typeFilter !== "__all" && !t.lines.some((l) => l.type === typeFilter)) return false;
       if (search) {
@@ -114,7 +144,16 @@ export function Transactions() {
       }
       return true;
     });
-  }, [transactions, accountFilter, contactFilter, splitOnly, typeFilter, search, contactsById]);
+  }, [
+    transactions,
+    accountFilter,
+    contactFilter,
+    categoryFilter,
+    splitOnly,
+    typeFilter,
+    search,
+    contactsById,
+  ]);
 
   const accessors: Record<SortKey, SortAccessor<Transaction>> = useMemo(
     () => ({
@@ -200,6 +239,14 @@ export function Transactions() {
               options={contacts.map((c) => ({ value: c.id, label: c.name }))}
             />
           </FilterRow>
+          <FilterRow label="Category">
+            <FilterSelect
+              value={categoryFilter}
+              onChange={setCategoryFilter}
+              allLabel="All categories"
+              options={categories.map((c) => ({ value: c.id, label: c.name }))}
+            />
+          </FilterRow>
           <FilterRow label="Line type">
             <FilterSelect
               value={typeFilter}
@@ -233,6 +280,25 @@ export function Transactions() {
         </FilterModal>
         <ColumnsMenu columns={cols.columns} isVisible={cols.isVisible} toggle={cols.toggle} reset={cols.reset} />
       </Toolbar>
+
+      {categoryFilter !== "__all" && (
+        <div className="mb-3 flex items-center gap-2">
+          <Badge variant="secondary" className="gap-1.5">
+            Category: {categoriesById[categoryFilter]?.name ?? "Unknown"}
+            <button
+              type="button"
+              aria-label="Clear category filter"
+              className="ml-0.5 rounded-full hover:text-foreground"
+              onClick={() => {
+                setCategoryFilter("__all");
+                setPage(0);
+              }}
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </Badge>
+        </div>
+      )}
 
       {sorted.length === 0 ? (
         <EmptyState

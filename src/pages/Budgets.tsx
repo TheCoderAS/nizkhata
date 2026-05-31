@@ -2,6 +2,7 @@
 // progress derived from this month's transactions. Gated by categories.manage.
 
 import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import { useWorkspace } from "@/workspace/WorkspaceProvider";
 import { useData } from "@/data/WorkspaceDataProvider";
@@ -37,9 +38,15 @@ export function Budgets() {
   const { activeWorkspaceId, activeWorkspace, can } = useWorkspace();
   const { budgets, categories, categoriesById, transactions, loading, error } = useData();
   const { toast } = useToast();
+  const navigate = useNavigate();
   const currency = activeWorkspace?.baseCurrency ?? "INR";
   const fyStartMonth = activeWorkspace?.fyStartMonth ?? 4;
   const manage = can("categories.manage");
+  const canViewTxns = can("transactions.view");
+
+  // Open the Transactions screen pre-filtered to this budget's category.
+  const openTxns = (categoryId: string) =>
+    navigate(`/transactions?category=${encodeURIComponent(categoryId)}`);
 
   const [editing, setEditing] = useState<Budget | "new" | null>(null);
   const [toDelete, setToDelete] = useState<Budget | null>(null);
@@ -106,7 +113,26 @@ export function Budgets() {
                   const budget = budgets.find((b) => b.id === p.budgetId)!;
                   const pct = Math.min(100, Math.round(p.ratio * 100));
                   return (
-                    <Card key={p.budgetId}>
+                    <Card
+                      key={p.budgetId}
+                      role={canViewTxns ? "button" : undefined}
+                      tabIndex={canViewTxns ? 0 : undefined}
+                      onClick={canViewTxns ? () => openTxns(p.categoryId) : undefined}
+                      onKeyDown={
+                        canViewTxns
+                          ? (e) => {
+                              if (e.key === "Enter" || e.key === " ") {
+                                e.preventDefault();
+                                openTxns(p.categoryId);
+                              }
+                            }
+                          : undefined
+                      }
+                      className={cn(
+                        canViewTxns &&
+                          "cursor-pointer transition-colors hover:border-primary/50 hover:bg-accent/40",
+                      )}
+                    >
                       <CardContent className="pt-5">
                         <div className="mb-2 flex items-start justify-between gap-2">
                           <div className="min-w-0">
