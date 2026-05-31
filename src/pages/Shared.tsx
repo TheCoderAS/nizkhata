@@ -4,7 +4,7 @@
 // account balances — it tracks who-owes-whom among members, not bank money.
 
 import { useMemo, useState } from "react";
-import { ArrowRight, Pencil, Plus, Trash2, Check } from "lucide-react";
+import { ArrowRight, Plus, Check, Pencil, Trash2 } from "lucide-react";
 import { useWorkspace } from "@/workspace/WorkspaceProvider";
 import { useAuth } from "@/auth/AuthProvider";
 import { useData } from "@/data/WorkspaceDataProvider";
@@ -38,6 +38,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { RowActions } from "@/components/RowActions";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { useToast } from "@/components/ui/toast";
 import type { Membership, SharedExpense } from "@/types/models";
@@ -66,16 +67,26 @@ export function Shared() {
   const [settle, setSettle] = useState<{ from: Member; to: Member; amount: number } | null>(null);
   const [toDelete, setToDelete] = useState<SharedExpense | null>(null);
 
+  // The current user's own name comes from auth, which always has it — even if
+  // their membership doc predates denormalized identity.
+  const myName = firebaseUser?.displayName || firebaseUser?.email || "You";
+
   const memberList: Member[] = useMemo(
-    () => members.map((m) => ({ uid: m.uid, name: memberName(m) })),
-    [members],
+    () => members.map((m) => ({ uid: m.uid, name: m.uid === myUid ? myName : memberName(m) })),
+    [members, myUid, myName],
   );
 
   const balances = useMemo(() => memberBalances(sharedExpenses), [sharedExpenses]);
   const transfers = useMemo(() => simplifyDebts(balances), [balances]);
 
-  const label = (uid: string) =>
-    (memberList.find((m) => m.uid === uid)?.name ?? "Member") + (uid === myUid ? " (you)" : "");
+  // Resolve a uid to a display name from live data (re-resolved each render, so
+  // it fixes records whose denormalized name was stale), falling back to the
+  // name stored on the record, then a generic label.
+  const nameForUid = (uid: string, fallback?: string) =>
+    uid === myUid ? myName : (memberList.find((m) => m.uid === uid)?.name ?? fallback ?? "Member");
+
+  const label = (uid: string, fallback?: string) =>
+    nameForUid(uid, fallback) + (uid === myUid ? " (you)" : "");
 
   if (loading) return <LoadingState />;
   if (error) return <ErrorState message={error} />;
@@ -91,9 +102,8 @@ export function Shared() {
           hidden: !canAdd,
         }}
       />
-      <p className="mb-4 text-sm text-muted-foreground">
-        Split costs between members and settle up. Tracked separately from account balances.
-      </p>
+
+      <div className="mt-4" />
 
       {/* Balances */}
       <Card className="mb-6">
@@ -111,9 +121,9 @@ export function Shared() {
                   className="flex items-center justify-between gap-2 text-sm"
                 >
                   <span className="flex min-w-0 items-center gap-1.5">
-                    <span className="truncate font-medium">{label(t.fromUid)}</span>
+                    <span className="truncate font-medium">{label(t.fromUid, t.fromName)}</span>
                     <ArrowRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                    <span className="truncate font-medium">{label(t.toUid)}</span>
+                    <span className="truncate font-medium">{label(t.toUid, t.toName)}</span>
                   </span>
                   <span className="flex shrink-0 items-center gap-2">
                     <span className="tabular-nums">{formatMoney(t.amount, currency)}</span>
@@ -151,29 +161,36 @@ export function Shared() {
         <div className="space-y-2">
           {sharedExpenses.map((e) => (
             <Card key={e.id}>
-              <CardContent className="flex items-center justify-between gap-3 py-3">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="truncate font-medium">{e.description}</span>
+              <CardContent className="flex items-start justify-between gap-3 py-3">
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <span className="font-medium">{e.description}</span>
                     {e.kind === "settlement" && <Badge variant="secondary">settlement</Badge>}
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    {e.paidByName} paid · {formatDate(toDate(e.date))}
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    {nameForUid(e.paidBy, e.paidByName)} paid · {formatDate(toDate(e.date))}
                     {e.kind === "expense" && ` · split ${e.splits.length} ways`}
                   </p>
                 </div>
-                <div className="flex shrink-0 items-center gap-2">
+                <div className="flex shrink-0 items-center gap-1">
                   <span className="tabular-nums">{formatMoney(e.amount, currency)}</span>
-                  {canEdit && (
-                    <Button size="icon" variant="ghost" onClick={() => setEditing(e)}>
-                      <Pencil />
-                    </Button>
-                  )}
-                  {canDelete && (
-                    <Button size="icon" variant="ghost" onClick={() => setToDelete(e)}>
-                      <Trash2 />
-                    </Button>
-                  )}
+                  <RowActions
+                    actions={[
+                      {
+                        label: "Edit",
+                        icon: Pencil,
+                        onSelect: () => setEditing(e),
+                        hidden: !canEdit,
+                      },
+                      {
+                        label: "Delete",
+                        icon: Trash2,
+                        onSelect: () => setToDelete(e),
+                        destructive: true,
+                        hidden: !canDelete,
+                      },
+                    ]}
+                  />
                 </div>
               </CardContent>
             </Card>

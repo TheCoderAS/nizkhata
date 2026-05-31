@@ -28,6 +28,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { RowActions } from "@/components/RowActions";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { useToast } from "@/components/ui/toast";
 import { cn, formatMoney } from "@/lib/utils";
@@ -77,9 +78,7 @@ export function Budgets() {
         }}
       />
 
-      <p className="mb-4 text-sm text-muted-foreground">
-        Spending limits per expense category, tracked over the current month or financial year.
-      </p>
+      <div className="mt-4" />
 
       {budgets.length === 0 ? (
         <EmptyState
@@ -109,41 +108,40 @@ export function Budgets() {
                   return (
                     <Card key={p.budgetId}>
                       <CardContent className="pt-5">
-                        <div className="mb-2 flex items-center justify-between gap-2">
-                          <div className="flex min-w-0 items-center gap-2">
-                            <span className="truncate font-medium">{p.categoryName}</span>
-                            <span className="shrink-0 text-xs text-muted-foreground">
-                              {p.periodLabel}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span
+                        <div className="mb-2 flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                              <span className="font-medium">{p.categoryName}</span>
+                              <span className="text-xs text-muted-foreground">
+                                {p.periodLabel}
+                              </span>
+                            </div>
+                            <div
                               className={cn(
-                                "text-sm tabular-nums",
+                                "mt-0.5 text-sm tabular-nums",
                                 p.over ? "text-destructive" : "text-muted-foreground",
                               )}
                             >
                               {formatMoney(p.spent, currency)} / {formatMoney(p.limit, currency)}
-                            </span>
-                            {manage && (
-                              <>
-                                <Button
-                                  size="icon"
-                                  variant="ghost"
-                                  onClick={() => setEditing(budget)}
-                                >
-                                  <Pencil />
-                                </Button>
-                                <Button
-                                  size="icon"
-                                  variant="ghost"
-                                  onClick={() => setToDelete(budget)}
-                                >
-                                  <Trash2 />
-                                </Button>
-                              </>
-                            )}
+                            </div>
                           </div>
+                          {manage && (
+                            <RowActions
+                              actions={[
+                                {
+                                  label: "Edit",
+                                  icon: Pencil,
+                                  onSelect: () => setEditing(budget),
+                                },
+                                {
+                                  label: "Delete",
+                                  icon: Trash2,
+                                  onSelect: () => setToDelete(budget),
+                                  destructive: true,
+                                },
+                              ]}
+                            />
+                          )}
                         </div>
                         <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
                           <div
