@@ -20,10 +20,13 @@ const ACTION_LABEL: Record<RevisionAction, string> = {
 };
 
 export function RevisionHistory({ entityId }: { entityId: string }) {
-  const { revisions, loading } = useRevisions(entityId);
+  const { revisions, loading, error } = useRevisions(entityId);
 
   if (loading) {
     return <p className="py-2 text-xs text-muted-foreground">Loading history…</p>;
+  }
+  if (error) {
+    return <p className="py-2 text-xs text-destructive">Couldn't load history.</p>;
   }
   if (revisions.length === 0) {
     return <p className="py-2 text-xs text-muted-foreground">No history recorded.</p>;

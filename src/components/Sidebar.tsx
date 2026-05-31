@@ -24,6 +24,7 @@ import {
   ChevronLeft,
   type LucideIcon,
 } from "lucide-react";
+import { useAuth } from "@/auth/AuthProvider";
 import { useWorkspace } from "@/workspace/WorkspaceProvider";
 import type { Permission } from "@/types/permissions";
 import { cn } from "@/lib/utils";
@@ -50,7 +51,7 @@ const SETTINGS_NAV: NavItem[] = [
   { to: "/settings/members", label: "Members", icon: UserCog, perm: "members.view" },
   { to: "/settings/roles", label: "Roles", icon: ShieldCheck, perm: "roles.view" },
   { to: "/settings/workspace", label: "Workspace", icon: Building2, perm: "workspace.edit" },
-  { to: "/settings/account", label: "Account", icon: CircleUser },
+  { to: "/settings/account", label: "Profile", icon: CircleUser },
 ];
 
 function itemClass(isActive: boolean) {
@@ -79,7 +80,8 @@ function NavItemLink({ item, onNavigate }: { item: NavItem; onNavigate?: () => v
 
 /** Sidebar inner content, shared by the desktop rail and the mobile drawer. */
 export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
-  const { can } = useWorkspace();
+  const { can, activeWorkspace } = useWorkspace();
+  const { firebaseUser } = useAuth();
   const location = useLocation();
   const onSettingsRoute = location.pathname.startsWith("/settings");
   const [view, setView] = useState<"main" | "settings">(
@@ -149,8 +151,40 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
           </div>
         )}
       </div>
+
+      {/* account footer — fills the empty bottom + gives drawer users a way to
+          reach their account while the header avatar menu is hidden */}
+      <NavLink
+        to="/settings/account"
+        onClick={onNavigate}
+        className={({ isActive }) =>
+          cn(
+            "mt-auto flex items-center gap-3 rounded-lg border p-2 text-left transition-colors",
+            isActive ? "bg-accent" : "hover:bg-accent",
+          )
+        }
+      >
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
+          {actorInitials(
+            firebaseUser?.displayName ?? firebaseUser?.email ?? "?",
+          )}
+        </span>
+        <span className="min-w-0 flex-1 leading-tight">
+          <span className="block truncate text-sm font-medium">
+            {firebaseUser?.displayName ?? firebaseUser?.email ?? "Account"}
+          </span>
+          <span className="block truncate text-xs text-muted-foreground">
+            {activeWorkspace?.name ?? "—"}
+          </span>
+        </span>
+      </NavLink>
     </div>
   );
+}
+
+function actorInitials(nameOrEmail: string): string {
+  const parts = nameOrEmail.trim().split(/[\s@.]+/).filter(Boolean);
+  return (parts[0]?.[0] ?? "?").toUpperCase() + (parts[1]?.[0]?.toUpperCase() ?? "");
 }
 
 /** Fixed desktop rail (hidden on mobile). */

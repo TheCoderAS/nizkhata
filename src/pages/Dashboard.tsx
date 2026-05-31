@@ -23,6 +23,7 @@ import {
   type PeriodKind,
 } from "@/lib/period";
 import { PageHeader } from "@/components/PageHeader";
+import { TransactionDetailDialog } from "@/components/TransactionDetailDialog";
 import { Sparkline } from "@/components/Sparkline";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -46,6 +47,7 @@ export function Dashboard() {
   const now = new Date();
   const fy = financialYearOf(now, fyStartMonth);
 
+  const [openTxn, setOpenTxn] = useState<(typeof transactions)[number] | null>(null);
   const [period, setPeriod] = useState<PeriodKind>("month");
   const [customStart, setCustomStart] = useState(
     new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10),
@@ -250,7 +252,11 @@ export function Dashboard() {
           ) : (
             <div className="divide-y">
               {recent.map((t) => (
-                <div key={t.id} className="flex items-center justify-between gap-3 py-2 first:pt-0 last:pb-0">
+                <button
+                  key={t.id}
+                  onClick={() => setOpenTxn(t)}
+                  className="flex w-full items-center justify-between gap-3 py-2 text-left first:pt-0 last:pb-0 hover:bg-accent/50"
+                >
                   <div className="min-w-0">
                     <div className="truncate text-sm font-medium">{t.note ?? "Transaction"}</div>
                     <div className="text-xs text-muted-foreground">{formatDate(toDate(t.date))}</div>
@@ -264,12 +270,16 @@ export function Dashboard() {
                   >
                     {formatMoney(t.totalAmount, currency)}
                   </span>
-                </div>
+                </button>
               ))}
             </div>
           )}
         </CardContent>
       </Card>
+
+      {openTxn && (
+        <TransactionDetailDialog txn={openTxn} onClose={() => setOpenTxn(null)} />
+      )}
     </div>
   );
 }

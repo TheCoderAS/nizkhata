@@ -14,7 +14,7 @@ import {
   removeMember,
   revokeInvite,
 } from "@/data/adminMutations";
-import type { Membership } from "@/types/models";
+import type { Membership, Role } from "@/types/models";
 import { PageHeader } from "@/components/PageHeader";
 import { RowActions } from "@/components/RowActions";
 import { Button } from "@/components/ui/button";
@@ -55,6 +55,11 @@ function memberLabel(m: Membership): string {
   return m.displayName || m.email || `${m.uid.slice(0, 8)}…`;
 }
 
+/** The reserved Owner role — the seeded system role named "Owner". */
+function isOwnerRole(r: Role): boolean {
+  return r.isSystem && r.name === "Owner";
+}
+
 export function Members() {
   const { firebaseUser } = useAuth();
   const { activeWorkspace, can } = useWorkspace();
@@ -72,10 +77,15 @@ export function Members() {
   if (error) return <ErrorState message={error} />;
 
   const pendingInvites = invites.filter((i) => i.status === "pending");
+  // The Owner role is reserved for the workspace owner — never assignable to
+  // anyone else (the single owner is workspace.ownerId, fixed at creation).
+  const assignableRoles = roles.filter((r) => !isOwnerRole(r));
 
   async function handleRoleChange(m: Membership, roleId: string) {
+    const role = rolesById[roleId];
+    if (!role) return;
     try {
-      await changeMemberRole(m, roleId, ownerId ?? "");
+      await changeMemberRole(m, role, ownerId ?? "");
       toast({ title: "Role updated", variant: "success" });
     } catch (e) {
       toast({
@@ -135,7 +145,7 @@ export function Members() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {roles.map((r) => (
+                        {assignableRoles.map((r) => (
                           <SelectItem key={r.id} value={r.id}>
                             {r.name}
                           </SelectItem>
@@ -219,7 +229,7 @@ export function Members() {
         <InviteDialog
           workspaceId={activeWorkspace.id}
           invitedBy={firebaseUser?.uid ?? ""}
-          roles={roles}
+          roles={assignableRoles}
           onClose={() => setInviteOpen(false)}
           onSaved={() => toast({ title: "Invite sent", variant: "success" })}
         />

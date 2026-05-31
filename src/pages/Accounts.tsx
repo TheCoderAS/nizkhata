@@ -275,7 +275,6 @@ function AccountDetail({
       open
       onClose={onClose}
       title={account.name}
-      subtitle={TYPE_LABELS[account.type]}
       fields={fields}
       actions={actions}
       entityId={account.id}

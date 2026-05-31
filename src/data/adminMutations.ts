@@ -97,12 +97,16 @@ export function assertNotLastHolder(
 
 export async function changeMemberRole(
   membership: Membership,
-  newRoleId: string,
+  newRole: Role,
   ownerId: string,
 ): Promise<void> {
   if (membership.uid === ownerId)
     throw new GuardrailError("The workspace owner's role can't be changed.");
-  await updateDoc(doc(db, "memberships", membership.id), { roleId: newRoleId });
+  if (newRole.isSystem && newRole.name === "Owner")
+    throw new GuardrailError(
+      "The Owner role is reserved for the workspace owner and can't be assigned.",
+    );
+  await updateDoc(doc(db, "memberships", membership.id), { roleId: newRole.id });
 }
 
 export async function removeMember(

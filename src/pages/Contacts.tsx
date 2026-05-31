@@ -12,6 +12,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { RowActions, type RowAction } from "@/components/RowActions";
 import { SortableHead } from "@/components/SortableHead";
 import { ColumnsMenu } from "@/components/ColumnsMenu";
+import { Toolbar } from "@/components/Toolbar";
 import { useColumnPrefs, type ColumnDef } from "@/lib/useColumnPrefs";
 import { useSort, type SortAccessor } from "@/lib/useSort";
 import { Button } from "@/components/ui/button";
@@ -113,17 +114,9 @@ export function Contacts() {
         }}
       />
 
-      <div className="mb-4 flex items-center gap-2">
-        <Input
-          placeholder="Search contacts…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="max-w-sm"
-        />
-        <div className="ml-auto">
-          <ColumnsMenu columns={cols.columns} isVisible={cols.isVisible} toggle={cols.toggle} reset={cols.reset} />
-        </div>
-      </div>
+      <Toolbar search={search} onSearch={setSearch} placeholder="Search contacts…">
+        <ColumnsMenu columns={cols.columns} isVisible={cols.isVisible} toggle={cols.toggle} reset={cols.reset} />
+      </Toolbar>
 
       {sorted.length === 0 ? (
         <EmptyState

@@ -19,13 +19,13 @@ import { PageHeader } from "@/components/PageHeader";
 import { TransactionFormDialog } from "@/components/TransactionForm";
 import { RowActions, type RowAction } from "@/components/RowActions";
 import { SortableHead } from "@/components/SortableHead";
-import { DetailDialog, type DetailField } from "@/components/DetailDialog";
+import { TransactionDetailDialog } from "@/components/TransactionDetailDialog";
 import { FilterModal, FilterRow } from "@/components/FilterModal";
 import { ColumnsMenu } from "@/components/ColumnsMenu";
+import { Toolbar } from "@/components/Toolbar";
 import { useColumnPrefs, type ColumnDef } from "@/lib/useColumnPrefs";
 import { useSort, type SortAccessor } from "@/lib/useSort";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -173,17 +173,15 @@ export function Transactions() {
         }}
       />
 
-      {/* toolbar: search + filters modal + column chooser */}
-      <div className="mb-4 flex flex-wrap items-center gap-2">
-        <Input
-          placeholder="Search note / contact…"
-          value={search}
-          onChange={(e) => {
-            setSearch(e.target.value);
-            setPage(0);
-          }}
-          className="max-w-xs"
-        />
+      {/* toolbar: search (grows) + filters modal + column chooser */}
+      <Toolbar
+        search={search}
+        onSearch={(v) => {
+          setSearch(v);
+          setPage(0);
+        }}
+        placeholder="Search note / contact…"
+      >
         <FilterModal activeCount={activeFilterCount} onClear={clearFilters}>
           <FilterRow label="Account">
             <FilterSelect
@@ -232,10 +230,8 @@ export function Transactions() {
             Split transactions only
           </label>
         </FilterModal>
-        <div className="ml-auto">
-          <ColumnsMenu columns={cols.columns} isVisible={cols.isVisible} toggle={cols.toggle} reset={cols.reset} />
-        </div>
-      </div>
+        <ColumnsMenu columns={cols.columns} isVisible={cols.isVisible} toggle={cols.toggle} reset={cols.reset} />
+      </Toolbar>
 
       {sorted.length === 0 ? (
         <EmptyState
@@ -363,13 +359,11 @@ export function Transactions() {
       )}
 
       {viewTxn && (
-        <TransactionDetail
+        <TransactionDetailDialog
           txn={viewTxn}
-          currency={currency}
-          accountName={(id) => accountsById[id]?.name ?? "—"}
-          contactName={(id) => contactsById[id]?.name ?? "—"}
-          actions={rowActions(viewTxn)}
           onClose={() => setViewTxn(null)}
+          onEdit={edit ? (t) => { setViewTxn(null); setEditTxn(t); } : undefined}
+          onDelete={del ? (t) => setToDelete(t) : undefined}
         />
       )}
 
@@ -407,90 +401,6 @@ export function Transactions() {
         }}
       />
     </div>
-  );
-}
-
-function TransactionDetail({
-  txn,
-  currency,
-  accountName,
-  contactName,
-  actions,
-  onClose,
-}: {
-  txn: Transaction;
-  currency: string;
-  accountName: (id: string) => string;
-  contactName: (id: string) => string;
-  actions: RowAction[];
-  onClose: () => void;
-}) {
-  const fields: DetailField[] = [
-    { label: "Date", value: formatDate(toDate(txn.date)) },
-    { label: "Account", value: accountName(txn.accountId) },
-    {
-      label: "Contact",
-      value: txn.contactId ? contactName(txn.contactId) : "—",
-    },
-    { label: "Financial year", value: txn.financialYear },
-    {
-      label: "Total",
-      value: (
-        <span
-          className={cn(
-            "tabular-nums",
-            txn.totalAmount < 0 && "text-destructive",
-            txn.totalAmount > 0 && "text-green-600",
-          )}
-        >
-          {formatMoney(txn.totalAmount, currency)}
-        </span>
-      ),
-    },
-    { label: "Note", value: txn.note ?? "—", block: true, hidden: !txn.note },
-  ];
-
-  return (
-    <DetailDialog
-      open
-      onClose={onClose}
-      title="Transaction"
-      subtitle={`${txn.lines.length} line${txn.lines.length > 1 ? "s" : ""}`}
-      fields={fields}
-      actions={actions}
-      entityId={txn.id}
-      audit={{
-        createdBy: txn.createdBy,
-        createdAt: txn.createdAt,
-        updatedBy: txn.updatedBy,
-        updatedAt: txn.updatedAt,
-      }}
-    >
-      <div className="mt-2">
-        <p className="mb-2 text-sm font-medium">Lines</p>
-        <div className="space-y-2">
-          {txn.lines.map((l) => (
-            <div
-              key={l.lineId}
-              className="flex items-center justify-between rounded-md border p-2 text-sm"
-            >
-              <div className="flex items-center gap-2">
-                <Badge variant="secondary" className="text-[10px]">
-                  {l.type}
-                </Badge>
-                {l.tax?.taxable && (
-                  <Badge variant="outline" className="text-[10px]">
-                    tax: {l.tax.head}
-                  </Badge>
-                )}
-                {l.note && <span className="text-muted-foreground">{l.note}</span>}
-              </div>
-              <span className="tabular-nums">{formatMoney(l.amount, currency)}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-    </DetailDialog>
   );
 }
 

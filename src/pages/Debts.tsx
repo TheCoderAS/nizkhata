@@ -22,10 +22,12 @@ import { RowActions, type RowAction } from "@/components/RowActions";
 import { SortableHead } from "@/components/SortableHead";
 import { DetailDialog, type DetailField } from "@/components/DetailDialog";
 import { ColumnsMenu } from "@/components/ColumnsMenu";
+import { Toolbar } from "@/components/Toolbar";
 import { useColumnPrefs, type ColumnDef } from "@/lib/useColumnPrefs";
 import { useSort, type SortAccessor } from "@/lib/useSort";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -87,14 +89,22 @@ export function Debts() {
   const [viewing, setViewing] = useState<Debt | null>(null);
   const [settling, setSettling] = useState<Debt | null>(null);
   const [toDelete, setToDelete] = useState<Debt | null>(null);
+  const [search, setSearch] = useState("");
 
   const cols = useColumnPrefs<ColKey>("debts", COLUMNS);
 
   if (loading) return <LoadingState />;
   if (error) return <ErrorState message={error} />;
 
-  const owed = debts.filter((d) => d.direction === "owed");
-  const owe = debts.filter((d) => d.direction === "owe");
+  const matches = (d: Debt) => {
+    if (!search) return true;
+    const hay = `${d.label ?? ""} ${contactsById[d.contactId]?.name ?? ""} ${
+      PURPOSE_LABELS[d.purpose]
+    }`.toLowerCase();
+    return hay.includes(search.toLowerCase());
+  };
+  const owed = debts.filter((d) => d.direction === "owed" && matches(d));
+  const owe = debts.filter((d) => d.direction === "owe" && matches(d));
 
   function rowActions(d: Debt): RowAction[] {
     const outstanding = outstandingOf(d.id);
@@ -140,9 +150,9 @@ export function Debts() {
       />
 
       {debts.length > 0 && (
-        <div className="mb-4 flex justify-end">
+        <Toolbar search={search} onSearch={setSearch} placeholder="Search debts…">
           <ColumnsMenu columns={cols.columns} isVisible={cols.isVisible} toggle={cols.toggle} reset={cols.reset} />
-        </div>
+        </Toolbar>
       )}
 
       {debts.length === 0 ? (
@@ -372,13 +382,13 @@ function DebtDetail({
     { label: "Status", value: debt.status },
     { label: "Principal (reference)", value: formatMoney(debt.principal, currency) },
     { label: "Outstanding", value: formatMoney(outstanding, currency) },
+    { label: "Note", value: debt.note ?? "—", block: true, hidden: !debt.note },
   ];
   return (
     <DetailDialog
       open
       onClose={onClose}
       title={debt.label ?? PURPOSE_LABELS[debt.purpose]}
-      subtitle={contactName}
       fields={fields}
       actions={actions}
       entityId={debt.id}
@@ -411,9 +421,11 @@ function DebtDialog({
   const [direction, setDirection] = useState<DebtDirection>(debt?.direction ?? "owe");
   const [purpose, setPurpose] = useState<DebtPurpose>(debt?.purpose ?? "loan");
   const [label, setLabel] = useState(debt?.label ?? "");
+  const [note, setNote] = useState(debt?.note ?? "");
   // "Opening amount" seeds an opening-balance transaction on create.
   const [openingAmount, setOpeningAmount] = useState(String(debt?.principal ?? 0));
   const [accountId, setAccountId] = useState("__external"); // default External / none
+  const [openingDate, setOpeningDate] = useState(new Date().toISOString().slice(0, 10));
   const [status, setStatus] = useState(debt?.status ?? "open");
   const [busy, setBusy] = useState(false);
 
@@ -422,10 +434,11 @@ function DebtDialog({
     setBusy(true);
     try {
       if (debt) {
-        // direction / purpose / contact are structural; allow label, principal,
-        // and manual status (re-open / settle) edits.
+        // direction / purpose / contact are structural; allow label, note,
+        // principal, and manual status (re-open / settle) edits.
         await updateDebt(debt.id, {
           label: label.trim() || undefined,
+          note: note.trim() || undefined,
           principal: Number(openingAmount) || 0,
           status,
         });
@@ -441,10 +454,12 @@ function DebtDialog({
             purpose,
             principal: amount,
             label: label.trim() || undefined,
+            note: note.trim() || undefined,
           },
           {
             amount,
             accountId: accountId === "__external" ? undefined : accountId,
+            date: new Date(openingDate),
           },
         );
       }
@@ -563,6 +578,24 @@ function DebtDialog({
                 </Select>
               </div>
             )}
+          </div>
+          {!debt && Number(openingAmount) > 0 && (
+            <div className="space-y-1.5">
+              <Label>Opening date</Label>
+              <Input
+                type="date"
+                value={openingDate}
+                onChange={(e) => setOpeningDate(e.target.value)}
+              />
+            </div>
+          )}
+          <div className="space-y-1.5">
+            <Label>Note (optional)</Label>
+            <Textarea
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="Any details about this debt…"
+            />
           </div>
           {!debt && Number(openingAmount) > 0 && (
             <p className="text-xs text-muted-foreground">

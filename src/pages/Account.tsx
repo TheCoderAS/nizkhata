@@ -38,7 +38,7 @@ export function Account() {
 
   return (
     <div className="max-w-xl">
-      <PageHeader title="Account" />
+      <PageHeader title="Profile" />
 
       <Card>
         <CardHeader>

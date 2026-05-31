@@ -80,6 +80,20 @@ service cloud.firestore {
         : '';
     }
 
+    // The reserved Owner role: the seeded system role named "Owner". It may only
+    // belong to the workspace owner, so there is exactly one owner at all times.
+    function roleDoc(roleId) {
+      return get(/databases/$(database)/documents/roles/$(roleId));
+    }
+    function isOwnerRole(roleId) {
+      let r = roleDoc(roleId);
+      return r.data.isSystem == true && r.data.name == 'Owner';
+    }
+    // A membership may carry the Owner role only if its uid is the workspace owner.
+    function ownerRoleOnlyForOwner(ws, uid, roleId) {
+      return !isOwnerRole(roleId) || uid == workspaceDoc(ws).data.ownerId;
+    }
+
     // [FIX 1] deterministic invite doc for the current caller in a workspace.
     function inviteDoc(ws) {
       return get(/databases/$(database)/documents/invites/$(ws + '_' + authEmail()));
@@ -116,9 +130,11 @@ service cloud.firestore {
       );
 
       // [FIX 1] no open self-join. Only invited users, inviters, or the owner.
+      // The Owner role can only be held by the workspace owner.
       allow create: if isSignedIn()
         && request.resource.data.id == id
         && id == request.resource.data.workspaceId + '_' + request.resource.data.uid
+        && ownerRoleOnlyForOwner(inWs(), request.resource.data.uid, request.resource.data.roleId)
         && (
           can(inWs(), 'members.invite') ||
           isOwner(inWs()) ||
@@ -128,10 +144,12 @@ service cloud.firestore {
           )
         );
 
-      // role changes: must keep workspace; cannot change the owner's membership.
+      // role changes: must keep workspace; cannot change the owner's membership;
+      // cannot hand the Owner role to anyone but the owner.
       allow update: if can(exWs(), 'members.invite')
         && wsImmutable()
-        && resource.data.uid != workspaceDoc(exWs()).data.ownerId;
+        && resource.data.uid != workspaceDoc(exWs()).data.ownerId
+        && ownerRoleOnlyForOwner(exWs(), request.resource.data.uid, request.resource.data.roleId);
 
       // A member can leave on their own; an admin can remove others. The owner
       // can neither be removed nor leave (ownership must transfer/delete first).
