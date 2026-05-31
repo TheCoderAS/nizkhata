@@ -115,23 +115,28 @@ async function listMembershipWorkspaceIds(
 }
 
 /**
- * Create a personal workspace and seed roles + owner membership + categories.
- * Returns the new workspaceId. Owner role id is returned via the membership.
+ * Create a workspace and seed roles + owner membership + categories. Returns the
+ * new workspaceId. If `name` is omitted, a personal-workspace name is derived
+ * from the user's display name. Reused by first-login onboarding and the
+ * "add workspace" flow.
  */
 async function createPersonalWorkspace(
   fdb: Firestore,
   user: FirebaseUser,
+  name?: string,
 ): Promise<string> {
   // 1) workspace doc committed FIRST so the owner-bypass in rules resolves
   //    for the subsequent role/membership/category seed writes.
   const wsRef = doc(collection(fdb, "workspaces"));
   const workspaceId = wsRef.id;
-  const name = user.displayName
-    ? `${user.displayName.split(" ")[0]}'s Workspace`
-    : "My Workspace";
+  const workspaceName =
+    name?.trim() ||
+    (user.displayName
+      ? `${user.displayName.split(" ")[0]}'s Workspace`
+      : "My Workspace");
   await setDoc(wsRef, {
     id: workspaceId,
-    name,
+    name: workspaceName,
     ownerId: user.uid,
     baseCurrency: "INR",
     fyStartMonth: 4, // April (India)
@@ -207,3 +212,16 @@ export async function ensureUserAndOnboarding(
 }
 
 export { inviteId };
+
+/**
+ * Public helper: create an additional workspace owned by the current user
+ * (seeded with system roles, owner membership and default categories).
+ * Returns the new workspaceId.
+ */
+export async function createWorkspace(
+  user: FirebaseUser,
+  name: string,
+  fdb: Firestore = db,
+): Promise<string> {
+  return createPersonalWorkspace(fdb, user, name);
+}

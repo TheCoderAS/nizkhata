@@ -1,8 +1,10 @@
-// Sidebar nav (§6 app shell). Workspace-scoped, permission-gated nav. Items the
-// user lacks permission for are HIDDEN, not disabled. The Settings group is a
-// collapsible section holding Accounts, Categories and the admin screens.
+// Sidebar nav (§6 app shell). Two views inside one rail:
+//   - "main": Dashboard … Reports, then a Settings button (chevron).
+//   - "settings": a back button + "Settings" heading + the settings options.
+// Clicking Settings slides into the settings view; Back returns to main.
+// The view auto-syncs to whether you're on a /settings/* route.
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -18,7 +20,8 @@ import {
   Building2,
   CircleUser,
   Settings,
-  ChevronDown,
+  ChevronRight,
+  ChevronLeft,
   type LucideIcon,
 } from "lucide-react";
 import { useWorkspace } from "@/workspace/WorkspaceProvider";
@@ -41,8 +44,6 @@ const MAIN_NAV: NavItem[] = [
   { to: "/reports", label: "Reports", icon: BarChart3, perm: "reports.view" },
 ];
 
-// Settings group: data setup (accounts/categories) + admin + the personal
-// Account page (always available).
 const SETTINGS_NAV: NavItem[] = [
   { to: "/settings/accounts", label: "Accounts", icon: Wallet, perm: "accounts.view" },
   { to: "/settings/categories", label: "Categories", icon: Tags, perm: "categories.view" },
@@ -76,74 +77,77 @@ function NavItemLink({ item, onNavigate }: { item: NavItem; onNavigate?: () => v
   );
 }
 
-function MainNav({ onNavigate }: { onNavigate?: () => void }) {
-  const { can } = useWorkspace();
-  const visible = MAIN_NAV.filter((i) => !i.perm || can(i.perm));
-  return (
-    <nav className="flex flex-col gap-1">
-      {visible.map((item) => (
-        <NavItemLink key={item.to} item={item} onNavigate={onNavigate} />
-      ))}
-    </nav>
-  );
-}
-
-function SettingsGroup({ onNavigate }: { onNavigate?: () => void }) {
-  const { can } = useWorkspace();
-  const location = useLocation();
-  const items = SETTINGS_NAV.filter((i) => !i.perm || can(i.perm));
-  const sectionActive = location.pathname.startsWith("/settings");
-  // open by default when on a settings route
-  const [open, setOpen] = useState(sectionActive);
-
-  if (items.length === 0) return null;
-
-  return (
-    <div>
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className={cn(
-          "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-          sectionActive
-            ? "text-foreground"
-            : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
-        )}
-        aria-expanded={open}
-      >
-        <Settings className="h-4 w-4 shrink-0" />
-        Settings
-        <ChevronDown
-          className={cn(
-            "ml-auto h-4 w-4 transition-transform duration-200",
-            open && "rotate-180",
-          )}
-        />
-      </button>
-      {open && (
-        <nav className="mt-1 flex flex-col gap-1 border-l pl-3 ml-4">
-          {items.map((item) => (
-            <NavItemLink key={item.to} item={item} onNavigate={onNavigate} />
-          ))}
-        </nav>
-      )}
-    </div>
-  );
-}
-
 /** Sidebar inner content, shared by the desktop rail and the mobile drawer. */
 export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
+  const { can } = useWorkspace();
+  const location = useLocation();
+  const onSettingsRoute = location.pathname.startsWith("/settings");
+  const [view, setView] = useState<"main" | "settings">(
+    onSettingsRoute ? "settings" : "main",
+  );
+
+  // keep the view in sync when navigating into/out of settings elsewhere
+  useEffect(() => {
+    if (onSettingsRoute) setView("settings");
+  }, [onSettingsRoute]);
+
+  const mainItems = MAIN_NAV.filter((i) => !i.perm || can(i.perm));
+  const settingsItems = SETTINGS_NAV.filter((i) => !i.perm || can(i.perm));
+
   return (
-    <div className="flex h-full flex-col gap-5 overflow-y-auto p-3">
+    <div className="flex h-full flex-col gap-4 overflow-hidden p-3">
+      {/* brand */}
       <div className="flex items-center gap-2 px-2 pt-1">
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-base font-bold text-primary-foreground">
           ₹
         </div>
         <span className="font-semibold tracking-tight">NizKhata</span>
       </div>
-      <MainNav onNavigate={onNavigate} />
-      <div className="mt-auto">
-        <SettingsGroup onNavigate={onNavigate} />
+
+      {/* sliding views */}
+      <div className="relative flex-1 overflow-hidden">
+        {view === "main" ? (
+          <nav className="flex animate-fade-in flex-col gap-1">
+            {mainItems.map((item) => (
+              <NavItemLink key={item.to} item={item} onNavigate={onNavigate} />
+            ))}
+            {settingsItems.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setView("settings")}
+                className={cn(
+                  "group mt-1 flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                  onSettingsRoute
+                    ? "text-foreground"
+                    : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+                )}
+              >
+                <Settings className="h-4 w-4 shrink-0 transition-transform duration-150 group-hover:scale-110" />
+                Settings
+                <ChevronRight className="ml-auto h-4 w-4" />
+              </button>
+            )}
+          </nav>
+        ) : (
+          <div className="flex animate-fade-in flex-col gap-1">
+            <button
+              type="button"
+              onClick={() => setView("main")}
+              className="flex items-center gap-2 rounded-lg px-2 py-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              Back
+            </button>
+            <p className="px-3 pb-1 pt-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground/70">
+              Settings
+            </p>
+            <nav className="flex flex-col gap-1">
+              {settingsItems.map((item) => (
+                <NavItemLink key={item.to} item={item} onNavigate={onNavigate} />
+              ))}
+            </nav>
+          </div>
+        )}
       </div>
     </div>
   );
