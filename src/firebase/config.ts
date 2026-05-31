@@ -3,7 +3,14 @@
 // Suite instead of a real project (build order step 1).
 
 import { initializeApp, type FirebaseOptions } from "firebase/app";
-import { getAuth, connectAuthEmulator, GoogleAuthProvider } from "firebase/auth";
+import {
+  initializeAuth,
+  indexedDBLocalPersistence,
+  browserLocalPersistence,
+  browserPopupRedirectResolver,
+  connectAuthEmulator,
+  GoogleAuthProvider,
+} from "firebase/auth";
 import { getFirestore, connectFirestoreEmulator } from "firebase/firestore";
 
 const firebaseConfig: FirebaseOptions = {
@@ -17,7 +24,17 @@ const firebaseConfig: FirebaseOptions = {
 };
 
 export const app = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
+
+// Pin an explicit, durable persistence chain instead of getAuth()'s lazy
+// default. IndexedDB survives PWA cold-starts (e.g. iOS "Add to Home Screen"
+// standalone) reliably; localStorage is the fallback when IndexedDB is
+// unavailable. Without this, the session often fails to restore when the PWA
+// is backgrounded and reopened, bouncing the user to the sign-in screen.
+// `browserPopupRedirectResolver` is required because we sign in via popup.
+export const auth = initializeAuth(app, {
+  persistence: [indexedDBLocalPersistence, browserLocalPersistence],
+  popupRedirectResolver: browserPopupRedirectResolver,
+});
 export const db = getFirestore(app);
 export const googleProvider = new GoogleAuthProvider();
 
