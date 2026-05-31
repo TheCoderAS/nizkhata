@@ -2,7 +2,8 @@
 // Sortable headers; rows open a detail modal; actions in a kebab menu.
 
 import { useMemo, useState } from "react";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2, ScrollText } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { useWorkspace } from "@/workspace/WorkspaceProvider";
 import { useData } from "@/data/WorkspaceDataProvider";
 import { createAccount, deleteAccount, updateAccount } from "@/data/mutations";
@@ -112,6 +113,7 @@ export function Accounts() {
   const { activeWorkspaceId, activeWorkspace, can } = useWorkspace();
   const { accounts, balanceOf, loading, error } = useData();
   const { toast } = useToast();
+  const navigate = useNavigate();
   const cols = useColumnPrefs<ColKey>("accounts", COLUMNS);
   const currency = activeWorkspace?.baseCurrency ?? "INR";
   const manage = can("accounts.manage");
@@ -139,7 +141,12 @@ export function Accounts() {
 
   function rowActions(a: Account): RowAction[] {
     return [
-      { label: "Edit", icon: Pencil, onSelect: () => setEditing(a), hidden: !manage },
+      {
+        label: "View ledger",
+        icon: ScrollText,
+        onSelect: () => navigate(`/settings/accounts/${a.id}/ledger`),
+      },
+      { label: "Edit", icon: Pencil, onSelect: () => setEditing(a), separatorBefore: true, hidden: !manage },
       {
         label: "Delete",
         icon: Trash2,
