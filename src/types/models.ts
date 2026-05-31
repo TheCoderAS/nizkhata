@@ -279,8 +279,17 @@ export type LineType =
 
 export type TaxHead =
   | "salary"
+  | "bonus"
+  | "overtime"
+  | "reimbursement"
+  | "perquisite"
+  | "commission"
+  | "professional_fees"
+  | "rent"
   | "interest"
+  | "dividend"
   | "capital_gains"
+  | "business"
   | "other"
   | "exempt";
 

@@ -21,6 +21,7 @@ import type {
 import type { TransactionInput } from "@/data/mutations";
 import { computeTotal, validateTransaction } from "@/lib/txn";
 import { LINE_TYPE_LABELS } from "@/lib/lineTypes";
+import { TAX_HEAD_LABELS, TAX_HEAD_ORDER } from "@/lib/taxHeads";
 import { financialYearOf } from "@/lib/financialYear";
 import { toDate } from "@/lib/derive";
 import { Button } from "@/components/ui/button";
@@ -480,13 +481,11 @@ function TaxBlock({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {(["salary", "interest", "capital_gains", "other", "exempt"] as TaxHead[]).map(
-                  (h) => (
-                    <SelectItem key={h} value={h}>
-                      {h}
-                    </SelectItem>
-                  ),
-                )}
+                {TAX_HEAD_ORDER.map((h) => (
+                  <SelectItem key={h} value={h}>
+                    {TAX_HEAD_LABELS[h]}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>

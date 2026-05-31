@@ -13,6 +13,7 @@ import {
 } from "@/lib/derive";
 import { financialYearOf } from "@/lib/financialYear";
 import { downloadCsv, toCsv } from "@/lib/csv";
+import { taxHeadLabel } from "@/lib/taxHeads";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -143,7 +144,7 @@ export function Reports() {
                         `tax-summary-${fy}.csv`,
                         toCsv(
                           tax.byHead.map((h) => ({
-                            head: h.head,
+                            head: taxHeadLabel(h.head),
                             taxableAmount: h.taxableAmount,
                             tdsAmount: h.tdsAmount,
                             lines: h.lineCount,
@@ -168,7 +169,7 @@ export function Reports() {
                 <TableBody>
                   {tax.byHead.map((h) => (
                     <TableRow key={h.head}>
-                      <TableCell className="font-medium capitalize">{h.head}</TableCell>
+                      <TableCell className="font-medium">{taxHeadLabel(h.head)}</TableCell>
                       <TableCell className="text-right tabular-nums">
                         {formatMoney(h.taxableAmount, currency)}
                       </TableCell>
