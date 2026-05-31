@@ -76,6 +76,18 @@ export interface Account {
   name: string;
   type: AccountType;
   openingBalance: number;
+  // Optional metadata, shown conditionally by account type (see ACCOUNT_FIELDS).
+  code?: string; // user-defined short code / nickname
+  accountNumber?: string; // bank/loan/investment account number, wallet id
+  cif?: string; // bank Customer Information File number
+  ifsc?: string; // bank IFSC / routing code
+  branchName?: string; // bank branch
+  description?: string; // free-form notes about the account
+  // Card-specific. We intentionally NEVER store the CVV (PCI-DSS) or the full
+  // PAN — only the last 4 digits for identification, plus expiry.
+  nameOnCard?: string;
+  cardLast4?: string; // last 4 digits only
+  cardExpiry?: string; // MM/YY
   createdAt: Ts;
   createdBy?: Actor;
   updatedBy?: Actor;
@@ -190,13 +202,26 @@ export interface SharedEntry {
 
 // ---- contacts --------------------------------------------------------------
 export type ContactType = "person" | "business";
+// How this contact relates to you. Drives grouping/filtering in the UI.
+export type ContactRelationship = "external" | "family";
+// A labelled email address (a contact may have several, e.g. personal/work).
+export interface ContactEmail {
+  label: string; // e.g. "Personal", "Work"
+  value: string;
+}
 export interface Contact {
   id: Id;
   workspaceId: Id;
   name: string;
   type: ContactType;
+  relationship?: ContactRelationship;
   phone?: string;
+  // Legacy single email, kept for back-compat with older docs + the shared
+  // ledger. New contacts use `emails`; readers should prefer `emails` and fall
+  // back to `email`.
   email?: string;
+  emails?: ContactEmail[];
+  address?: string;
   notes?: string;
   // Set when this contact is the local handle for a shared-ledger counterparty
   // (their uid). Auto-created when a shared entry is reflected into this book;

@@ -17,6 +17,7 @@ import { useSort, type SortAccessor } from "@/lib/useSort";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -50,6 +51,52 @@ const TYPE_LABELS: Record<AccountType, string> = {
   bank: "Bank",
   credit_card: "Credit Card",
 };
+
+// Optional metadata fields exposed per account type, in display order.
+type MetaKey =
+  | "code"
+  | "accountNumber"
+  | "cif"
+  | "ifsc"
+  | "branchName"
+  | "nameOnCard"
+  | "cardLast4"
+  | "cardExpiry"
+  | "description";
+
+const ACCOUNT_FIELDS: Record<AccountType, MetaKey[]> = {
+  cash: ["code", "description"],
+  bank: ["accountNumber", "ifsc", "cif", "branchName", "code", "description"],
+  credit_card: ["nameOnCard", "cardLast4", "cardExpiry", "code", "description"],
+};
+
+const FIELD_META: Record<
+  MetaKey,
+  { label: string; placeholder?: string; numeric?: boolean; maxLength?: number; full?: boolean }
+> = {
+  code: { label: "Code" },
+  accountNumber: { label: "Account number", numeric: true },
+  cif: { label: "CIF number", numeric: true },
+  ifsc: { label: "IFSC code", placeholder: "ABCD0123456" },
+  branchName: { label: "Branch name" },
+  nameOnCard: { label: "Name on card" },
+  cardLast4: { label: "Card (last 4)", placeholder: "1234", numeric: true, maxLength: 4 },
+  cardExpiry: { label: "Expiry", placeholder: "MM/YY", maxLength: 5 },
+  description: { label: "Description", full: true },
+};
+
+// A short masked identifier for list/detail: "•••• 1234".
+function maskedIdentifier(a: Account): string | null {
+  if (a.cardLast4) return `•••• ${a.cardLast4}`;
+  if (a.accountNumber) return `••••${a.accountNumber.slice(-4)}`;
+  return null;
+}
+
+// Normalize free typing into MM/YY.
+function formatExpiry(raw: string): string {
+  const digits = raw.replace(/[^0-9]/g, "").slice(0, 4);
+  return digits.length <= 2 ? digits : `${digits.slice(0, 2)}/${digits.slice(2)}`;
+}
 
 type SortKey = "name" | "type" | "opening" | "balance";
 type ColKey = "name" | "type" | "opening" | "balance";
@@ -168,7 +215,16 @@ export function Accounts() {
                   className="cursor-pointer"
                 >
                   {cols.isVisible("name") && (
-                    <TableCell className="font-medium">{a.name}</TableCell>
+                    <TableCell>
+                      <span className="flex flex-col">
+                        <span>{a.name}</span>
+                        {maskedIdentifier(a) && (
+                          <span className="text-xs tabular-nums text-muted-foreground">
+                            {maskedIdentifier(a)}
+                          </span>
+                        )}
+                      </span>
+                    </TableCell>
                   )}
                   {cols.isVisible("type") && (
                     <TableCell>
@@ -270,6 +326,13 @@ function AccountDetail({
       ),
     },
   ];
+  // Append any populated metadata fields, in the type's display order.
+  for (const key of ACCOUNT_FIELDS[account.type]) {
+    const v = account[key as keyof Account];
+    if (typeof v === "string" && v.trim()) {
+      fields.push({ label: FIELD_META[key].label, value: v });
+    }
+  }
   return (
     <DetailDialog
       open
@@ -303,13 +366,44 @@ function AccountDialog({
   const [name, setName] = useState(account?.name ?? "");
   const [type, setType] = useState<AccountType>(account?.type ?? "bank");
   const [opening, setOpening] = useState(String(account?.openingBalance ?? 0));
+  const [meta, setMeta] = useState<Record<MetaKey, string>>(() => ({
+    code: account?.code ?? "",
+    accountNumber: account?.accountNumber ?? "",
+    cif: account?.cif ?? "",
+    ifsc: account?.ifsc ?? "",
+    branchName: account?.branchName ?? "",
+    nameOnCard: account?.nameOnCard ?? "",
+    cardLast4: account?.cardLast4 ?? "",
+    cardExpiry: account?.cardExpiry ?? "",
+    description: account?.description ?? "",
+  }));
   const [busy, setBusy] = useState(false);
+
+  const fields = ACCOUNT_FIELDS[type];
+
+  function setField(key: MetaKey, raw: string) {
+    const m = FIELD_META[key];
+    let v = raw;
+    if (key === "cardExpiry") v = formatExpiry(raw);
+    else if (m.numeric) v = v.replace(/[^0-9]/g, "");
+    if (m.maxLength) v = v.slice(0, m.maxLength);
+    if (key === "ifsc") v = v.toUpperCase();
+    setMeta((prev) => ({ ...prev, [key]: v }));
+  }
 
   async function save() {
     if (!name.trim()) return;
     setBusy(true);
     try {
-      const data = { name: name.trim(), type, openingBalance: Number(opening) || 0 };
+      // Persist only fields relevant to the chosen type; blanks -> undefined.
+      const metaOut: Partial<Record<MetaKey, string | undefined>> = {};
+      for (const key of fields) metaOut[key] = meta[key].trim() || undefined;
+      const data = {
+        name: name.trim(),
+        type,
+        openingBalance: Number(opening) || 0,
+        ...metaOut,
+      };
       if (account) await updateAccount(account.id, data);
       else await createAccount(workspaceId, data);
       onSaved();
@@ -319,35 +413,40 @@ function AccountDialog({
     }
   }
 
+  const isCard = type === "credit_card";
+
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-h-[90vh] max-w-md overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{account ? "Edit account" : "New account"}</DialogTitle>
         </DialogHeader>
-        <div className="space-y-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="acct-name">Name</Label>
-            <Input
-              id="acct-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="HDFC Savings"
-            />
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="acct-name">Name</Label>
+              <Input
+                id="acct-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="HDFC Savings"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Type</Label>
+              <Select value={type} onValueChange={(v) => setType(v as AccountType)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="cash">Cash</SelectItem>
+                  <SelectItem value="bank">Bank</SelectItem>
+                  <SelectItem value="credit_card">Credit Card</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-          <div className="space-y-1.5">
-            <Label>Type</Label>
-            <Select value={type} onValueChange={(v) => setType(v as AccountType)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="cash">Cash</SelectItem>
-                <SelectItem value="bank">Bank</SelectItem>
-                <SelectItem value="credit_card">Credit Card</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+
           <div className="space-y-1.5">
             <Label htmlFor="acct-opening">Opening balance</Label>
             <Input
@@ -357,6 +456,38 @@ function AccountDialog({
               onChange={(e) => setOpening(e.target.value)}
             />
           </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            {fields.map((key) => {
+              const m = FIELD_META[key];
+              return (
+                <div key={key} className={m.full ? "col-span-2 space-y-1.5" : "space-y-1.5"}>
+                  <Label>{m.label}</Label>
+                  {m.full ? (
+                    <Textarea
+                      rows={2}
+                      value={meta[key]}
+                      placeholder={m.placeholder}
+                      onChange={(e) => setField(key, e.target.value)}
+                    />
+                  ) : (
+                    <Input
+                      value={meta[key]}
+                      placeholder={m.placeholder}
+                      inputMode={m.numeric ? "numeric" : undefined}
+                      onChange={(e) => setField(key, e.target.value)}
+                    />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {isCard && (
+            <p className="text-xs text-muted-foreground">
+              For your safety we never store the full card number or CVV — only the last 4 digits.
+            </p>
+          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={busy}>

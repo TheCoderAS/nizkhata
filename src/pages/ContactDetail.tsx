@@ -63,12 +63,27 @@ export function ContactDetail() {
       <Link to="/contacts" className="mb-2 inline-flex items-center gap-1 text-sm text-muted-foreground hover:underline">
         <ArrowLeft className="h-4 w-4" /> Contacts
       </Link>
-      <div className="mb-6 flex items-center gap-3">
+      <div className="mb-2 flex flex-wrap items-center gap-2">
         <h1 className="text-2xl font-semibold tracking-tight">{contact.name}</h1>
         <Badge variant="secondary">
           {contact.type === "business" ? "Business" : "Person"}
         </Badge>
+        {contact.relationship === "family" && <Badge variant="outline">Family</Badge>}
       </div>
+      {(() => {
+        const emails =
+          contact.emails && contact.emails.length > 0
+            ? contact.emails.map((e) => e.value)
+            : contact.email
+              ? [contact.email]
+              : [];
+        const bits = [contact.phone, ...emails, contact.address].filter(Boolean);
+        return bits.length > 0 ? (
+          <p className="mb-6 text-sm text-muted-foreground">{bits.join(" · ")}</p>
+        ) : (
+          <div className="mb-6" />
+        );
+      })()}
 
       <div className="mb-6 grid grid-cols-3 gap-3">
         <Card>

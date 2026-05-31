@@ -8,7 +8,19 @@
 // NOT workspace members and cannot see or enter my workspace.
 
 import { useMemo, useState } from "react";
-import { ArrowRight, Plus, Check, X, Inbox, UserPlus, AlertTriangle } from "lucide-react";
+import {
+  Plus,
+  Check,
+  X,
+  Inbox,
+  UserPlus,
+  AlertTriangle,
+  ArrowDownLeft,
+  ArrowUpRight,
+  Scale,
+  Users,
+  type LucideIcon,
+} from "lucide-react";
 import { useWorkspace } from "@/workspace/WorkspaceProvider";
 import { useAuth } from "@/auth/AuthProvider";
 import { useData } from "@/data/WorkspaceDataProvider";
@@ -25,7 +37,7 @@ import {
   withdrawSharedEntry,
   type SharedExpenseParticipant,
 } from "@/data/sharedMutations";
-import { sharedBalances, settleUpTransfers, toDate } from "@/lib/derive";
+import { sharedBalances, toDate } from "@/lib/derive";
 import { roundMoney } from "@/lib/txn";
 import { cn, formatDate, formatMoney } from "@/lib/utils";
 import { PageHeader } from "@/components/PageHeader";
@@ -33,7 +45,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -98,7 +109,6 @@ export function Shared() {
   );
 
   const balances = useMemo(() => sharedBalances(myUid, entries), [myUid, entries]);
-  const transfers = useMemo(() => settleUpTransfers(myUid, balances), [myUid, balances]);
 
   // Inbox: entries awaiting my response.
   const inbox = useMemo(
@@ -142,89 +152,62 @@ export function Shared() {
     toast({ title: "Rejected", variant: "success" });
   }
 
+  const owedToMe = balances.filter((b) => b.net > 0).reduce((sum, b) => sum + b.net, 0);
+  const iOweTotal = balances.filter((b) => b.net < 0).reduce((sum, b) => sum - b.net, 0);
+  const netTotal = owedToMe - iOweTotal;
+
   return (
-    <div>
+    <div className="space-y-5">
       <PageHeader
         title="Shared"
+        actions={
+          canManage ? (
+            <Button variant="outline" size="sm" onClick={() => setInvite(true)}>
+              <UserPlus className="h-4 w-4" />
+              <span className="hidden sm:inline">Invite</span>
+            </Button>
+          ) : undefined
+        }
         primaryAction={{
-          label: "Add shared expense",
+          label: "Add expense",
           icon: Plus,
           onClick: () => setAdding(true),
           hidden: partners.length === 0 || !canManage,
         }}
       />
 
-      {/* Partners + invite */}
-      <Card className="mb-4">
-        <CardHeader className="flex flex-row items-center justify-between pb-2">
-          <CardTitle className="text-sm font-medium">Partners</CardTitle>
-          {canManage && (
-            <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => setInvite(true)}>
-              <UserPlus className="mr-1 h-3 w-3" /> Invite
-            </Button>
-          )}
-        </CardHeader>
-        <CardContent className="pt-0">
-          {partners.length === 0 ? (
-            <p className="text-xs text-muted-foreground">
-              No partners yet. Invite someone by email to start sharing.
-            </p>
-          ) : (
-            <div className="flex flex-wrap gap-1.5">
-              {partners.map((p) => (
-                <Badge key={p.uid} variant="secondary">
-                  {p.name}
-                </Badge>
-              ))}
-            </div>
-          )}
-          {pendingInvites.length > 0 && (
-            <p className="mt-2 text-xs text-muted-foreground">
-              Pending invites: {pendingInvites.map((i) => i.toEmail).join(", ")}
-            </p>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Conflicts */}
-      {canManage && conflicts.length > 0 && (
-        <Card className="mb-4 border-destructive/50">
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-sm font-medium text-destructive">
-              <AlertTriangle className="h-4 w-4" /> Rejected — needs resolution
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-1.5 pt-0">
-            {conflicts.map((e) => (
-              <div key={e.id} className="flex items-center justify-between gap-2 text-xs">
-                <span className="min-w-0 truncate">
-                  {partnerName(e.counterpartyUid)} rejected{" "}
-                  <span className="font-medium">{e.description}</span> ·{" "}
-                  {formatMoney(e.amount, currency)}
-                </span>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-7 shrink-0 px-2 text-xs"
-                  onClick={() => setConflict(e)}
-                >
-                  Resolve
-                </Button>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      )}
+      {/* Summary hero */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <SummaryStat
+          label="You are owed"
+          value={formatMoney(owedToMe, currency)}
+          tone="pos"
+          icon={ArrowDownLeft}
+        />
+        <SummaryStat
+          label="You owe"
+          value={formatMoney(iOweTotal, currency)}
+          tone="neg"
+          icon={ArrowUpRight}
+        />
+        <SummaryStat
+          label="Net balance"
+          value={`${netTotal < 0 ? "\u2212" : ""}${formatMoney(Math.abs(netTotal), currency)}`}
+          tone={netTotal > 0.005 ? "pos" : netTotal < -0.005 ? "neg" : "neutral"}
+          icon={Scale}
+        />
+      </div>
 
       {/* Inbox */}
       {canManage && inbox.length > 0 && (
-        <Card className="mb-4 border-primary/40">
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-sm font-medium">
-              <Inbox className="h-4 w-4" /> To review ({inbox.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2 pt-0">
+        <section className="rounded-xl border border-primary/30 bg-primary/5 p-3 sm:p-4">
+          <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold">
+            <Inbox className="h-4 w-4 text-primary" /> To review
+            <span className="ml-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[11px] font-semibold text-primary-foreground">
+              {inbox.length}
+            </span>
+          </h2>
+          <div className="space-y-2">
             {inbox.map((e) => (
               <InboxRow
                 key={e.id}
@@ -236,104 +219,161 @@ export function Shared() {
                 onReject={onReject}
               />
             ))}
-          </CardContent>
-        </Card>
+          </div>
+        </section>
       )}
 
-      {/* Who owes whom */}
-      <Card className="mb-4">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium">Who owes whom</CardTitle>
-        </CardHeader>
-        <CardContent className="pt-0">
-          {transfers.length === 0 ? (
-            <p className="text-xs text-muted-foreground">All settled up. 🎉</p>
-          ) : (
-            <div className="space-y-1.5">
-              {transfers.map((t, i) => {
-                const partner = partners.find((p) => p.uid === t.fromUid || p.uid === t.toUid);
-                const iOwe = t.fromUid === myUid;
-                return (
-                  <div
-                    key={`${t.fromUid}-${t.toUid}-${i}`}
-                    className="flex items-center justify-between gap-2 text-xs"
-                  >
-                    <span className="flex min-w-0 items-center gap-1.5">
-                      <span className="truncate font-medium">{t.fromName}</span>
-                      <ArrowRight className="h-3 w-3 shrink-0 text-muted-foreground" />
-                      <span className="truncate font-medium">{t.toName}</span>
-                    </span>
-                    <span className="flex shrink-0 items-center gap-2">
-                      <span className="tabular-nums">{formatMoney(t.amount, currency)}</span>
-                      {canManage && iOwe && partner && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-7 px-2 text-xs"
-                          onClick={() => setSettle({ partner, amount: t.amount })}
-                        >
-                          Settle up
-                        </Button>
-                      )}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      {/* Conflicts */}
+      {canManage && conflicts.length > 0 && (
+        <section className="rounded-xl border border-destructive/40 bg-destructive/5 p-3 sm:p-4">
+          <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-destructive">
+            <AlertTriangle className="h-4 w-4" /> Rejected \u2014 needs resolution
+          </h2>
+          <div className="space-y-1.5">
+            {conflicts.map((e) => (
+              <div
+                key={e.id}
+                className="flex items-center justify-between gap-2 rounded-lg bg-card px-3 py-2 text-sm"
+              >
+                <span className="min-w-0 truncate">
+                  <span className="font-medium">{partnerName(e.counterpartyUid)}</span> rejected{" "}
+                  <span className="font-medium">{e.description}</span> ·{" "}
+                  {formatMoney(e.amount, currency)}
+                </span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 shrink-0"
+                  onClick={() => setConflict(e)}
+                >
+                  Resolve
+                </Button>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
-      {/* History */}
-      {entries.length === 0 ? (
-        <EmptyState
-          title="Nothing shared yet"
-          hint={
-            partners.length === 0
-              ? "Invite a partner by email, then add a shared expense."
-              : "Add a shared expense to start tracking who owes whom."
-          }
-        />
-      ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Description</TableHead>
-              <TableHead>With</TableHead>
-              <TableHead>Date</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="text-right">Amount</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {entries.map((e) => {
-              const other = e.creatorUid === myUid ? e.counterpartyUid : e.creatorUid;
+      {/* Partners */}
+      <section>
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="flex items-center gap-2 text-sm font-semibold">
+            <Users className="h-4 w-4 text-muted-foreground" /> Partners
+          </h2>
+          {pendingInvites.length > 0 && (
+            <span className="text-xs text-muted-foreground">
+              {pendingInvites.length} pending invite{pendingInvites.length > 1 ? "s" : ""}
+            </span>
+          )}
+        </div>
+        {partners.length === 0 ? (
+          <div className="rounded-xl border border-dashed p-6 text-center">
+            <p className="text-sm font-medium">No partners yet</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Invite someone by email to start splitting expenses.
+            </p>
+            {canManage && (
+              <Button size="sm" className="mt-3" onClick={() => setInvite(true)}>
+                <UserPlus className="h-4 w-4" /> Invite a partner
+              </Button>
+            )}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {partners.map((p) => {
+              const bal = balances.find((b) => b.uid === p.uid);
+              const net = bal?.net ?? 0;
               return (
-                <TableRow key={e.id}>
-                  <TableCell className="font-medium">
-                    <span className="flex items-center gap-2">
-                      <span className="truncate">{e.description}</span>
-                      {e.kind === "settlement" && (
-                        <Badge variant="secondary" className="shrink-0">
-                          settlement
-                        </Badge>
-                      )}
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">{partnerName(other)}</TableCell>
-                  <TableCell className="text-muted-foreground">{formatDate(toDate(e.date))}</TableCell>
-                  <TableCell>
-                    <StatusBadge entry={e} myUid={myUid} />
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums font-medium">
-                    {formatMoney(e.amount, currency)}
-                  </TableCell>
-                </TableRow>
+                <PartnerCard
+                  key={p.uid}
+                  name={p.name}
+                  net={net}
+                  currency={currency}
+                  canSettle={canManage && net < -0.005}
+                  onSettle={() => setSettle({ partner: p, amount: Math.abs(net) })}
+                />
               );
             })}
-          </TableBody>
-        </Table>
-      )}
+          </div>
+        )}
+      </section>
+
+      {/* History */}
+      <section>
+        <h2 className="mb-3 text-sm font-semibold">History</h2>
+        {entries.length === 0 ? (
+          <EmptyState
+            title="Nothing shared yet"
+            hint={
+              partners.length === 0
+                ? "Invite a partner by email, then add a shared expense."
+                : "Add a shared expense to start tracking who owes whom."
+            }
+          />
+        ) : (
+          <div className="overflow-hidden rounded-xl border">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted/40">
+                  <TableHead>Item</TableHead>
+                  <TableHead className="hidden sm:table-cell">With</TableHead>
+                  <TableHead className="hidden sm:table-cell">Date</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Amount</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {entries.map((e) => {
+                  const other = e.creatorUid === myUid ? e.counterpartyUid : e.creatorUid;
+                  const iPaid = e.payerUid === myUid;
+                  return (
+                    <TableRow key={e.id}>
+                      <TableCell>
+                        <div className="flex items-center gap-3">
+                          <Avatar name={partnerName(other)} />
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="truncate font-medium">{e.description}</span>
+                              {e.kind === "settlement" && (
+                                <Badge variant="secondary" className="shrink-0">
+                                  settlement
+                                </Badge>
+                              )}
+                            </div>
+                            <div className="text-xs text-muted-foreground sm:hidden">
+                              {partnerName(other)} · {formatDate(toDate(e.date))}
+                            </div>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell className="hidden text-muted-foreground sm:table-cell">
+                        {partnerName(other)}
+                      </TableCell>
+                      <TableCell className="hidden text-muted-foreground sm:table-cell">
+                        {formatDate(toDate(e.date))}
+                      </TableCell>
+                      <TableCell>
+                        <StatusBadge entry={e} myUid={myUid} />
+                      </TableCell>
+                      <TableCell
+                        className={cn(
+                          "text-right tabular-nums font-medium",
+                          iPaid
+                            ? "text-emerald-600 dark:text-emerald-400"
+                            : "text-destructive",
+                        )}
+                      >
+                        {iPaid ? "+" : "\u2212"}
+                        {formatMoney(e.amount, currency)}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </section>
 
       {invite && firebaseUser && (
         <InviteDialog
@@ -930,5 +970,103 @@ function ConflictDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+
+function SummaryStat({
+  label,
+  value,
+  tone,
+  icon: Icon,
+}: {
+  label: string;
+  value: string;
+  tone: "pos" | "neg" | "neutral";
+  icon: LucideIcon;
+}) {
+  return (
+    <div className="rounded-xl border bg-card p-4">
+      <div className="flex items-center justify-between text-xs text-muted-foreground">
+        <span>{label}</span>
+        <Icon
+          className={cn(
+            "h-4 w-4",
+            tone === "pos" && "text-emerald-600 dark:text-emerald-400",
+            tone === "neg" && "text-destructive",
+          )}
+        />
+      </div>
+      <div
+        className={cn(
+          "mt-1 truncate text-xl font-semibold tabular-nums sm:text-2xl",
+          tone === "pos" && "text-emerald-600 dark:text-emerald-400",
+          tone === "neg" && "text-destructive",
+        )}
+      >
+        {value}
+      </div>
+    </div>
+  );
+}
+
+function PartnerCard({
+  name,
+  net,
+  currency,
+  canSettle,
+  onSettle,
+}: {
+  name: string;
+  net: number;
+  currency: string;
+  canSettle: boolean;
+  onSettle: () => void;
+}) {
+  const settled = Math.abs(net) < 0.005;
+  const owesMe = net > 0;
+  return (
+    <div className="flex items-center gap-3 rounded-xl border bg-card p-3">
+      <Avatar name={name} />
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-medium">{name}</p>
+        <p
+          className={cn(
+            "truncate text-xs",
+            settled
+              ? "text-muted-foreground"
+              : owesMe
+                ? "text-emerald-600 dark:text-emerald-400"
+                : "text-destructive",
+          )}
+        >
+          {settled
+            ? "Settled up"
+            : owesMe
+              ? `owes you ${formatMoney(net, currency)}`
+              : `you owe ${formatMoney(-net, currency)}`}
+        </p>
+      </div>
+      {canSettle && (
+        <Button size="sm" variant="outline" className="h-8 shrink-0" onClick={onSettle}>
+          Settle
+        </Button>
+      )}
+    </div>
+  );
+}
+
+function Avatar({ name }: { name: string }) {
+  const initials =
+    name
+      .trim()
+      .split(/\s+/)
+      .slice(0, 2)
+      .map((w) => w[0]?.toUpperCase() ?? "")
+      .join("") || "?";
+  return (
+    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+      {initials}
+    </span>
   );
 }

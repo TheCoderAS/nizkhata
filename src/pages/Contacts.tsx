@@ -3,11 +3,16 @@
 
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2, X } from "lucide-react";
 import { useWorkspace } from "@/workspace/WorkspaceProvider";
 import { useData } from "@/data/WorkspaceDataProvider";
 import { createContact, deleteContact, updateContact } from "@/data/mutations";
-import type { Contact, ContactType } from "@/types/models";
+import type {
+  Contact,
+  ContactType,
+  ContactEmail,
+  ContactRelationship,
+} from "@/types/models";
 import { PageHeader } from "@/components/PageHeader";
 import { RowActions, type RowAction } from "@/components/RowActions";
 import { SortableHead } from "@/components/SortableHead";
@@ -55,6 +60,13 @@ const COLUMNS: ColumnDef<ColKey>[] = [
   { key: "type", label: "Type", defaultVisible: true },
   { key: "net", label: "Net position", defaultVisible: true },
 ];
+
+const RELATIONSHIP_LABELS: Record<ContactRelationship, string> = {
+  external: "External",
+  family: "Family",
+};
+
+const EMAIL_LABEL_OPTIONS = ["Personal", "Work", "Other"];
 
 export function Contacts() {
   const navigate = useNavigate();
@@ -163,7 +175,16 @@ export function Contacts() {
                   className="cursor-pointer"
                 >
                   {cols.isVisible("name") && (
-                    <TableCell className="font-medium">{c.name}</TableCell>
+                    <TableCell>
+                      <span className="flex items-center gap-2">
+                        <span className="truncate">{c.name}</span>
+                        {c.relationship === "family" && (
+                          <Badge variant="outline" className="shrink-0 text-[10px]">
+                            Family
+                          </Badge>
+                        )}
+                      </span>
+                    </TableCell>
                   )}
                   {cols.isVisible("type") && (
                     <TableCell>
@@ -232,21 +253,50 @@ export function ContactDialog({
 }) {
   const [name, setName] = useState(contact?.name ?? "");
   const [type, setType] = useState<ContactType>(contact?.type ?? "person");
+  const [relationship, setRelationship] = useState<ContactRelationship>(
+    contact?.relationship ?? "external",
+  );
   const [phone, setPhone] = useState(contact?.phone ?? "");
-  const [email, setEmail] = useState(contact?.email ?? "");
+  const [address, setAddress] = useState(contact?.address ?? "");
   const [notes, setNotes] = useState(contact?.notes ?? "");
+  const [emails, setEmails] = useState<Array<ContactEmail & { key: string }>>(() => {
+    const seed =
+      contact?.emails && contact.emails.length > 0
+        ? contact.emails
+        : contact?.email
+          ? [{ label: "Personal", value: contact.email }]
+          : [];
+    return seed.map((e, i) => ({ ...e, key: `${i}` }));
+  });
   const [busy, setBusy] = useState(false);
+
+  function addEmail() {
+    setEmails((prev) => [...prev, { key: `${Date.now()}`, label: EMAIL_LABEL_OPTIONS[0], value: "" }]);
+  }
+  function patchEmail(key: string, patch: Partial<ContactEmail>) {
+    setEmails((prev) => prev.map((e) => (e.key === key ? { ...e, ...patch } : e)));
+  }
+  function removeEmail(key: string) {
+    setEmails((prev) => prev.filter((e) => e.key !== key));
+  }
 
   async function save() {
     if (!name.trim()) return;
     setBusy(true);
     try {
+      const cleanEmails: ContactEmail[] = emails
+        .map((e) => ({ label: e.label.trim() || "Other", value: e.value.trim() }))
+        .filter((e) => e.value);
       const data = {
         name: name.trim(),
         type,
+        relationship,
         phone: phone.trim() || undefined,
-        email: email.trim() || undefined,
+        address: address.trim() || undefined,
         notes: notes.trim() || undefined,
+        emails: cleanEmails.length > 0 ? cleanEmails : undefined,
+        // keep legacy single email in sync for back-compat readers
+        email: cleanEmails[0]?.value,
       };
       if (contact) await updateContact(contact.id, data);
       else await createContact(workspaceId, data);
@@ -259,40 +309,111 @@ export function ContactDialog({
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-h-[90vh] max-w-md overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{contact ? "Edit contact" : "New contact"}</DialogTitle>
         </DialogHeader>
-        <div className="space-y-4">
+        <div className="space-y-3">
           <div className="space-y-1.5">
             <Label htmlFor="c-name">Name</Label>
             <Input id="c-name" value={name} onChange={(e) => setName(e.target.value)} />
           </div>
-          <div className="space-y-1.5">
-            <Label>Type</Label>
-            <Select value={type} onValueChange={(v) => setType(v as ContactType)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="person">Person</SelectItem>
-                <SelectItem value="business">Business</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label htmlFor="c-phone">Phone</Label>
-              <Input id="c-phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
+              <Label>Type</Label>
+              <Select value={type} onValueChange={(v) => setType(v as ContactType)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="person">Person</SelectItem>
+                  <SelectItem value="business">Business</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="c-email">Email</Label>
-              <Input id="c-email" value={email} onChange={(e) => setEmail(e.target.value)} />
+              <Label>Relationship</Label>
+              <Select
+                value={relationship}
+                onValueChange={(v) => setRelationship(v as ContactRelationship)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {(Object.keys(RELATIONSHIP_LABELS) as ContactRelationship[]).map((r) => (
+                    <SelectItem key={r} value={r}>
+                      {RELATIONSHIP_LABELS[r]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="c-phone">Phone</Label>
+            <Input id="c-phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
+          </div>
+
+          {/* Emails — multiple, each with a label */}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <Label>Emails</Label>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="h-7 px-2 text-xs"
+                onClick={addEmail}
+              >
+                <Plus className="mr-1 h-3 w-3" /> Add
+              </Button>
+            </div>
+            {emails.length === 0 ? (
+              <p className="text-xs text-muted-foreground">No emails added.</p>
+            ) : (
+              <div className="space-y-2">
+                {emails.map((e) => (
+                  <div key={e.key} className="flex items-center gap-2">
+                    <Select value={e.label} onValueChange={(v) => patchEmail(e.key, { label: v })}>
+                      <SelectTrigger className="w-28 shrink-0">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {EMAIL_LABEL_OPTIONS.map((opt) => (
+                          <SelectItem key={opt} value={opt}>
+                            {opt}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      type="email"
+                      placeholder="name@example.com"
+                      value={e.value}
+                      onChange={(ev) => patchEmail(e.key, { value: ev.target.value })}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeEmail(e.key)}
+                      aria-label="Remove email"
+                      className="shrink-0 rounded p-1.5 text-muted-foreground hover:bg-accent hover:text-destructive"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="c-address">Address</Label>
+            <Textarea id="c-address" rows={2} value={address} onChange={(e) => setAddress(e.target.value)} />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="c-notes">Notes</Label>
-            <Textarea id="c-notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
+            <Textarea id="c-notes" rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
           </div>
         </div>
         <DialogFooter>

@@ -119,15 +119,30 @@ async function auditedDelete(
 }
 
 // ---- accounts --------------------------------------------------------------
+// Optional account metadata fields (all conditional by type in the UI).
+type AccountMeta = Partial<
+  Pick<
+    Account,
+    | "code"
+    | "accountNumber"
+    | "cif"
+    | "ifsc"
+    | "branchName"
+    | "description"
+    | "nameOnCard"
+    | "cardLast4"
+    | "cardExpiry"
+  >
+>;
 export async function createAccount(
   workspaceId: string,
-  data: Pick<Account, "name" | "type" | "openingBalance">,
+  data: Pick<Account, "name" | "type" | "openingBalance"> & AccountMeta,
 ): Promise<string> {
   return auditedCreate("accounts", workspaceId, data);
 }
 export async function updateAccount(
   id: string,
-  data: Partial<Pick<Account, "name" | "type" | "openingBalance">>,
+  data: Partial<Pick<Account, "name" | "type" | "openingBalance">> & AccountMeta,
 ) {
   await auditedUpdate("accounts", id, data);
 }
@@ -153,15 +168,18 @@ export async function deleteCategory(id: string) {
 }
 
 // ---- contacts --------------------------------------------------------------
+type ContactMeta = Partial<
+  Pick<Contact, "phone" | "email" | "emails" | "address" | "relationship" | "notes">
+>;
 export async function createContact(
   workspaceId: string,
-  data: Pick<Contact, "name" | "type"> & Partial<Pick<Contact, "phone" | "email" | "notes">>,
+  data: Pick<Contact, "name" | "type"> & ContactMeta,
 ): Promise<string> {
   return auditedCreate("contacts", workspaceId, data);
 }
 export async function updateContact(
   id: string,
-  data: Partial<Pick<Contact, "name" | "type" | "phone" | "email" | "notes">>,
+  data: Partial<Pick<Contact, "name" | "type">> & ContactMeta,
 ) {
   await auditedUpdate("contacts", id, data);
 }
