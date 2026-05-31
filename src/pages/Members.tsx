@@ -44,7 +44,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
-import { ErrorState, LoadingState } from "@/components/states";
+import { ErrorState, PageSkeleton } from "@/components/states";
 import { useToast } from "@/components/ui/toast";
 
 /**
@@ -73,7 +73,7 @@ export function Members() {
   const [inviteOpen, setInviteOpen] = useState(false);
   const [toRemove, setToRemove] = useState<Membership | null>(null);
 
-  if (loading) return <LoadingState />;
+  if (loading) return <PageSkeleton />;
   if (error) return <ErrorState message={error} />;
 
   const pendingInvites = invites.filter((i) => i.status === "pending");

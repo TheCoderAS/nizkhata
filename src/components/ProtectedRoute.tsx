@@ -6,13 +6,13 @@ import type { ReactNode } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/auth/AuthProvider";
 import { useWorkspace } from "@/workspace/WorkspaceProvider";
-import { LoadingState, NoPermissionState } from "./states";
+import { FullScreenLoader, LoadingState, NoPermissionState } from "./states";
 import type { Permission } from "@/types/permissions";
 
 export function RequireAuth({ children }: { children: ReactNode }) {
   const { firebaseUser, loading } = useAuth();
   const location = useLocation();
-  if (loading) return <LoadingState label="Signing in…" />;
+  if (loading) return <FullScreenLoader label="Signing in…" />;
   if (!firebaseUser)
     return <Navigate to="/login" replace state={{ from: location }} />;
   return <>{children}</>;

@@ -42,7 +42,7 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
-import { EmptyState, ErrorState, LoadingState } from "@/components/states";
+import { EmptyState, ErrorState, PageSkeleton } from "@/components/states";
 import { useToast } from "@/components/ui/toast";
 
 type SortKey = "name" | "source";
@@ -58,7 +58,7 @@ export function Categories() {
   const [viewing, setViewing] = useState<Category | null>(null);
   const [toDelete, setToDelete] = useState<Category | null>(null);
 
-  if (loading) return <LoadingState />;
+  if (loading) return <PageSkeleton />;
   if (error) return <ErrorState message={error} />;
 
   const filtered = categories.filter((c) => c.kind === kind);

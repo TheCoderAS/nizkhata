@@ -33,7 +33,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
-import { ErrorState, LoadingState } from "@/components/states";
+import { ErrorState, PageSkeleton } from "@/components/states";
 import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 
@@ -46,7 +46,7 @@ export function Roles() {
   const [editing, setEditing] = useState<Role | "new" | null>(null);
   const [toDelete, setToDelete] = useState<Role | null>(null);
 
-  if (loading) return <LoadingState />;
+  if (loading) return <PageSkeleton />;
   if (error) return <ErrorState message={error} />;
 
   const counts = new Map<string, number>();

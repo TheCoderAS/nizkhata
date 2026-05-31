@@ -17,7 +17,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
-import { LoadingState } from "@/components/states";
+import { PageSkeleton } from "@/components/states";
 import { useToast } from "@/components/ui/toast";
 
 const MONTHS = [
@@ -38,7 +38,7 @@ export function WorkspaceSettings() {
   const [busy, setBusy] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
-  if (!activeWorkspace) return <LoadingState />;
+  if (!activeWorkspace) return <PageSkeleton />;
 
   const isOwner = firebaseUser?.uid === activeWorkspace.ownerId;
   const canDelete = isOwner && can("workspace.delete");

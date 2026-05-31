@@ -53,7 +53,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
-import { EmptyState, ErrorState, LoadingState } from "@/components/states";
+import { EmptyState, ErrorState, PageSkeleton } from "@/components/states";
 import { useToast } from "@/components/ui/toast";
 import { formatMoney } from "@/lib/utils";
 
@@ -94,7 +94,7 @@ export function Debts() {
 
   const cols = useColumnPrefs<ColKey>("debts", COLUMNS);
 
-  if (loading) return <LoadingState />;
+  if (loading) return <PageSkeleton />;
   if (error) return <ErrorState message={error} />;
 
   const matches = (d: Debt) => {

@@ -24,7 +24,7 @@ import { toDate } from "@/lib/derive";
 import { formatRelative } from "@/lib/utils";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent } from "@/components/ui/card";
-import { EmptyState, ErrorState, LoadingState } from "@/components/states";
+import { EmptyState, ErrorState, PageSkeleton } from "@/components/states";
 import type { Revision, RevisionAction } from "@/types/models";
 
 const ENTITY_META: Record<string, { label: string; icon: LucideIcon }> = {
@@ -133,7 +133,7 @@ export function Activity() {
     });
   }, [activity]);
 
-  if (loading) return <LoadingState />;
+  if (loading) return <PageSkeleton />;
   if (error) return <ErrorState message={error} />;
 
   return (

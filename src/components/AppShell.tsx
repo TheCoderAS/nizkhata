@@ -11,7 +11,7 @@ import { Logo } from "@/components/Logo";
 import { Sidebar, SidebarContent } from "./Sidebar";
 import { BottomNav } from "./BottomNav";
 import { WorkspaceSwitcherDialog } from "./WorkspaceSwitcherDialog";
-import { ErrorState, LoadingState } from "./states";
+import { ErrorState, FullScreenLoader, PageSkeleton } from "./states";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import {
@@ -64,7 +64,7 @@ export function AppShell() {
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const location = useLocation();
 
-  if (loading) return <LoadingState label="Loading workspace…" />;
+  if (loading) return <FullScreenLoader label="Loading workspace…" />;
   if (error) return <ErrorState message={error} />;
 
   const hasNav = memberships.length > 0;
@@ -132,8 +132,8 @@ export function AppShell() {
             className="mx-auto max-w-6xl animate-fade-in-up p-4 pb-20 sm:p-6 md:pb-6"
           >
             {/* Lazy-loaded pages suspend while their chunk downloads; keep the
-                shell/nav visible and show a lightweight loader in the content. */}
-            <Suspense fallback={<LoadingState />}>
+                shell/nav visible and show a page skeleton in the content. */}
+            <Suspense fallback={<PageSkeleton />}>
               <Outlet />
             </Suspense>
           </div>

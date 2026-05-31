@@ -27,7 +27,7 @@ import { ResizableTable, ResizableHead } from "@/components/ResizableTable";
 import { useColumnPrefs, type ColumnDef } from "@/lib/useColumnPrefs";
 import { usePagination } from "@/lib/usePagination";
 import { Pagination } from "@/components/Pagination";
-import { EmptyState, ErrorState, LoadingState } from "@/components/states";
+import { EmptyState, ErrorState, PageSkeleton } from "@/components/states";
 import type { Account } from "@/types/models";
 
 const TYPE_LABELS: Record<Account["type"], string> = {
@@ -110,7 +110,7 @@ export function AccountLedger() {
   const pagination = usePagination(rows);
   const { pageItems } = pagination;
 
-  if (loading) return <LoadingState />;
+  if (loading) return <PageSkeleton />;
   if (error) return <ErrorState message={error} />;
   if (!account) {
     return (
