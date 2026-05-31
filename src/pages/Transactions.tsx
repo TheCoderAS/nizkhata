@@ -27,6 +27,8 @@ import { ResizableTable } from "@/components/ResizableTable";
 import { Toolbar } from "@/components/Toolbar";
 import { useColumnPrefs, type ColumnDef } from "@/lib/useColumnPrefs";
 import { useSort, type SortAccessor } from "@/lib/useSort";
+import { usePagination } from "@/lib/usePagination";
+import { Pagination } from "@/components/Pagination";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -93,7 +95,6 @@ export function Transactions() {
   const [categoryFilter, setCategoryFilter] = useState("__all");
   const [typeFilter, setTypeFilter] = useState("__all");
   const [splitOnly, setSplitOnly] = useState(false);
-  const [page, setPage] = useState(0);
 
   // Deep-link support: `?category=<id>` (e.g. from a budget card) pre-applies
   // the category filter. Consume the param once, then drop it from the URL so
@@ -102,7 +103,6 @@ export function Transactions() {
     const cat = searchParams.get("category");
     if (cat) {
       setCategoryFilter(cat);
-      setPage(0);
       const next = new URLSearchParams(searchParams);
       next.delete("category");
       setSearchParams(next, { replace: true });
@@ -128,7 +128,6 @@ export function Transactions() {
     setCategoryFilter("__all");
     setTypeFilter("__all");
     setSplitOnly(false);
-    setPage(0);
   }
 
   const filtered = useMemo(() => {
@@ -171,8 +170,8 @@ export function Transactions() {
     direction: "desc",
   });
 
-  const pageItems = sorted.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE);
-  const pageCount = Math.ceil(sorted.length / PAGE_SIZE);
+  const pagination = usePagination(sorted, PAGE_SIZE);
+  const { pageItems } = pagination;
 
   if (loading) return <LoadingState />;
   if (error) return <ErrorState message={error} />;
@@ -219,7 +218,7 @@ export function Transactions() {
         search={search}
         onSearch={(v) => {
           setSearch(v);
-          setPage(0);
+          pagination.reset();
         }}
         placeholder="Search note / contact…"
       >
@@ -292,7 +291,7 @@ export function Transactions() {
               className="ml-0.5 rounded-full hover:text-foreground"
               onClick={() => {
                 setCategoryFilter("__all");
-                setPage(0);
+                pagination.reset();
               }}
             >
               <X className="h-3 w-3" />
@@ -398,31 +397,7 @@ export function Transactions() {
             </TableBody>
           </ResizableTable>
 
-          {pageCount > 1 && (
-            <div className="mt-4 flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">
-                {sorted.length} transactions · page {page + 1} of {pageCount}
-              </span>
-              <div className="flex gap-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={page === 0}
-                  onClick={() => setPage((p) => p - 1)}
-                >
-                  Previous
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={page >= pageCount - 1}
-                  onClick={() => setPage((p) => p + 1)}
-                >
-                  Next
-                </Button>
-              </div>
-            </div>
-          )}
+          <Pagination state={pagination} noun="transactions" />
         </>
       )}
 

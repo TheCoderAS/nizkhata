@@ -16,6 +16,8 @@ import { ColumnsMenu } from "@/components/ColumnsMenu";
 import { ResizableTable } from "@/components/ResizableTable";
 import { useColumnPrefs, type ColumnDef } from "@/lib/useColumnPrefs";
 import { useSort, type SortAccessor } from "@/lib/useSort";
+import { usePagination } from "@/lib/usePagination";
+import { Pagination } from "@/components/Pagination";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -135,6 +137,8 @@ export function Accounts() {
     key: "name",
     direction: "asc",
   });
+  const pagination = usePagination(sorted);
+  const { pageItems } = pagination;
 
   if (loading) return <LoadingState />;
   if (error) return <ErrorState message={error} />;
@@ -212,7 +216,7 @@ export function Accounts() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {sorted.map((a) => {
+            {pageItems.map((a) => {
               const bal = balanceOf(a.id);
               const isCard = a.type === "credit_card";
               return (
@@ -264,6 +268,8 @@ export function Accounts() {
           </TableBody>
         </ResizableTable>
       )}
+
+      {accounts.length > 0 && <Pagination state={pagination} noun="accounts" />}
 
       {viewing && (
         <AccountDetail

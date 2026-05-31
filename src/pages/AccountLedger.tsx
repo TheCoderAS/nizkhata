@@ -25,6 +25,8 @@ import {
 } from "@/components/ui/table";
 import { ResizableTable, ResizableHead } from "@/components/ResizableTable";
 import { useColumnPrefs, type ColumnDef } from "@/lib/useColumnPrefs";
+import { usePagination } from "@/lib/usePagination";
+import { Pagination } from "@/components/Pagination";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import type { Account } from "@/types/models";
 
@@ -105,6 +107,9 @@ export function AccountLedger() {
     return out.reverse(); // newest first for display
   }, [account, transactions, debtsById, from, to]);
 
+  const pagination = usePagination(rows);
+  const { pageItems } = pagination;
+
   if (loading) return <LoadingState />;
   if (error) return <ErrorState message={error} />;
   if (!account) {
@@ -182,7 +187,7 @@ export function AccountLedger() {
             type="date"
             value={from}
             max={to || undefined}
-            onChange={(e) => setFrom(e.target.value)}
+            onChange={(e) => { setFrom(e.target.value); pagination.reset(); }}
             className="h-9 w-40"
           />
         </div>
@@ -193,7 +198,7 @@ export function AccountLedger() {
             type="date"
             value={to}
             min={from || undefined}
-            onChange={(e) => setTo(e.target.value)}
+            onChange={(e) => { setTo(e.target.value); pagination.reset(); }}
             className="h-9 w-40"
           />
         </div>
@@ -230,7 +235,7 @@ export function AccountLedger() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {rows.map((r) => (
+            {pageItems.map((r) => (
               <TableRow key={r.id}>
                 <TableCell className="whitespace-nowrap text-muted-foreground">
                   {formatDate(r.date)}
@@ -256,6 +261,8 @@ export function AccountLedger() {
           </TableBody>
         </ResizableTable>
       )}
+
+      {rows.length > 0 && <Pagination state={pagination} noun="entries" />}
     </div>
   );
 }

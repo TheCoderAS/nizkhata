@@ -29,6 +29,8 @@ import { ResizableTable } from "@/components/ResizableTable";
 import { Toolbar } from "@/components/Toolbar";
 import { useColumnPrefs, type ColumnDef } from "@/lib/useColumnPrefs";
 import { useSort, type SortAccessor } from "@/lib/useSort";
+import { usePagination } from "@/lib/usePagination";
+import { Pagination } from "@/components/Pagination";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -124,6 +126,8 @@ export function Dues() {
     key: "dueDate",
     direction: "asc",
   });
+  const pagination = usePagination(sorted);
+  const { pageItems } = pagination;
 
   if (loading) return <LoadingState />;
   if (error) return <ErrorState message={error} />;
@@ -186,7 +190,11 @@ export function Dues() {
       />
 
       {dues.length > 0 && (
-        <Toolbar search={search} onSearch={setSearch} placeholder="Search dues…">
+        <Toolbar
+          search={search}
+          onSearch={(v) => { setSearch(v); pagination.reset(); }}
+          placeholder="Search dues…"
+        >
           <FilterModal activeCount={activeFilterCount} onClear={clearFilters}>
             <FilterRow label="Direction">
               <DueFilterSelect
@@ -266,7 +274,7 @@ export function Dues() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {sorted.map((d) => {
+            {pageItems.map((d) => {
               const settled = settledOf(d.id);
               const status = dueStatusFromSettled(d, settled);
               return (
@@ -315,6 +323,8 @@ export function Dues() {
           </TableBody>
         </ResizableTable>
       )}
+
+      {sorted.length > 0 && <Pagination state={pagination} noun="dues" />}
 
       {viewing && (
         <DueDetail
