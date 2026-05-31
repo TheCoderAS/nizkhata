@@ -152,6 +152,7 @@ export function Budgets() {
                             </div>
                           </div>
                           {manage && (
+                            <div className="-mr-2 -mt-1 shrink-0">
                             <RowActions
                               actions={[
                                 {
@@ -167,6 +168,7 @@ export function Budgets() {
                                 },
                               ]}
                             />
+                            </div>
                           )}
                         </div>
                         <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
