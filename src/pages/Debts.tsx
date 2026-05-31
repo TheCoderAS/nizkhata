@@ -22,6 +22,7 @@ import { RowActions, type RowAction } from "@/components/RowActions";
 import { SortableHead } from "@/components/SortableHead";
 import { DetailDialog, type DetailField } from "@/components/DetailDialog";
 import { ColumnsMenu } from "@/components/ColumnsMenu";
+import { ResizableTable } from "@/components/ResizableTable";
 import { Toolbar } from "@/components/Toolbar";
 import { useColumnPrefs, type ColumnDef } from "@/lib/useColumnPrefs";
 import { useSort, type SortAccessor } from "@/lib/useSort";
@@ -31,7 +32,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import {
-  Table,
   TableBody,
   TableCell,
   TableHead,
@@ -154,7 +154,7 @@ export function Debts() {
 
       {visible.length > 0 && (
         <Toolbar search={search} onSearch={setSearch} placeholder="Search debts…">
-          <ColumnsMenu columns={cols.columns} isVisible={cols.isVisible} toggle={cols.toggle} reset={cols.reset} />
+          <ColumnsMenu columns={cols.columns} isVisible={cols.isVisible} toggle={cols.toggle} reset={cols.reset} hasCustomWidths={cols.hasCustomWidths} onResetWidths={cols.resetWidths} />
         </Toolbar>
       )}
 
@@ -288,7 +288,7 @@ function DebtGroup({
       <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
         {title}
       </h2>
-      <Table>
+      <ResizableTable prefs={cols} className="[&_td]:truncate">
         <TableHeader>
           <TableRow>
             {cols.isVisible("label") && (
@@ -355,7 +355,7 @@ function DebtGroup({
             </TableRow>
           ))}
         </TableBody>
-      </Table>
+      </ResizableTable>
     </div>
   );
 }

@@ -18,11 +18,16 @@ export function ColumnsMenu<K extends string>({
   isVisible,
   toggle,
   reset,
+  hasCustomWidths,
+  onResetWidths,
 }: {
   columns: ColumnDef<K>[];
   isVisible: (key: K) => boolean;
   toggle: (key: K) => void;
   reset: () => void;
+  /** show a "Reset column widths" action when the user has resized columns */
+  hasCustomWidths?: boolean;
+  onResetWidths?: () => void;
 }) {
   const toggleable = columns.filter((c) => !c.locked);
   if (toggleable.length === 0) return null;
@@ -50,6 +55,11 @@ export function ColumnsMenu<K extends string>({
           </DropdownMenuCheckboxItem>
         ))}
         <DropdownMenuSeparator />
+        {hasCustomWidths && onResetWidths && (
+          <DropdownMenuItem onSelect={() => onResetWidths()}>
+            Reset column widths
+          </DropdownMenuItem>
+        )}
         <DropdownMenuItem onSelect={() => reset()}>Reset to default</DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

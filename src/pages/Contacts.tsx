@@ -17,6 +17,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { RowActions, type RowAction } from "@/components/RowActions";
 import { SortableHead } from "@/components/SortableHead";
 import { ColumnsMenu } from "@/components/ColumnsMenu";
+import { ResizableTable } from "@/components/ResizableTable";
 import { Toolbar } from "@/components/Toolbar";
 import { useColumnPrefs, type ColumnDef } from "@/lib/useColumnPrefs";
 import { useSort, type SortAccessor } from "@/lib/useSort";
@@ -26,7 +27,6 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  Table,
   TableBody,
   TableCell,
   TableHead,
@@ -131,7 +131,7 @@ export function Contacts() {
       />
 
       <Toolbar search={search} onSearch={setSearch} placeholder="Search contacts…">
-        <ColumnsMenu columns={cols.columns} isVisible={cols.isVisible} toggle={cols.toggle} reset={cols.reset} />
+        <ColumnsMenu columns={cols.columns} isVisible={cols.isVisible} toggle={cols.toggle} reset={cols.reset} hasCustomWidths={cols.hasCustomWidths} onResetWidths={cols.resetWidths} />
       </Toolbar>
 
       {sorted.length === 0 ? (
@@ -144,7 +144,7 @@ export function Contacts() {
           }
         />
       ) : (
-        <Table>
+        <ResizableTable prefs={cols} className="[&_td]:truncate">
           <TableHeader>
             <TableRow>
               {cols.isVisible("name") && (
@@ -211,7 +211,7 @@ export function Contacts() {
               );
             })}
           </TableBody>
-        </Table>
+        </ResizableTable>
       )}
 
       {editing && activeWorkspaceId && (

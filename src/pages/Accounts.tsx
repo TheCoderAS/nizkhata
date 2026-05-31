@@ -12,6 +12,7 @@ import { RowActions, type RowAction } from "@/components/RowActions";
 import { SortableHead } from "@/components/SortableHead";
 import { DetailDialog, type DetailField } from "@/components/DetailDialog";
 import { ColumnsMenu } from "@/components/ColumnsMenu";
+import { ResizableTable } from "@/components/ResizableTable";
 import { useColumnPrefs, type ColumnDef } from "@/lib/useColumnPrefs";
 import { useSort, type SortAccessor } from "@/lib/useSort";
 import { Button } from "@/components/ui/button";
@@ -20,7 +21,6 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import {
-  Table,
   TableBody,
   TableCell,
   TableHead,
@@ -165,7 +165,7 @@ export function Accounts() {
 
       {accounts.length > 0 && (
         <div className="mb-4 flex justify-end">
-          <ColumnsMenu columns={cols.columns} isVisible={cols.isVisible} toggle={cols.toggle} reset={cols.reset} />
+          <ColumnsMenu columns={cols.columns} isVisible={cols.isVisible} toggle={cols.toggle} reset={cols.reset} hasCustomWidths={cols.hasCustomWidths} onResetWidths={cols.resetWidths} />
         </div>
       )}
 
@@ -178,7 +178,7 @@ export function Accounts() {
           }
         />
       ) : (
-        <Table>
+        <ResizableTable prefs={cols} className="[&_td]:truncate">
           <TableHeader>
             <TableRow>
               {cols.isVisible("name") && (
@@ -255,7 +255,7 @@ export function Accounts() {
               );
             })}
           </TableBody>
-        </Table>
+        </ResizableTable>
       )}
 
       {viewing && (

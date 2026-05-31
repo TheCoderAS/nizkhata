@@ -25,6 +25,7 @@ import { SortableHead } from "@/components/SortableHead";
 import { DetailDialog, type DetailField } from "@/components/DetailDialog";
 import { FilterModal, FilterRow } from "@/components/FilterModal";
 import { ColumnsMenu } from "@/components/ColumnsMenu";
+import { ResizableTable } from "@/components/ResizableTable";
 import { Toolbar } from "@/components/Toolbar";
 import { useColumnPrefs, type ColumnDef } from "@/lib/useColumnPrefs";
 import { useSort, type SortAccessor } from "@/lib/useSort";
@@ -33,7 +34,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import {
-  Table,
   TableBody,
   TableCell,
   TableHead,
@@ -213,7 +213,7 @@ export function Dues() {
               />
             </FilterRow>
           </FilterModal>
-          <ColumnsMenu columns={cols.columns} isVisible={cols.isVisible} toggle={cols.toggle} reset={cols.reset} />
+          <ColumnsMenu columns={cols.columns} isVisible={cols.isVisible} toggle={cols.toggle} reset={cols.reset} hasCustomWidths={cols.hasCustomWidths} onResetWidths={cols.resetWidths} />
         </Toolbar>
       )}
 
@@ -224,7 +224,7 @@ export function Dues() {
           action={manage && <Button onClick={() => setEditing("new")}>New due</Button>}
         />
       ) : (
-        <Table>
+        <ResizableTable prefs={cols} className="[&_td]:truncate">
           <TableHeader>
             <TableRow>
               {cols.isVisible("title") && (
@@ -313,7 +313,7 @@ export function Dues() {
               );
             })}
           </TableBody>
-        </Table>
+        </ResizableTable>
       )}
 
       {viewing && (

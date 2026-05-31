@@ -23,13 +23,13 @@ import { SortableHead } from "@/components/SortableHead";
 import { TransactionDetailDialog } from "@/components/TransactionDetailDialog";
 import { FilterModal, FilterRow } from "@/components/FilterModal";
 import { ColumnsMenu } from "@/components/ColumnsMenu";
+import { ResizableTable } from "@/components/ResizableTable";
 import { Toolbar } from "@/components/Toolbar";
 import { useColumnPrefs, type ColumnDef } from "@/lib/useColumnPrefs";
 import { useSort, type SortAccessor } from "@/lib/useSort";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
-  Table,
   TableBody,
   TableCell,
   TableHead,
@@ -279,7 +279,7 @@ export function Transactions() {
             Split transactions only
           </label>
         </FilterModal>
-        <ColumnsMenu columns={cols.columns} isVisible={cols.isVisible} toggle={cols.toggle} reset={cols.reset} />
+        <ColumnsMenu columns={cols.columns} isVisible={cols.isVisible} toggle={cols.toggle} reset={cols.reset} hasCustomWidths={cols.hasCustomWidths} onResetWidths={cols.resetWidths} />
       </Toolbar>
 
       {categoryFilter !== "__all" && (
@@ -311,7 +311,7 @@ export function Transactions() {
         />
       ) : (
         <>
-          <Table>
+          <ResizableTable prefs={cols} className="[&_td]:truncate">
             <TableHeader>
               <TableRow>
                 {cols.isVisible("date") && (
@@ -396,7 +396,7 @@ export function Transactions() {
                 </TableRow>
               ))}
             </TableBody>
-          </Table>
+          </ResizableTable>
 
           {pageCount > 1 && (
             <div className="mt-4 flex items-center justify-between text-sm">
