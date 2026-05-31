@@ -162,6 +162,9 @@ export interface TransactionLine {
   toAccountId?: Id; // transfer_in destination
   tax?: LineTax;
   note?: string;
+  // External lines record a debt movement (borrow/lend/repayment) but do NOT
+  // move any account balance — e.g. an opening balance against "External / none".
+  external?: boolean;
 }
 
 export interface Transaction {

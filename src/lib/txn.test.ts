@@ -50,6 +50,35 @@ describe("primaryAccountEffect", () => {
   it("transfer_in contributes 0 to the primary account", () => {
     expect(primaryAccountEffect(line({ type: "transfer_in", amount: 500, toAccountId: "a2" }))).toBe(0);
   });
+  it("external lines contribute 0 to any account (opening balance vs External)", () => {
+    expect(
+      primaryAccountEffect(line({ type: "borrow", amount: 1000, debtId: "d1", external: true })),
+    ).toBe(0);
+    expect(
+      primaryAccountEffect(line({ type: "lend", amount: 1000, debtId: "d1", external: true })),
+    ).toBe(0);
+  });
+});
+
+describe("debtOutstanding — external opening lines still count", () => {
+  it("counts an external borrow toward an 'owe' debt's outstanding", async () => {
+    const { debtOutstanding } = await import("./derive");
+    const txns = [
+      {
+        id: "t1",
+        workspaceId: "w",
+        accountId: "__external__",
+        totalAmount: 0,
+        hasSplit: false,
+        financialYear: "2025-26",
+        createdBy: "u",
+        date: {} as never,
+        createdAt: {} as never,
+        lines: [line({ type: "borrow", amount: 1000, debtId: "d1", external: true })],
+      },
+    ];
+    expect(debtOutstanding(oweDebt, txns as never)).toBe(1000);
+  });
 });
 
 describe("computeTotal — spec loan-repayment example", () => {

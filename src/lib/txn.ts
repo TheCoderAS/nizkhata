@@ -48,6 +48,8 @@ export function primaryAccountEffect(
   line: TransactionLine,
   debt?: Debt,
 ): number {
+  // External lines record a debt movement but touch no account balance.
+  if (line.external) return 0;
   if (line.type === "repayment") {
     if (!debt) return 0;
     return (debt.direction === "owe" ? -1 : +1) * line.amount;

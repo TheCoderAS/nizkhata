@@ -8,6 +8,7 @@ import { useAuth } from "@/auth/AuthProvider";
 import { useWorkspace } from "@/workspace/WorkspaceProvider";
 import { useData } from "@/data/WorkspaceDataProvider";
 import {
+  EXTERNAL_ACCOUNT,
   createTransaction,
   deleteTransaction,
   updateTransaction,
@@ -286,7 +287,10 @@ export function Transactions() {
                     <TableCell className="whitespace-nowrap">{formatDate(toDate(t.date))}</TableCell>
                   )}
                   {cols.isVisible("account") && (
-                    <TableCell>{accountsById[t.accountId]?.name ?? "—"}</TableCell>
+                    <TableCell>
+                      {accountsById[t.accountId]?.name ??
+                        (t.accountId === EXTERNAL_ACCOUNT ? "External" : "—")}
+                    </TableCell>
                   )}
                   {cols.isVisible("contact") && (
                     <TableCell>{t.contactId ? contactsById[t.contactId]?.name ?? "—" : "—"}</TableCell>

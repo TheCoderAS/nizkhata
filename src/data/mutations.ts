@@ -13,6 +13,7 @@ import {
   writeBatch,
 } from "firebase/firestore";
 import { db } from "@/firebase/config";
+import { financialYearOf } from "@/lib/financialYear";
 import type {
   Account,
   Category,
@@ -22,6 +23,10 @@ import type {
   Transaction,
   TransactionLine,
 } from "@/types/models";
+
+// Sentinel accountId for transactions whose lines don't move any real account
+// (e.g. an opening balance booked against "External / none").
+export const EXTERNAL_ACCOUNT = "__external__";
 
 function newId(name: string): string {
   return doc(collection(db, name)).id;
@@ -124,6 +129,72 @@ export async function updateDebt(
 }
 export async function deleteDebt(id: string) {
   await deleteDoc(doc(db, "debts", id));
+}
+
+/**
+ * Create a debt and, when `openingAmount > 0`, an opening-balance transaction
+ * dated today with a single line linked to the debt:
+ *   - direction "owe"  (you owe them)  -> `borrow`  (+ to your account)
+ *   - direction "owed" (they owe you)  -> `lend`    (− from your account)
+ * If `accountId` is omitted (External / none), the line is flagged `external`
+ * so it records the debt without moving any account balance.
+ *
+ * Outstanding is always derived from these lines, so editing/deleting the
+ * opening transaction later keeps the debt consistent automatically.
+ */
+export async function createDebtWithOpening(
+  workspaceId: string,
+  createdBy: string,
+  fyStartMonth: number,
+  debtData: Pick<Debt, "contactId" | "direction" | "purpose" | "principal"> &
+    Partial<Pick<Debt, "label">>,
+  opening: { amount: number; accountId?: string },
+): Promise<string> {
+  const debtId = newId("debts");
+  const batch = writeBatch(db);
+
+  batch.set(doc(db, "debts", debtId), {
+    id: debtId,
+    workspaceId,
+    ...stripUndefined(debtData),
+    status: "open",
+    createdAt: serverTimestamp(),
+  });
+
+  if (opening.amount > 0) {
+    const txnId = newId("transactions");
+    const external = !opening.accountId;
+    const lineType = debtData.direction === "owe" ? "borrow" : "lend";
+    const line: TransactionLine = {
+      lineId: `open_${Date.now()}`,
+      type: lineType,
+      amount: opening.amount,
+      debtId,
+      note: "Opening balance",
+      ...(external ? { external: true } : {}),
+    };
+    const now = new Date();
+    batch.set(doc(db, "transactions", txnId), {
+      id: txnId,
+      workspaceId,
+      date: Timestamp.fromDate(now),
+      accountId: opening.accountId ?? EXTERNAL_ACCOUNT,
+      contactId: debtData.contactId,
+      // external line contributes 0; a real account records the signed movement
+      totalAmount: external
+        ? 0
+        : (debtData.direction === "owe" ? 1 : -1) * opening.amount,
+      hasSplit: false,
+      financialYear: financialYearOf(now, fyStartMonth),
+      note: "Opening balance",
+      createdBy,
+      createdAt: serverTimestamp(),
+      lines: [stripUndefined(line)],
+    });
+  }
+
+  await batch.commit();
+  return debtId;
 }
 
 // ---- dues ------------------------------------------------------------------
