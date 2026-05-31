@@ -172,7 +172,12 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     workspaces.find((w) => w.id === activeWorkspaceId) ?? null;
 
   const value = useMemo<WorkspaceState>(() => {
-    const can = (perm: Permission) => role?.permissions?.[perm] === true;
+    // The workspace owner implicitly holds every permission — mirroring the
+    // owner-bypass in the Security Rules. This also means owners are never
+    // locked out of a newly added permission (e.g. `shared.*`) by a role doc
+    // that was seeded before that permission existed.
+    const isOwner = !!uid && activeWorkspace?.ownerId === uid;
+    const can = (perm: Permission) => isOwner || role?.permissions?.[perm] === true;
     const switchWorkspace = (workspaceId: string) => {
       setActiveWorkspaceId(workspaceId);
       if (uid) {
