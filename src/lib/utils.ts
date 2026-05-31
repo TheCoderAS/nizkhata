@@ -6,7 +6,11 @@ export function cn(...inputs: ClassValue[]): string {
   return twMerge(clsx(inputs));
 }
 
-/** Format a number as workspace currency (defaults to INR / en-IN). */
+/**
+ * Format a number as workspace currency (defaults to INR / en-IN).
+ * Uses accounting sign display, so negatives render in parentheses —
+ * e.g. -1000 -> "(₹1,000.00)" rather than "-₹1,000.00".
+ */
 export function formatMoney(
   amount: number,
   currency = "INR",
@@ -15,6 +19,7 @@ export function formatMoney(
   return new Intl.NumberFormat(locale, {
     style: "currency",
     currency,
+    currencySign: "accounting",
     maximumFractionDigits: 2,
   }).format(amount);
 }

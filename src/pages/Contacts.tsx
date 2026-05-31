@@ -11,6 +11,8 @@ import type { Contact, ContactType } from "@/types/models";
 import { PageHeader } from "@/components/PageHeader";
 import { RowActions, type RowAction } from "@/components/RowActions";
 import { SortableHead } from "@/components/SortableHead";
+import { ColumnsMenu } from "@/components/ColumnsMenu";
+import { useColumnPrefs, type ColumnDef } from "@/lib/useColumnPrefs";
 import { useSort, type SortAccessor } from "@/lib/useSort";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -45,6 +47,13 @@ import { useToast } from "@/components/ui/toast";
 import { cn, formatMoney } from "@/lib/utils";
 
 type SortKey = "name" | "type" | "net";
+type ColKey = "name" | "type" | "net";
+
+const COLUMNS: ColumnDef<ColKey>[] = [
+  { key: "name", label: "Name", defaultVisible: true, locked: true },
+  { key: "type", label: "Type", defaultVisible: true },
+  { key: "net", label: "Net position", defaultVisible: true },
+];
 
 export function Contacts() {
   const navigate = useNavigate();
@@ -62,6 +71,8 @@ export function Contacts() {
     () => contacts.filter((c) => c.name.toLowerCase().includes(search.toLowerCase())),
     [contacts, search],
   );
+
+  const cols = useColumnPrefs<ColKey>("contacts", COLUMNS);
 
   const accessors: Record<SortKey, SortAccessor<Contact>> = {
     name: (c) => c.name,
@@ -103,12 +114,17 @@ export function Contacts() {
         }}
       />
 
-      <Input
-        placeholder="Search contacts…"
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        className="mb-4 max-w-sm"
-      />
+      <div className="mb-4 flex items-center gap-2">
+        <Input
+          placeholder="Search contacts…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="max-w-sm"
+        />
+        <div className="ml-auto">
+          <ColumnsMenu columns={cols.columns} isVisible={cols.isVisible} toggle={cols.toggle} reset={cols.reset} />
+        </div>
+      </div>
 
       {sorted.length === 0 ? (
         <EmptyState
@@ -123,15 +139,21 @@ export function Contacts() {
         <Table>
           <TableHeader>
             <TableRow>
-              <SortableHead sortKey="name" sort={sort} onToggle={toggle}>
-                Name
-              </SortableHead>
-              <SortableHead sortKey="type" sort={sort} onToggle={toggle}>
-                Type
-              </SortableHead>
-              <SortableHead sortKey="net" sort={sort} onToggle={toggle} className="text-right">
-                Net position
-              </SortableHead>
+              {cols.isVisible("name") && (
+                <SortableHead sortKey="name" sort={sort} onToggle={toggle}>
+                  Name
+                </SortableHead>
+              )}
+              {cols.isVisible("type") && (
+                <SortableHead sortKey="type" sort={sort} onToggle={toggle}>
+                  Type
+                </SortableHead>
+              )}
+              {cols.isVisible("net") && (
+                <SortableHead sortKey="net" sort={sort} onToggle={toggle} className="text-right">
+                  Net position
+                </SortableHead>
+              )}
               <TableHead className="w-12" />
             </TableRow>
           </TableHeader>
@@ -144,25 +166,31 @@ export function Contacts() {
                   onClick={() => navigate(`/contacts/${c.id}`)}
                   className="cursor-pointer"
                 >
-                  <TableCell className="font-medium">{c.name}</TableCell>
-                  <TableCell>
-                    <Badge variant="secondary">
-                      {c.type === "business" ? "Business" : "Person"}
-                    </Badge>
-                  </TableCell>
-                  <TableCell
-                    className={cn(
-                      "text-right tabular-nums font-medium",
-                      net > 0 && "text-green-600",
-                      net < 0 && "text-destructive",
-                    )}
-                  >
-                    {net === 0
-                      ? "—"
-                      : net > 0
-                        ? `${formatMoney(net, currency)} owes you`
-                        : `${formatMoney(-net, currency)} you owe`}
-                  </TableCell>
+                  {cols.isVisible("name") && (
+                    <TableCell className="font-medium">{c.name}</TableCell>
+                  )}
+                  {cols.isVisible("type") && (
+                    <TableCell>
+                      <Badge variant="secondary">
+                        {c.type === "business" ? "Business" : "Person"}
+                      </Badge>
+                    </TableCell>
+                  )}
+                  {cols.isVisible("net") && (
+                    <TableCell
+                      className={cn(
+                        "text-right tabular-nums font-medium",
+                        net > 0 && "text-green-600",
+                        net < 0 && "text-destructive",
+                      )}
+                    >
+                      {net === 0
+                        ? "—"
+                        : net > 0
+                          ? `${formatMoney(net, currency)} owes you`
+                          : `${formatMoney(-net, currency)} you owe`}
+                    </TableCell>
+                  )}
                   <TableCell>
                     <RowActions actions={rowActions(c)} />
                   </TableCell>
