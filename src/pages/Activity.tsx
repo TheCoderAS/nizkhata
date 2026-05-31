@@ -123,9 +123,8 @@ export function Activity() {
   return (
     <div>
       <PageHeader title="Activity" />
-      <p className="mb-4 text-sm text-muted-foreground">
-        Everything that's changed in this workspace, newest first.
-      </p>
+
+      <div className="mt-4" />
 
       {activity.length === 0 ? (
         <EmptyState
