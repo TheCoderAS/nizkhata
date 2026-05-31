@@ -50,6 +50,47 @@ doc as its own committed write **first**, then seeds the rest in a batch (so
 Vite + TypeScript + Tailwind, React Router, Firebase JS SDK v10. `baseCurrency`
 defaults to `INR`, `fyStartMonth` to `4` on auto-created workspaces.
 
+### 5. Shared section redesigned as a cross-user, consent-based ledger
+The original `sharedExpenses` collection tracked Splitwise-style splits among
+**workspace members** as a standalone ledger that never touched account
+balances. That was replaced (existing shared data **wiped**, by decision) with a
+genuine multi-user model:
+
+- **Shared partners are real app users, not workspace members or contacts.** A
+  partner is reached by email invite (`shareInvites`, deterministic id
+  `${fromUid}_${email}`) which, once claimed at login, creates a
+  `sharedConnections` doc (sorted-uid-pair id). This grants **no workspace
+  access** — partners can't see or switch into each other's workspaces; they
+  only appear in each other's Shared section.
+- **Three new top-level collections are NOT workspace-scoped** — they are keyed
+  by uid and gated purely by "are you one of the two parties" (see the
+  `sharedConnections` / `shareInvites` / `sharedEntries` rules). They carry only
+  denormalized display data (names, amounts), so no book internals leak.
+- **Every shared item is a bilateral proposal.** A multi-person split is several
+  bilateral `sharedEntries` created together, so each counterparty accepts /
+  rejects their own claim independently, and the consent rule stays simple
+  (the counterparty may change only `status` + `pendingForUids`; the creator
+  may change only `resolved`). This is enforced in Rules with `diff().affectedKeys().hasOnly(...)` and is covered by the rules tests.
+- **Each side reflects an agreed item into its OWN workspace only**, via the
+  normal debt/transaction engine — so Security Rules are never crossed. A hidden
+  contact (tagged `connectionUid`) + a `purpose: "shared"` debt are the local
+  handle, linked back by `sharedEntryId`. These reflections are hidden from the
+  Contacts and Debts lists.
+- **Asymmetric, per the agreed model:** the creator already paid, so their side
+  records the real account-linked movement immediately; the counterparty is
+  **balance-only** (an account-less `external` debt) until an actual settlement
+  moves money. A rejection becomes a **conflict** the creator resolves (absorb
+  as own expense / remove the claim / withdraw).
+- **No backend.** Delivery of the "to-do" is an in-app inbox driven by live
+  listeners (`SharedDataProvider`), consistent with the repo's "client-authored,
+  a Cloud Function can take over later" stance — there is **no push
+  notification**. A nav badge surfaces the inbox count from anywhere.
+
+Open follow-ups for this feature: (a) gating — the Shared section is currently
+open to any signed-in user rather than a dedicated `shared.*` permission;
+(b) edit of an already-accepted entry is not supported (withdraw + recreate);
+(c) settlement currently assumes both parties share one `baseCurrency`.
+
 ## Things enforced in app logic only (not expressible in Rules)
 The spec acknowledges some of these; listing for completeness. These are **not
 yet implemented** (they belong to the Members/Roles phase):

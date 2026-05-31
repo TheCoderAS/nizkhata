@@ -60,11 +60,19 @@
       ]
     },
     {
-      "collectionGroup": "sharedExpenses",
+      "collectionGroup": "sharedEntries",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "workspaceId", "order": "ASCENDING" },
+        { "fieldPath": "uids", "arrayConfig": "CONTAINS" },
         { "fieldPath": "date", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "shareInvites",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "toEmail", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" }
       ]
     },
     {

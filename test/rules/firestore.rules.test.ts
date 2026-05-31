@@ -14,7 +14,7 @@ import {
   type RulesTestEnvironment,
 } from "@firebase/rules-unit-testing";
 import { readFileSync } from "node:fs";
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc, updateDoc, deleteDoc } from "firebase/firestore";
 import { afterAll, beforeAll, beforeEach, describe, it } from "vitest";
 
 const PROJECT_ID = "rules-test";
@@ -205,10 +205,162 @@ describe("owner guardrails", () => {
     const db = env.authenticatedContext("owner").firestore();
     await assertFails(
       // even owner has members.remove, but owner row is protected
-      (async () => {
-        const { deleteDoc } = await import("firebase/firestore");
-        return deleteDoc(doc(db, "memberships", `${WS}_owner`));
-      })(),
+      deleteDoc(doc(db, "memberships", `${WS}_owner`)),
     );
+  });
+});
+
+// =============================================================================
+// Cross-user shared ledger: sharedConnections / shareInvites / sharedEntries.
+// These are gated by "are you one of the two parties", NOT by workspace.
+// =============================================================================
+
+describe("shared ledger — connections & entries", () => {
+  const A = "userA";
+  const B = "userB";
+  const C = "stranger3";
+  const CONN = "userA_userB"; // sorted pair
+
+  async function seedConnection() {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), "sharedConnections", CONN), {
+        id: CONN,
+        uids: [A, B],
+        names: { [A]: "A", [B]: "B" },
+        emails: { [A]: "a@x.com", [B]: "b@x.com" },
+        status: "active",
+      });
+    });
+  }
+
+  function entryDoc(over: Record<string, unknown> = {}) {
+    return {
+      id: "e1",
+      connectionId: CONN,
+      kind: "expense",
+      uids: [A, B],
+      creatorUid: A,
+      counterpartyUid: B,
+      names: { [A]: "A", [B]: "B" },
+      payerUid: A,
+      description: "Dinner",
+      amount: 100,
+      date: new Date(),
+      status: "pending",
+      pendingForUids: [B],
+      createdBy: { uid: A, name: "A" },
+      ...over,
+    };
+  }
+
+  it("a party can read the connection; a stranger cannot", async () => {
+    await seedConnection();
+    await assertSucceeds(getDoc(doc(env.authenticatedContext(A).firestore(), "sharedConnections", CONN)));
+    await assertFails(getDoc(doc(env.authenticatedContext(C).firestore(), "sharedConnections", CONN)));
+  });
+
+  it("the creator can create a bilateral entry they are part of", async () => {
+    const db = env.authenticatedContext(A).firestore();
+    await assertSucceeds(setDoc(doc(db, "sharedEntries", "e1"), entryDoc()));
+  });
+
+  it("a stranger cannot create an entry naming two other users", async () => {
+    const db = env.authenticatedContext(C).firestore();
+    await assertFails(setDoc(doc(db, "sharedEntries", "e1"), entryDoc()));
+  });
+
+  it("you cannot create an entry claiming someone else is the creator", async () => {
+    const db = env.authenticatedContext(B).firestore();
+    await assertFails(
+      setDoc(doc(db, "sharedEntries", "e1"), entryDoc({ createdBy: { uid: A, name: "A" } })),
+    );
+  });
+
+  it("the counterparty may flip ONLY their consent", async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), "sharedEntries", "e1"), entryDoc());
+    });
+    const db = env.authenticatedContext(B).firestore();
+    await assertSucceeds(
+      updateDoc(doc(db, "sharedEntries", "e1"), { status: "accepted", pendingForUids: [] }),
+    );
+  });
+
+  it("the counterparty cannot change the amount", async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), "sharedEntries", "e1"), entryDoc());
+    });
+    const db = env.authenticatedContext(B).firestore();
+    await assertFails(updateDoc(doc(db, "sharedEntries", "e1"), { amount: 1 }));
+  });
+
+  it("the creator cannot change their own consent fields, only `resolved`", async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), "sharedEntries", "e1"), entryDoc({ status: "rejected" }));
+    });
+    const db = env.authenticatedContext(A).firestore();
+    await assertFails(updateDoc(doc(db, "sharedEntries", "e1"), { status: "accepted" }));
+    await assertSucceeds(updateDoc(doc(db, "sharedEntries", "e1"), { resolved: true }));
+  });
+
+  it("a stranger cannot read someone else's entry", async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), "sharedEntries", "e1"), entryDoc());
+    });
+    await assertFails(getDoc(doc(env.authenticatedContext(C).firestore(), "sharedEntries", "e1")));
+  });
+
+  it("only the creator can delete an entry", async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), "sharedEntries", "e1"), entryDoc());
+    });
+    await assertFails(deleteDoc(doc(env.authenticatedContext(B).firestore(), "sharedEntries", "e1")));
+    await assertSucceeds(deleteDoc(doc(env.authenticatedContext(A).firestore(), "sharedEntries", "e1")));
+  });
+});
+
+describe("shared ledger — invites", () => {
+  const A = "inviterA";
+  it("the inviter can create a deterministic-id invite for themselves", async () => {
+    const db = env.authenticatedContext(A, { email: "a@x.com" }).firestore();
+    await assertSucceeds(
+      setDoc(doc(db, "shareInvites", `${A}_guest@x.com`), {
+        id: `${A}_guest@x.com`,
+        fromUid: A,
+        fromName: "A",
+        fromEmail: "a@x.com",
+        toEmail: "guest@x.com",
+        status: "pending",
+      }),
+    );
+  });
+
+  it("you cannot forge an invite from another user", async () => {
+    const db = env.authenticatedContext("someoneElse", { email: "e@x.com" }).firestore();
+    await assertFails(
+      setDoc(doc(db, "shareInvites", `${A}_guest@x.com`), {
+        id: `${A}_guest@x.com`,
+        fromUid: A,
+        fromName: "A",
+        fromEmail: "a@x.com",
+        toEmail: "guest@x.com",
+        status: "pending",
+      }),
+    );
+  });
+
+  it("the invitee (by email) may flip only the status to accepted", async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), "shareInvites", `${A}_guest@x.com`), {
+        id: `${A}_guest@x.com`,
+        fromUid: A,
+        fromName: "A",
+        fromEmail: "a@x.com",
+        toEmail: "guest@x.com",
+        status: "pending",
+      });
+    });
+    const db = env.authenticatedContext("guest", { email: "guest@x.com" }).firestore();
+    await assertSucceeds(updateDoc(doc(db, "shareInvites", `${A}_guest@x.com`), { status: "accepted" }));
   });
 });

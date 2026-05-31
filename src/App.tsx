@@ -6,6 +6,7 @@ import type { ReactNode } from "react";
 import { AuthProvider } from "@/auth/AuthProvider";
 import { WorkspaceProvider } from "@/workspace/WorkspaceProvider";
 import { WorkspaceDataProvider } from "@/data/WorkspaceDataProvider";
+import { SharedDataProvider } from "@/data/SharedDataProvider";
 import { ToastProvider } from "@/components/ui/toast";
 import { PWAPrompt } from "@/components/PWAPrompt";
 import { RequireAuth, RequirePermission } from "@/components/ProtectedRoute";
@@ -46,7 +47,9 @@ export default function App() {
                 <RequireAuth>
                   <WorkspaceProvider>
                     <WorkspaceDataProvider>
-                      <AppShell />
+                      <SharedDataProvider>
+                        <AppShell />
+                      </SharedDataProvider>
                     </WorkspaceDataProvider>
                   </WorkspaceProvider>
                 </RequireAuth>

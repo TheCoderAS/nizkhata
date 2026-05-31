@@ -69,7 +69,11 @@ export function Contacts() {
   const [toDelete, setToDelete] = useState<Contact | null>(null);
 
   const filtered = useMemo(
-    () => contacts.filter((c) => c.name.toLowerCase().includes(search.toLowerCase())),
+    () =>
+      contacts.filter(
+        // Hide shared-ledger handles — they live in the Shared section.
+        (c) => !c.connectionUid && c.name.toLowerCase().includes(search.toLowerCase()),
+      ),
     [contacts, search],
   );
 

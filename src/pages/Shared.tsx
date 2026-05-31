@@ -1,30 +1,33 @@
-// Shared money between workspace members — split costs and settle up
-// (Splitwise-style). Member balances are derived from the `sharedExpenses`
-// log; "Settle up" records a settlement payment. This ledger is separate from
-// account balances — it tracks who-owes-whom among members, not bank money.
+// Shared — Splitwise-style sharing between real app users, ACROSS workspaces.
+//
+// A shared item is a cross-user proposal: I record my side immediately (I
+// already paid), and the counterparty gets a to-do to accept (records a
+// balance-only "I owe you") or reject (raises a conflict I resolve). Settlements
+// work the same way and require the counterparty's acceptance. Balances are
+// derived from accepted entries (+ my own pending expense claims). Partners are
+// NOT workspace members and cannot see or enter my workspace.
 
 import { useMemo, useState } from "react";
-import { ArrowRight, Plus, Check, Pencil, Trash2 } from "lucide-react";
+import { ArrowRight, Plus, Check, X, Inbox, UserPlus, AlertTriangle } from "lucide-react";
 import { useWorkspace } from "@/workspace/WorkspaceProvider";
 import { useAuth } from "@/auth/AuthProvider";
 import { useData } from "@/data/WorkspaceDataProvider";
+import { useSharedData } from "@/data/SharedDataProvider";
 import {
+  acceptSharedExpense,
+  acceptSettlement,
   createSharedExpense,
-  deleteSharedExpense,
-  updateSharedExpense,
-  type SharedExpenseInput,
-} from "@/data/mutations";
-import { memberBalances, simplifyDebts, toDate } from "@/lib/derive";
+  inviteSharedPartner,
+  proposeSettlement,
+  rejectSharedEntry,
+  resolveConflict,
+  withdrawSharedEntry,
+  type SharedExpenseParticipant,
+} from "@/data/sharedMutations";
+import { sharedBalances, settleUpTransfers, toDate } from "@/lib/derive";
 import { roundMoney } from "@/lib/txn";
 import { cn, formatDate, formatMoney } from "@/lib/utils";
 import { PageHeader } from "@/components/PageHeader";
-import { RowActions, type RowAction } from "@/components/RowActions";
-import { SortableHead } from "@/components/SortableHead";
-import { ColumnsMenu } from "@/components/ColumnsMenu";
-import { Toolbar } from "@/components/Toolbar";
-import { DetailDialog, type DetailField } from "@/components/DetailDialog";
-import { useColumnPrefs, type ColumnDef } from "@/lib/useColumnPrefs";
-import { useSort, type SortAccessor } from "@/lib/useSort";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -52,113 +55,87 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { useToast } from "@/components/ui/toast";
-import type { Membership, SharedExpense } from "@/types/models";
+import type { SharedEntry, Account } from "@/types/models";
 
-interface Member {
+function todayInput(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+interface Partner {
   uid: string;
   name: string;
+  connectionId: string;
 }
-
-function memberName(m: Membership): string {
-  return m.displayName || m.email || `User ${m.uid.slice(0, 6)}`;
-}
-
-type SortKey = "description" | "paidBy" | "date" | "amount";
-type ColKey = "description" | "paidBy" | "date" | "split" | "amount";
-
-const COLUMNS: ColumnDef<ColKey>[] = [
-  { key: "description", label: "Description", defaultVisible: true, locked: true },
-  { key: "paidBy", label: "Paid by", defaultVisible: true },
-  { key: "date", label: "Date", defaultVisible: true },
-  { key: "split", label: "Split", defaultVisible: false },
-  { key: "amount", label: "Amount", defaultVisible: true },
-];
 
 export function Shared() {
-  const { activeWorkspaceId, activeWorkspace, can } = useWorkspace();
+  const { activeWorkspaceId, activeWorkspace } = useWorkspace();
   const { firebaseUser } = useAuth();
-  const { sharedExpenses, members, loading, error } = useData();
+  const { accounts, categories, contacts, debts, transactions, loading: wsLoading } = useData();
+  const { connections, entries, sentInvites, loading: sharedLoading, error } = useSharedData();
   const { toast } = useToast();
   const currency = activeWorkspace?.baseCurrency ?? "INR";
-  const canAdd = can("transactions.create");
-  const canEdit = can("transactions.edit");
-  const canDelete = can("transactions.delete");
+  const fyStartMonth = activeWorkspace?.fyStartMonth ?? 4;
   const myUid = firebaseUser?.uid ?? "";
 
-  const [search, setSearch] = useState("");
-  const [editing, setEditing] = useState<SharedExpense | "new" | null>(null);
-  const [settle, setSettle] = useState<{ from: Member; to: Member; amount: number } | null>(null);
-  const [toDelete, setToDelete] = useState<SharedExpense | null>(null);
-  const [viewing, setViewing] = useState<SharedExpense | null>(null);
+  const [invite, setInvite] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [settle, setSettle] = useState<{ partner: Partner; amount: number } | null>(null);
+  const [conflict, setConflict] = useState<SharedEntry | null>(null);
 
-  // The current user's own name comes from auth, which always has it — even if
-  // their membership doc predates denormalized identity.
-  const myName = firebaseUser?.displayName || firebaseUser?.email || "You";
-
-  const memberList: Member[] = useMemo(
-    () => members.map((m) => ({ uid: m.uid, name: m.uid === myUid ? myName : memberName(m) })),
-    [members, myUid, myName],
-  );
-
-  const balances = useMemo(() => memberBalances(sharedExpenses), [sharedExpenses]);
-  const transfers = useMemo(() => simplifyDebts(balances), [balances]);
-
-  // Resolve a uid to a display name from live data (re-resolved each render, so
-  // it fixes records whose denormalized name was stale), falling back to the
-  // name stored on the record, then a generic label.
-  const nameForUid = (uid: string, fallback?: string) =>
-    uid === myUid ? myName : (memberList.find((m) => m.uid === uid)?.name ?? fallback ?? "Member");
-
-  const label = (uid: string, fallback?: string) =>
-    nameForUid(uid, fallback) + (uid === myUid ? " (you)" : "");
-
-  const cols = useColumnPrefs<ColKey>("sharedExpenses", COLUMNS);
-
-  const filtered = useMemo(
+  const partners: Partner[] = useMemo(
     () =>
-      sharedExpenses.filter((e) => {
-        if (!search) return true;
-        const hay = `${e.description} ${nameForUid(e.paidBy, e.paidByName)}`.toLowerCase();
-        return hay.includes(search.toLowerCase());
+      connections.map((c) => {
+        const other = c.uids.find((u) => u !== myUid) ?? myUid;
+        return { uid: other, name: c.names[other] ?? "Partner", connectionId: c.id };
       }),
-    // nameForUid depends on memberList; recompute when those change
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [sharedExpenses, search, memberList],
+    [connections, myUid],
   );
 
-  const accessors: Record<SortKey, SortAccessor<SharedExpense>> = useMemo(
-    () => ({
-      description: (e) => e.description,
-      paidBy: (e) => nameForUid(e.paidBy, e.paidByName),
-      date: (e) => toDate(e.date),
-      amount: (e) => e.amount,
-    }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [memberList],
-  );
-  const { sorted, sort, toggle } = useSort(filtered, accessors, {
-    key: "date",
-    direction: "desc",
-  });
+  const balances = useMemo(() => sharedBalances(myUid, entries), [myUid, entries]);
+  const transfers = useMemo(() => settleUpTransfers(myUid, balances), [myUid, balances]);
 
-  if (loading) return <LoadingState />;
+  // Inbox: entries awaiting my response.
+  const inbox = useMemo(
+    () => entries.filter((e) => (e.pendingForUids ?? []).includes(myUid)),
+    [entries, myUid],
+  );
+  // Conflicts: entries I created that were rejected and not yet resolved.
+  const conflicts = useMemo(
+    () => entries.filter((e) => e.creatorUid === myUid && e.status === "rejected" && !e.resolved),
+    [entries, myUid],
+  );
+
+  const partnerName = (uid: string) =>
+    uid === myUid ? "You" : (partners.find((p) => p.uid === uid)?.name ?? "Partner");
+
+  if (wsLoading || sharedLoading) return <LoadingState />;
   if (error) return <ErrorState message={error} />;
 
-  function rowActions(e: SharedExpense): RowAction[] {
-    return [
-      { label: "Edit", icon: Pencil, onSelect: () => setEditing(e), hidden: !canEdit },
-      {
-        label: "Delete",
-        icon: Trash2,
-        onSelect: () => setToDelete(e),
-        destructive: true,
-        separatorBefore: true,
-        hidden: !canDelete,
-      },
-    ];
+  const pendingInvites = sentInvites.filter((i) => i.status === "pending");
+
+  async function onAccept(entry: SharedEntry, accountId?: string) {
+    if (!activeWorkspaceId || !firebaseUser) return;
+    const common = {
+      entry,
+      me: firebaseUser,
+      workspaceId: activeWorkspaceId,
+      fyStartMonth,
+      contacts,
+      debts,
+    };
+    if (entry.kind === "settlement") {
+      await acceptSettlement({ ...common, accountId });
+    } else {
+      await acceptSharedExpense(common);
+    }
+    toast({ title: "Accepted", variant: "success" });
+  }
+
+  async function onReject(entry: SharedEntry) {
+    await rejectSharedEntry(entry);
+    toast({ title: "Rejected", variant: "success" });
   }
 
   return (
@@ -168,12 +145,96 @@ export function Shared() {
         primaryAction={{
           label: "Add shared expense",
           icon: Plus,
-          onClick: () => setEditing("new"),
-          hidden: !canAdd,
+          onClick: () => setAdding(true),
+          hidden: partners.length === 0,
         }}
       />
 
-      {/* Balances */}
+      {/* Partners + invite */}
+      <Card className="mb-4">
+        <CardHeader className="flex flex-row items-center justify-between pb-2">
+          <CardTitle className="text-sm font-medium">Partners</CardTitle>
+          <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => setInvite(true)}>
+            <UserPlus className="mr-1 h-3 w-3" /> Invite
+          </Button>
+        </CardHeader>
+        <CardContent className="pt-0">
+          {partners.length === 0 ? (
+            <p className="text-xs text-muted-foreground">
+              No partners yet. Invite someone by email to start sharing.
+            </p>
+          ) : (
+            <div className="flex flex-wrap gap-1.5">
+              {partners.map((p) => (
+                <Badge key={p.uid} variant="secondary">
+                  {p.name}
+                </Badge>
+              ))}
+            </div>
+          )}
+          {pendingInvites.length > 0 && (
+            <p className="mt-2 text-xs text-muted-foreground">
+              Pending invites: {pendingInvites.map((i) => i.toEmail).join(", ")}
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Conflicts */}
+      {conflicts.length > 0 && (
+        <Card className="mb-4 border-destructive/50">
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-sm font-medium text-destructive">
+              <AlertTriangle className="h-4 w-4" /> Rejected — needs resolution
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-1.5 pt-0">
+            {conflicts.map((e) => (
+              <div key={e.id} className="flex items-center justify-between gap-2 text-xs">
+                <span className="min-w-0 truncate">
+                  {partnerName(e.counterpartyUid)} rejected{" "}
+                  <span className="font-medium">{e.description}</span> ·{" "}
+                  {formatMoney(e.amount, currency)}
+                </span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 shrink-0 px-2 text-xs"
+                  onClick={() => setConflict(e)}
+                >
+                  Resolve
+                </Button>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Inbox */}
+      {inbox.length > 0 && (
+        <Card className="mb-4 border-primary/40">
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-sm font-medium">
+              <Inbox className="h-4 w-4" /> To review ({inbox.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 pt-0">
+            {inbox.map((e) => (
+              <InboxRow
+                key={e.id}
+                entry={e}
+                currency={currency}
+                payerName={partnerName(e.payerUid)}
+                accounts={accounts}
+                onAccept={onAccept}
+                onReject={onReject}
+              />
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Who owes whom */}
       <Card className="mb-4">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-medium">Who owes whom</CardTitle>
@@ -183,94 +244,66 @@ export function Shared() {
             <p className="text-xs text-muted-foreground">All settled up. 🎉</p>
           ) : (
             <div className="space-y-1.5">
-              {transfers.map((t, i) => (
-                <div
-                  key={`${t.fromUid}-${t.toUid}-${i}`}
-                  className="flex items-center justify-between gap-2 text-xs"
-                >
-                  <span className="flex min-w-0 items-center gap-1.5">
-                    <span className="truncate font-medium">{label(t.fromUid, t.fromName)}</span>
-                    <ArrowRight className="h-3 w-3 shrink-0 text-muted-foreground" />
-                    <span className="truncate font-medium">{label(t.toUid, t.toName)}</span>
-                  </span>
-                  <span className="flex shrink-0 items-center gap-2">
-                    <span className="tabular-nums">{formatMoney(t.amount, currency)}</span>
-                    {canAdd && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 px-2 text-xs"
-                        onClick={() =>
-                          setSettle({
-                            from: { uid: t.fromUid, name: t.fromName },
-                            to: { uid: t.toUid, name: t.toName },
-                            amount: t.amount,
-                          })
-                        }
-                      >
-                        Settle up
-                      </Button>
-                    )}
-                  </span>
-                </div>
-              ))}
+              {transfers.map((t, i) => {
+                const partner = partners.find((p) => p.uid === t.fromUid || p.uid === t.toUid);
+                const iOwe = t.fromUid === myUid;
+                return (
+                  <div
+                    key={`${t.fromUid}-${t.toUid}-${i}`}
+                    className="flex items-center justify-between gap-2 text-xs"
+                  >
+                    <span className="flex min-w-0 items-center gap-1.5">
+                      <span className="truncate font-medium">{t.fromName}</span>
+                      <ArrowRight className="h-3 w-3 shrink-0 text-muted-foreground" />
+                      <span className="truncate font-medium">{t.toName}</span>
+                    </span>
+                    <span className="flex shrink-0 items-center gap-2">
+                      <span className="tabular-nums">{formatMoney(t.amount, currency)}</span>
+                      {iOwe && partner && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 px-2 text-xs"
+                          onClick={() => setSettle({ partner, amount: t.amount })}
+                        >
+                          Settle up
+                        </Button>
+                      )}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
           )}
         </CardContent>
       </Card>
 
-      <Toolbar search={search} onSearch={setSearch} placeholder="Search description / payer…">
-        <ColumnsMenu
-          columns={cols.columns}
-          isVisible={cols.isVisible}
-          toggle={cols.toggle}
-          reset={cols.reset}
-        />
-      </Toolbar>
-
       {/* History */}
-      {sorted.length === 0 ? (
+      {entries.length === 0 ? (
         <EmptyState
-          title={search ? "No matches" : "Nothing shared yet"}
-          hint={search ? undefined : "Add a shared expense to start tracking who owes whom."}
-          action={
-            canAdd && !search && (
-              <Button onClick={() => setEditing("new")}>Add shared expense</Button>
-            )
+          title="Nothing shared yet"
+          hint={
+            partners.length === 0
+              ? "Invite a partner by email, then add a shared expense."
+              : "Add a shared expense to start tracking who owes whom."
           }
         />
       ) : (
         <Table>
           <TableHeader>
             <TableRow>
-              {cols.isVisible("description") && (
-                <SortableHead sortKey="description" sort={sort} onToggle={toggle}>
-                  Description
-                </SortableHead>
-              )}
-              {cols.isVisible("paidBy") && (
-                <SortableHead sortKey="paidBy" sort={sort} onToggle={toggle}>
-                  Paid by
-                </SortableHead>
-              )}
-              {cols.isVisible("date") && (
-                <SortableHead sortKey="date" sort={sort} onToggle={toggle}>
-                  Date
-                </SortableHead>
-              )}
-              {cols.isVisible("split") && <TableHead>Split</TableHead>}
-              {cols.isVisible("amount") && (
-                <SortableHead sortKey="amount" sort={sort} onToggle={toggle} className="text-right">
-                  Amount
-                </SortableHead>
-              )}
-              <TableHead className="w-12" />
+              <TableHead>Description</TableHead>
+              <TableHead>With</TableHead>
+              <TableHead>Date</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead className="text-right">Amount</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {sorted.map((e) => (
-              <TableRow key={e.id} onClick={() => setViewing(e)} className="cursor-pointer">
-                {cols.isVisible("description") && (
+            {entries.map((e) => {
+              const other = e.creatorUid === myUid ? e.counterpartyUid : e.creatorUid;
+              return (
+                <TableRow key={e.id}>
                   <TableCell className="font-medium">
                     <span className="flex items-center gap-2">
                       <span className="truncate">{e.description}</span>
@@ -281,205 +314,296 @@ export function Shared() {
                       )}
                     </span>
                   </TableCell>
-                )}
-                {cols.isVisible("paidBy") && (
-                  <TableCell className="text-muted-foreground">
-                    {nameForUid(e.paidBy, e.paidByName)}
+                  <TableCell className="text-muted-foreground">{partnerName(other)}</TableCell>
+                  <TableCell className="text-muted-foreground">{formatDate(toDate(e.date))}</TableCell>
+                  <TableCell>
+                    <StatusBadge entry={e} myUid={myUid} />
                   </TableCell>
-                )}
-                {cols.isVisible("date") && (
-                  <TableCell className="text-muted-foreground">
-                    {formatDate(toDate(e.date))}
-                  </TableCell>
-                )}
-                {cols.isVisible("split") && (
-                  <TableCell className="text-muted-foreground">
-                    {e.kind === "settlement" ? "—" : `${e.splits.length} ways`}
-                  </TableCell>
-                )}
-                {cols.isVisible("amount") && (
                   <TableCell className="text-right tabular-nums font-medium">
                     {formatMoney(e.amount, currency)}
                   </TableCell>
-                )}
-                <TableCell>
-                  <RowActions actions={rowActions(e)} />
-                </TableCell>
-              </TableRow>
-            ))}
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
       )}
 
-      {viewing && (
-        <SharedExpenseDetailDialog
-          expense={viewing}
-          currency={currency}
-          nameForUid={nameForUid}
-          onClose={() => setViewing(null)}
-          onEdit={canEdit ? (e) => setEditing(e) : undefined}
-          onDelete={canDelete ? (e) => setToDelete(e) : undefined}
+      {invite && firebaseUser && (
+        <InviteDialog
+          onClose={() => setInvite(false)}
+          onInvite={async (email) => {
+            await inviteSharedPartner(firebaseUser, email);
+            toast({ title: "Invite sent", variant: "success" });
+          }}
         />
       )}
 
-      {editing && activeWorkspaceId && (
-        <ExpenseDialog
-          expense={editing === "new" ? null : editing}
-          members={memberList}
-          defaultPayer={myUid}
+      {adding && activeWorkspaceId && firebaseUser && (
+        <AddExpenseDialog
+          partners={partners}
+          accounts={accounts}
+          categories={categories.filter((c) => c.kind === "expense")}
           currency={currency}
-          onClose={() => setEditing(null)}
-          onSaved={() => toast({ title: "Saved", variant: "success" })}
+          onClose={() => setAdding(false)}
+          onSave={async (data) => {
+            await createSharedExpense({
+              me: firebaseUser,
+              workspaceId: activeWorkspaceId,
+              fyStartMonth,
+              accountId: data.accountId,
+              description: data.description,
+              date: data.date,
+              myShare: data.myShare,
+              myCategoryId: data.myCategoryId,
+              participants: data.participants,
+              contacts,
+              debts,
+            });
+            toast({ title: "Shared expense recorded", variant: "success" });
+          }}
         />
       )}
 
-      {settle && activeWorkspaceId && (
+      {settle && activeWorkspaceId && firebaseUser && (
         <SettleDialog
-          from={settle.from}
-          to={settle.to}
+          partner={settle.partner}
           suggested={settle.amount}
+          accounts={accounts}
           currency={currency}
           onClose={() => setSettle(null)}
-          onSaved={() => toast({ title: "Settlement recorded", variant: "success" })}
+          onSave={async (amount, accountId) => {
+            await proposeSettlement({
+              me: firebaseUser,
+              counterpartyUid: settle.partner.uid,
+              counterpartyName: settle.partner.name,
+              connectionId: settle.partner.connectionId,
+              amount,
+              description: `Settlement to ${settle.partner.name}`,
+              date: new Date(),
+              workspaceId: activeWorkspaceId,
+              fyStartMonth,
+              accountId,
+              contacts,
+              debts,
+            });
+            toast({ title: "Settlement proposed", variant: "success" });
+          }}
         />
       )}
 
-      <ConfirmDialog
-        open={!!toDelete}
-        onOpenChange={(o) => !o && setToDelete(null)}
-        title="Delete this entry?"
-        destructive
-        confirmLabel="Delete"
-        onConfirm={async () => {
-          if (toDelete) {
-            await deleteSharedExpense(toDelete.id);
-            toast({ title: "Deleted", variant: "success" });
-          }
-        }}
-      />
+      {conflict && activeWorkspaceId && (
+        <ConflictDialog
+          entry={conflict}
+          categories={categories.filter((c) => c.kind === "expense")}
+          onClose={() => setConflict(null)}
+          onResolve={async (mode, categoryId) => {
+            const refl = transactions.find((t) => t.sharedEntryId === conflict.id);
+            const acct =
+              refl?.accountId && refl.accountId !== "__external__"
+                ? refl.accountId
+                : (accounts[0]?.id ?? "");
+            await resolveConflict({
+              entry: conflict,
+              mode,
+              reflectionTxnId: refl?.id ?? "",
+              myCategoryId: categoryId,
+              fyStartMonth,
+              date: toDate(conflict.date),
+              accountId: acct,
+              workspaceId: activeWorkspaceId,
+            });
+            toast({ title: "Conflict resolved", variant: "success" });
+          }}
+          onWithdraw={async () => {
+            const refl = transactions.find((t) => t.sharedEntryId === conflict.id);
+            await withdrawSharedEntry(conflict, refl?.id ?? null);
+            toast({ title: "Withdrawn", variant: "success" });
+          }}
+        />
+      )}
     </div>
   );
 }
 
-function SharedExpenseDetailDialog({
-  expense,
-  currency,
-  nameForUid,
-  onClose,
-  onEdit,
-  onDelete,
-}: {
-  expense: SharedExpense;
-  currency: string;
-  nameForUid: (uid: string, fallback?: string) => string;
-  onClose: () => void;
-  onEdit?: (e: SharedExpense) => void;
-  onDelete?: (e: SharedExpense) => void;
-}) {
-  const fields: DetailField[] = [
-    {
-      label: "Type",
-      value: expense.kind === "settlement" ? "Settlement" : "Shared expense",
-    },
-    { label: "Paid by", value: nameForUid(expense.paidBy, expense.paidByName) },
-    { label: "Date", value: formatDate(toDate(expense.date)) },
-    {
-      label: "Amount",
-      value: <span className="tabular-nums">{formatMoney(expense.amount, currency)}</span>,
-    },
-  ];
+function StatusBadge({ entry, myUid }: { entry: SharedEntry; myUid: string }) {
+  if (entry.status === "accepted") return <Badge variant="secondary">accepted</Badge>;
+  if (entry.status === "rejected") return <Badge variant="destructive">rejected</Badge>;
+  const mine = entry.creatorUid === myUid;
+  return <Badge variant="outline">{mine ? "awaiting them" : "needs your response"}</Badge>;
+}
 
-  const actions: RowAction[] = [
-    onEdit && { label: "Edit", icon: Pencil, onSelect: () => onEdit(expense) },
-    onDelete && {
-      label: "Delete",
-      icon: Trash2,
-      onSelect: () => onDelete(expense),
-      destructive: true,
-      separatorBefore: true,
-    },
-  ].filter(Boolean) as RowAction[];
+function InboxRow({
+  entry,
+  currency,
+  payerName,
+  accounts,
+  onAccept,
+  onReject,
+}: {
+  entry: SharedEntry;
+  currency: string;
+  payerName: string;
+  accounts: Account[];
+  onAccept: (e: SharedEntry, accountId?: string) => Promise<void>;
+  onReject: (e: SharedEntry) => Promise<void>;
+}) {
+  const [busy, setBusy] = useState(false);
+  // Accepting a settlement records a real inflow → pick an account.
+  const [accountId, setAccountId] = useState(accounts[0]?.id ?? "");
+  const isSettlement = entry.kind === "settlement";
+
+  async function act(fn: () => Promise<void>) {
+    setBusy(true);
+    try {
+      await fn();
+    } finally {
+      setBusy(false);
+    }
+  }
 
   return (
-    <DetailDialog
-      open
-      onClose={onClose}
-      title={expense.description}
-      fields={fields}
-      actions={actions}
-      entityId={expense.id}
-      audit={{
-        createdBy: expense.createdBy,
-        createdAt: expense.createdAt,
-        updatedBy: expense.updatedBy,
-        updatedAt: expense.updatedAt,
-      }}
-    >
-      <div className="mt-2">
-        <p className="mb-2 text-sm font-medium">
-          {expense.kind === "settlement" ? "Paid to" : "Split between"}
-        </p>
-        <div className="overflow-hidden rounded-md border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Member</TableHead>
-                <TableHead className="text-right">Share</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {expense.splits.map((s) => (
-                <TableRow key={s.uid}>
-                  <TableCell>{nameForUid(s.uid, s.name)}</TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {formatMoney(s.share, currency)}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+    <div className="rounded-md border p-2">
+      <div className="flex items-center justify-between gap-2 text-xs">
+        <span className="min-w-0">
+          <span className="font-medium">{entry.description}</span>
+          <span className="text-muted-foreground">
+            {" "}
+            · {isSettlement ? `${payerName} paid you` : `${payerName} paid`} ·{" "}
+            {formatMoney(entry.amount, currency)}
+          </span>
+        </span>
+        {isSettlement && <Badge variant="secondary">settlement</Badge>}
       </div>
-    </DetailDialog>
+      <div className="mt-2 flex items-center gap-2">
+        {isSettlement && (
+          <Select value={accountId} onValueChange={setAccountId}>
+            <SelectTrigger className="h-7 w-40 text-xs">
+              <SelectValue placeholder="Into account" />
+            </SelectTrigger>
+            <SelectContent>
+              {accounts.map((a) => (
+                <SelectItem key={a.id} value={a.id}>
+                  {a.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+        <Button
+          size="sm"
+          className="h-7 px-2 text-xs"
+          disabled={busy || (isSettlement && !accountId)}
+          onClick={() => void act(() => onAccept(entry, isSettlement ? accountId : undefined))}
+        >
+          <Check className="mr-1 h-3 w-3" /> Accept
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-7 px-2 text-xs"
+          disabled={busy}
+          onClick={() => void act(() => onReject(entry))}
+        >
+          <X className="mr-1 h-3 w-3" /> Reject
+        </Button>
+      </div>
+    </div>
   );
 }
 
-function todayInput(): string {
-  return new Date().toISOString().slice(0, 10);
+function InviteDialog({
+  onClose,
+  onInvite,
+}: {
+  onClose: () => void;
+  onInvite: (email: string) => Promise<void>;
+}) {
+  const [email, setEmail] = useState("");
+  const [busy, setBusy] = useState(false);
+  const valid = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim());
+
+  async function save() {
+    if (!valid) return;
+    setBusy(true);
+    try {
+      await onInvite(email.trim());
+      onClose();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Invite a partner</DialogTitle>
+        </DialogHeader>
+        <p className="text-sm text-muted-foreground">
+          They'll be able to share expenses with you once they sign in. They cannot see or enter
+          your workspace.
+        </p>
+        <div className="space-y-1.5">
+          <Label>Email</Label>
+          <Input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="friend@example.com"
+          />
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={busy}>
+            Cancel
+          </Button>
+          <Button onClick={() => void save()} disabled={busy || !valid}>
+            {busy ? "Sending…" : "Send invite"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
 }
 
-function ExpenseDialog({
-  expense,
-  members,
-  defaultPayer,
+interface AddExpenseData {
+  description: string;
+  date: Date;
+  accountId: string;
+  myShare: number;
+  myCategoryId?: string;
+  participants: SharedExpenseParticipant[];
+}
+
+function AddExpenseDialog({
+  partners,
+  accounts,
+  categories,
   currency,
   onClose,
-  onSaved,
+  onSave,
 }: {
-  expense: SharedExpense | null;
-  members: Member[];
-  defaultPayer: string;
+  partners: Partner[];
+  accounts: Account[];
+  categories: { id: string; name: string }[];
   currency: string;
   onClose: () => void;
-  onSaved: () => void;
+  onSave: (data: AddExpenseData) => Promise<void>;
 }) {
-  const { activeWorkspaceId } = useWorkspace();
-  const [description, setDescription] = useState(expense?.description ?? "");
-  const [amount, setAmount] = useState(String(expense?.amount ?? ""));
-  const [paidBy, setPaidBy] = useState(expense?.paidBy ?? defaultPayer ?? members[0]?.uid ?? "");
-  const [dateStr, setDateStr] = useState(
-    expense ? toDate(expense.date).toISOString().slice(0, 10) : todayInput(),
-  );
-  // selected participant uids (equal split). Defaults to all members.
-  const [selected, setSelected] = useState<Set<string>>(
-    () =>
-      new Set(expense ? expense.splits.map((s) => s.uid) : members.map((m) => m.uid)),
-  );
+  const [description, setDescription] = useState("");
+  const [amount, setAmount] = useState("");
+  const [dateStr, setDateStr] = useState(todayInput());
+  const [accountId, setAccountId] = useState(accounts[0]?.id ?? "");
+  const [categoryId, setCategoryId] = useState(categories[0]?.id ?? "");
+  const [includeMe, setIncludeMe] = useState(true);
+  const [selected, setSelected] = useState<Set<string>>(() => new Set(partners.map((p) => p.uid)));
   const [busy, setBusy] = useState(false);
 
   const total = Number(amount) || 0;
-  const participants = members.filter((m) => selected.has(m.uid));
-  const valid = description.trim() && total > 0 && paidBy && participants.length > 0;
+  const chosen = partners.filter((p) => selected.has(p.uid));
+  const splitCount = chosen.length + (includeMe ? 1 : 0);
+  const perHead = splitCount > 0 ? roundMoney(total / splitCount) : 0;
+  const valid = !!(description.trim() && total > 0 && accountId && chosen.length > 0);
 
   function toggle(uid: string) {
     setSelected((prev) => {
@@ -490,47 +614,39 @@ function ExpenseDialog({
     });
   }
 
-  // Equal split with the rounding remainder absorbed by the first participant.
-  function buildSplits(): SharedExpense["splits"] {
-    const n = participants.length;
-    const base = roundMoney(total / n);
-    return participants.map((m, i) => ({
-      uid: m.uid,
-      name: m.name,
-      share: i === 0 ? roundMoney(total - base * (n - 1)) : base,
-    }));
-  }
-
   async function save() {
-    if (!valid || !activeWorkspaceId) return;
+    if (!valid) return;
     setBusy(true);
     try {
-      const payer = members.find((m) => m.uid === paidBy);
-      const input: SharedExpenseInput = {
-        kind: "expense",
+      // Equal split; the payer (me) absorbs any rounding remainder.
+      const base = perHead;
+      const participants: SharedExpenseParticipant[] = chosen.map((p) => ({
+        counterpartyUid: p.uid,
+        counterpartyName: p.name,
+        connectionId: p.connectionId,
+        share: base,
+      }));
+      const othersTotal = roundMoney(base * chosen.length);
+      const myShare = includeMe ? roundMoney(total - othersTotal) : 0;
+      await onSave({
         description: description.trim(),
-        amount: roundMoney(total),
         date: new Date(dateStr),
-        paidBy,
-        paidByName: payer?.name ?? "Member",
-        splits: buildSplits(),
-      };
-      if (expense) await updateSharedExpense(expense.id, input);
-      else await createSharedExpense(activeWorkspaceId, input);
-      onSaved();
+        accountId,
+        myShare: myShare > 0 ? myShare : 0,
+        myCategoryId: includeMe ? categoryId : undefined,
+        participants,
+      });
       onClose();
     } finally {
       setBusy(false);
     }
   }
 
-  const perHead = participants.length > 0 ? roundMoney(total / participants.length) : 0;
-
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>{expense ? "Edit shared expense" : "Add shared expense"}</DialogTitle>
+          <DialogTitle>Add shared expense</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
           <div className="space-y-1.5">
@@ -543,13 +659,8 @@ function ExpenseDialog({
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label>Amount</Label>
-              <Input
-                type="number"
-                min="0"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-              />
+              <Label>Total amount</Label>
+              <Input type="number" min="0" value={amount} onChange={(e) => setAmount(e.target.value)} />
             </div>
             <div className="space-y-1.5">
               <Label>Date</Label>
@@ -557,15 +668,15 @@ function ExpenseDialog({
             </div>
           </div>
           <div className="space-y-1.5">
-            <Label>Paid by</Label>
-            <Select value={paidBy} onValueChange={setPaidBy}>
+            <Label>Paid from</Label>
+            <Select value={accountId} onValueChange={setAccountId}>
               <SelectTrigger>
-                <SelectValue placeholder="Who paid?" />
+                <SelectValue placeholder="Account" />
               </SelectTrigger>
               <SelectContent>
-                {members.map((m) => (
-                  <SelectItem key={m.uid} value={m.uid}>
-                    {m.name}
+                {accounts.map((a) => (
+                  <SelectItem key={a.id} value={a.id}>
+                    {a.name}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -574,49 +685,48 @@ function ExpenseDialog({
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
               <Label>Split equally between</Label>
-              {participants.length > 0 && total > 0 && (
+              {splitCount > 0 && total > 0 && (
                 <span className="text-xs text-muted-foreground">
                   {formatMoney(perHead, currency)} each
                 </span>
               )}
             </div>
             <div className="max-h-44 space-y-1 overflow-y-auto rounded-md border p-1">
-              {members.map((m) => {
-                const on = selected.has(m.uid);
-                return (
-                  <button
-                    type="button"
-                    key={m.uid}
-                    onClick={() => toggle(m.uid)}
-                    className={cn(
-                      "flex w-full items-center justify-between rounded px-2 py-1.5 text-sm",
-                      on ? "bg-primary/10" : "hover:bg-muted",
-                    )}
-                  >
-                    <span className="truncate">{m.name}</span>
-                    <span
-                      className={cn(
-                        "flex h-4 w-4 items-center justify-center rounded border",
-                        on ? "border-primary bg-primary text-primary-foreground" : "border-input",
-                      )}
-                    >
-                      {on && <Check className="h-3 w-3" />}
-                    </span>
-                  </button>
-                );
-              })}
-              {members.length === 0 && (
-                <p className="px-2 py-1.5 text-sm text-muted-foreground">No members found.</p>
-              )}
+              <SplitToggle label="You" on={includeMe} onClick={() => setIncludeMe((v) => !v)} />
+              {partners.map((p) => (
+                <SplitToggle
+                  key={p.uid}
+                  label={p.name}
+                  on={selected.has(p.uid)}
+                  onClick={() => toggle(p.uid)}
+                />
+              ))}
             </div>
           </div>
+          {includeMe && (
+            <div className="space-y-1.5">
+              <Label>My share category</Label>
+              <Select value={categoryId} onValueChange={setCategoryId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Category" />
+                </SelectTrigger>
+                <SelectContent>
+                  {categories.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={busy}>
             Cancel
           </Button>
           <Button onClick={() => void save()} disabled={busy || !valid}>
-            {busy ? "Saving…" : "Save"}
+            {busy ? "Saving…" : "Record & request"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -624,42 +734,55 @@ function ExpenseDialog({
   );
 }
 
+function SplitToggle({ label, on, onClick }: { label: string; on: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "flex w-full items-center justify-between rounded px-2 py-1.5 text-sm",
+        on ? "bg-primary/10" : "hover:bg-muted",
+      )}
+    >
+      <span className="truncate">{label}</span>
+      <span
+        className={cn(
+          "flex h-4 w-4 items-center justify-center rounded border",
+          on ? "border-primary bg-primary text-primary-foreground" : "border-input",
+        )}
+      >
+        {on && <Check className="h-3 w-3" />}
+      </span>
+    </button>
+  );
+}
+
 function SettleDialog({
-  from,
-  to,
+  partner,
   suggested,
+  accounts,
   currency,
   onClose,
-  onSaved,
+  onSave,
 }: {
-  from: Member;
-  to: Member;
+  partner: Partner;
   suggested: number;
+  accounts: Account[];
   currency: string;
   onClose: () => void;
-  onSaved: () => void;
+  onSave: (amount: number, accountId: string) => Promise<void>;
 }) {
-  const { activeWorkspaceId } = useWorkspace();
   const [amount, setAmount] = useState(String(suggested));
+  const [accountId, setAccountId] = useState(accounts[0]?.id ?? "");
   const [busy, setBusy] = useState(false);
   const value = Number(amount) || 0;
+  const valid = !!(value > 0 && accountId);
 
   async function save() {
-    if (value <= 0 || !activeWorkspaceId) return;
+    if (!valid) return;
     setBusy(true);
     try {
-      // A settlement: `from` pays `to`. Payer fronts the amount; the recipient
-      // is the sole participant, so the payer's debt to them is reduced.
-      await createSharedExpense(activeWorkspaceId, {
-        kind: "settlement",
-        description: `${from.name} → ${to.name} settlement`,
-        amount: roundMoney(value),
-        date: new Date(),
-        paidBy: from.uid,
-        paidByName: from.name,
-        splits: [{ uid: to.uid, name: to.name, share: roundMoney(value) }],
-      });
-      onSaved();
+      await onSave(roundMoney(value), accountId);
       onClose();
     } finally {
       setBusy(false);
@@ -670,27 +793,118 @@ function SettleDialog({
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-sm">
         <DialogHeader>
-          <DialogTitle>Settle up</DialogTitle>
+          <DialogTitle>Settle up with {partner.name}</DialogTitle>
         </DialogHeader>
         <p className="text-sm text-muted-foreground">
-          Record a payment from <span className="font-medium text-foreground">{from.name}</span> to{" "}
-          <span className="font-medium text-foreground">{to.name}</span>.
+          Records the payment from your account now; {partner.name} must accept it to record their
+          side.
         </p>
         <div className="space-y-1.5">
           <Label>Amount ({currency})</Label>
-          <Input
-            type="number"
-            min="0"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-          />
+          <Input type="number" min="0" value={amount} onChange={(e) => setAmount(e.target.value)} />
+        </div>
+        <div className="space-y-1.5">
+          <Label>Paid from</Label>
+          <Select value={accountId} onValueChange={setAccountId}>
+            <SelectTrigger>
+              <SelectValue placeholder="Account" />
+            </SelectTrigger>
+            <SelectContent>
+              {accounts.map((a) => (
+                <SelectItem key={a.id} value={a.id}>
+                  {a.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={busy}>
             Cancel
           </Button>
-          <Button onClick={() => void save()} disabled={busy || value <= 0}>
-            {busy ? "Saving…" : "Record settlement"}
+          <Button onClick={() => void save()} disabled={busy || !valid}>
+            {busy ? "Saving…" : "Propose settlement"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ConflictDialog({
+  entry,
+  categories,
+  onClose,
+  onResolve,
+  onWithdraw,
+}: {
+  entry: SharedEntry;
+  categories: { id: string; name: string }[];
+  onClose: () => void;
+  onResolve: (mode: "absorb" | "remove", categoryId?: string) => Promise<void>;
+  onWithdraw: () => Promise<void>;
+}) {
+  const [categoryId, setCategoryId] = useState(categories[0]?.id ?? "");
+  const [busy, setBusy] = useState(false);
+
+  async function run(fn: () => Promise<void>) {
+    setBusy(true);
+    try {
+      await fn();
+      onClose();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Resolve rejected share</DialogTitle>
+        </DialogHeader>
+        <p className="text-sm text-muted-foreground">
+          <span className="font-medium text-foreground">{entry.description}</span> was rejected.
+          Choose how to reconcile your books — you already paid this amount.
+        </p>
+        <div className="space-y-1.5">
+          <Label>Absorb under category</Label>
+          <Select value={categoryId} onValueChange={setCategoryId}>
+            <SelectTrigger>
+              <SelectValue placeholder="Category" />
+            </SelectTrigger>
+            <SelectContent>
+              {categories.map((c) => (
+                <SelectItem key={c.id} value={c.id}>
+                  {c.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <DialogFooter className="flex-col gap-2 sm:flex-col">
+          <Button
+            className="w-full"
+            disabled={busy}
+            onClick={() => void run(() => onResolve("absorb", categoryId))}
+          >
+            Absorb as my expense
+          </Button>
+          <Button
+            variant="outline"
+            className="w-full"
+            disabled={busy}
+            onClick={() => void run(() => onResolve("remove"))}
+          >
+            Remove the claim (it wasn't my cost)
+          </Button>
+          <Button
+            variant="ghost"
+            className="w-full text-destructive"
+            disabled={busy}
+            onClick={() => void run(onWithdraw)}
+          >
+            Withdraw entry entirely
           </Button>
         </DialogFooter>
       </DialogContent>
