@@ -115,7 +115,7 @@ export default function App() {
               <Route
                 path="shared"
                 element={
-                  <Gated perm="transactions.view">
+                  <Gated perm="shared.view">
                     <Shared />
                   </Gated>
                 }

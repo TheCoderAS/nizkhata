@@ -148,6 +148,47 @@ async function claimShareInvites(fdb: Firestore, user: FirebaseUser): Promise<vo
   }
 }
 
+/**
+ * Keep the seeded system roles in step with the current permission catalog.
+ * As new permissions are added (e.g. `shared.*`), existing workspaces' system
+ * roles would otherwise be missing them and silently lock owners/editors out of
+ * new sections. For every workspace this user OWNS (owner holds `roles.manage`
+ * + the rules owner-bypass), re-apply the template permissions to any system
+ * role whose stored map differs. Idempotent and cheap (writes only on drift).
+ */
+async function syncSystemRoles(fdb: Firestore, user: FirebaseUser): Promise<void> {
+  const ownedQ = query(collection(fdb, "workspaces"), where("ownerId", "==", user.uid));
+  const owned = await getDocs(ownedQ);
+  if (owned.empty) return;
+
+  const templateByName = Object.fromEntries(
+    systemRoleSpecs().map((s) => [s.name, s.permissions]),
+  );
+
+  for (const wsSnap of owned.docs) {
+    const workspaceId = wsSnap.id;
+    const rolesSnap = await getDocs(
+      query(
+        collection(fdb, "roles"),
+        where("workspaceId", "==", workspaceId),
+        where("isSystem", "==", true),
+      ),
+    );
+    const batch = writeBatch(fdb);
+    let dirty = false;
+    for (const roleSnap of rolesSnap.docs) {
+      const role = roleSnap.data() as { name: string; permissions: Record<string, boolean> };
+      const template = templateByName[role.name];
+      if (!template) continue;
+      if (JSON.stringify(role.permissions) !== JSON.stringify(template)) {
+        batch.set(doc(fdb, "roles", roleSnap.id), { permissions: template }, { merge: true });
+        dirty = true;
+      }
+    }
+    if (dirty) await batch.commit();
+  }
+}
+
 /** List workspaceIds the user is a member of. */
 async function listMembershipWorkspaceIds(
   fdb: Firestore,
@@ -242,6 +283,7 @@ export async function ensureUserAndOnboarding(
   await upsertUser(fdb, user);
   await claimInvites(fdb, user);
   await claimShareInvites(fdb, user);
+  await syncSystemRoles(fdb, user);
 
   let workspaceIds = await listMembershipWorkspaceIds(fdb, user.uid);
   if (workspaceIds.length === 0) {

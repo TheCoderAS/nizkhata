@@ -48,7 +48,7 @@ export const MAIN_NAV: NavItem[] = [
   { to: "/dues", label: "Dues", icon: CalendarClock, perm: "dues.view" },
   { to: "/contacts", label: "Contacts", icon: Users, perm: "contacts.view" },
   { to: "/debts", label: "Debts", icon: HandCoins, perm: "debts.view" },
-  { to: "/shared", label: "Shared", icon: Split, perm: "transactions.view" },
+  { to: "/shared", label: "Shared", icon: Split, perm: "shared.view" },
   { to: "/reports", label: "Reports", icon: BarChart3, perm: "reports.view" },
   { to: "/activity", label: "Activity", icon: History, perm: "reports.view" },
 ];

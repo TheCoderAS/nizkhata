@@ -86,10 +86,29 @@ genuine multi-user model:
   a Cloud Function can take over later" stance — there is **no push
   notification**. A nav badge surfaces the inbox count from anywhere.
 
-Open follow-ups for this feature: (a) gating — the Shared section is currently
-open to any signed-in user rather than a dedicated `shared.*` permission;
-(b) edit of an already-accepted entry is not supported (withdraw + recreate);
-(c) settlement currently assumes both parties share one `baseCurrency`.
+Now wired in (second pass):
+
+- **Permission gating** — a dedicated `shared.view` / `shared.manage` pair gates
+  the section (route + nav) and every write action (invite, add expense,
+  accept/reject, settle, resolve). Editor + Viewer system templates updated
+  (Viewer gets `shared.view` via the `*.view` rule; Editor gets `shared.manage`).
+  Note: the cross-user collections themselves remain gated by party-identity in
+  Rules, not by `shared.*` — these permissions are UI/section gating within a
+  workspace, consistent with how `reports.*` etc. work.
+- **Backfill for existing workspaces** — `syncSystemRoles()` runs at login for
+  workspaces the user owns and re-applies the current system-role templates to
+  any system role whose permission map has drifted, so existing owners/editors
+  gain `shared.*` (and any future permission) without a manual migration.
+  Idempotent; writes only on drift; relies on the rules owner-bypass.
+- **Re-bill on a rejected share** — the conflict resolver now also offers
+  "Re-send for approval": it marks the rejected entry resolved, creates a fresh
+  pending entry for the same claim, and re-points the existing reflection
+  transaction at it (the money already out of my account stays linked to the
+  live claim — no double count).
+
+Remaining known gaps: (a) edit of an already-accepted entry is still
+withdraw + recreate; (b) settlement assumes both parties share one
+`baseCurrency`.
 
 ## Things enforced in app logic only (not expressible in Rules)
 The spec acknowledges some of these; listing for completeness. These are **not

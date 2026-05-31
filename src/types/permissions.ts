@@ -15,6 +15,8 @@ export const PERMISSIONS = [
   "debts.manage",
   "dues.view",
   "dues.manage",
+  "shared.view",
+  "shared.manage",
   "reports.view",
   "reports.export",
   "members.view",
@@ -80,6 +82,7 @@ export const SYSTEM_ROLE_TEMPLATES: Record<SystemRoleName, PermissionMap> = {
     "contacts.manage",
     "debts.manage",
     "dues.manage",
+    "shared.manage",
     "reports.export",
   ),
 

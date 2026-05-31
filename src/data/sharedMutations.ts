@@ -671,6 +671,66 @@ export async function resolveConflict(input: ResolveConflictInput): Promise<void
   await batch.commit();
 }
 
+/**
+ * Re-bill a rejected expense: ask the counterparty again. The old (rejected)
+ * entry is marked resolved so its conflict banner clears, and a fresh pending
+ * entry is created for the same claim. The creator's existing reflection
+ * transaction (the lend) is re-pointed at the new entry so the money already
+ * out of my account stays linked to the live claim — no double-counting.
+ */
+export interface RebillInput {
+  entry: SharedEntry;
+  me: FirebaseUser;
+  reflectionTxnId: string | null;
+}
+
+export async function rebillSharedEntry(input: RebillInput): Promise<string> {
+  const by = getCurrentActor();
+  const { entry, me } = input;
+  const batch = writeBatch(db);
+  const newEntryId = newId("sharedEntries");
+
+  batch.set(doc(db, "sharedEntries", newEntryId), {
+    id: newEntryId,
+    connectionId: entry.connectionId,
+    kind: entry.kind,
+    uids: entry.uids,
+    creatorUid: entry.creatorUid,
+    counterpartyUid: entry.counterpartyUid,
+    names: entry.names,
+    payerUid: entry.payerUid,
+    description: entry.description,
+    amount: entry.amount,
+    date: entry.date,
+    status: "pending",
+    pendingForUids: [entry.counterpartyUid],
+    createdBy: by,
+    createdAt: serverTimestamp(),
+    updatedBy: by,
+    updatedAt: serverTimestamp(),
+  });
+
+  // Clear the old conflict.
+  batch.update(doc(db, "sharedEntries", entry.id), {
+    resolved: true,
+    updatedBy: by,
+    updatedAt: serverTimestamp(),
+  });
+
+  // Re-point the existing reflection transaction at the new entry, if present.
+  if (input.reflectionTxnId) {
+    batch.update(doc(db, "transactions", input.reflectionTxnId), {
+      sharedEntryId: newEntryId,
+      updatedBy: by,
+      updatedAt: serverTimestamp(),
+    });
+  }
+
+  void me; // kept for signature symmetry / future audit needs
+  await batch.commit();
+  return newEntryId;
+}
+
 /** Withdraw a shared entry the creator authored (also drops the reflection). */
 export async function withdrawSharedEntry(
   entry: SharedEntry,

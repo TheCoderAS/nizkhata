@@ -19,6 +19,7 @@ import {
   createSharedExpense,
   inviteSharedPartner,
   proposeSettlement,
+  rebillSharedEntry,
   rejectSharedEntry,
   resolveConflict,
   withdrawSharedEntry,
@@ -70,7 +71,7 @@ interface Partner {
 }
 
 export function Shared() {
-  const { activeWorkspaceId, activeWorkspace } = useWorkspace();
+  const { activeWorkspaceId, activeWorkspace, can } = useWorkspace();
   const { firebaseUser } = useAuth();
   const { accounts, categories, contacts, debts, transactions, loading: wsLoading } = useData();
   const { connections, entries, sentInvites, loading: sharedLoading, error } = useSharedData();
@@ -78,6 +79,9 @@ export function Shared() {
   const currency = activeWorkspace?.baseCurrency ?? "INR";
   const fyStartMonth = activeWorkspace?.fyStartMonth ?? 4;
   const myUid = firebaseUser?.uid ?? "";
+  // Reading the shared ledger needs only `shared.view` (the route gate);
+  // creating/responding/settling needs `shared.manage`.
+  const canManage = can("shared.manage");
 
   const [invite, setInvite] = useState(false);
   const [adding, setAdding] = useState(false);
@@ -146,7 +150,7 @@ export function Shared() {
           label: "Add shared expense",
           icon: Plus,
           onClick: () => setAdding(true),
-          hidden: partners.length === 0,
+          hidden: partners.length === 0 || !canManage,
         }}
       />
 
@@ -154,9 +158,11 @@ export function Shared() {
       <Card className="mb-4">
         <CardHeader className="flex flex-row items-center justify-between pb-2">
           <CardTitle className="text-sm font-medium">Partners</CardTitle>
-          <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => setInvite(true)}>
-            <UserPlus className="mr-1 h-3 w-3" /> Invite
-          </Button>
+          {canManage && (
+            <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => setInvite(true)}>
+              <UserPlus className="mr-1 h-3 w-3" /> Invite
+            </Button>
+          )}
         </CardHeader>
         <CardContent className="pt-0">
           {partners.length === 0 ? (
@@ -181,7 +187,7 @@ export function Shared() {
       </Card>
 
       {/* Conflicts */}
-      {conflicts.length > 0 && (
+      {canManage && conflicts.length > 0 && (
         <Card className="mb-4 border-destructive/50">
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2 text-sm font-medium text-destructive">
@@ -211,7 +217,7 @@ export function Shared() {
       )}
 
       {/* Inbox */}
-      {inbox.length > 0 && (
+      {canManage && inbox.length > 0 && (
         <Card className="mb-4 border-primary/40">
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2 text-sm font-medium">
@@ -259,7 +265,7 @@ export function Shared() {
                     </span>
                     <span className="flex shrink-0 items-center gap-2">
                       <span className="tabular-nums">{formatMoney(t.amount, currency)}</span>
-                      {iOwe && partner && (
+                      {canManage && iOwe && partner && (
                         <Button
                           size="sm"
                           variant="outline"
@@ -419,6 +425,15 @@ export function Shared() {
             const refl = transactions.find((t) => t.sharedEntryId === conflict.id);
             await withdrawSharedEntry(conflict, refl?.id ?? null);
             toast({ title: "Withdrawn", variant: "success" });
+          }}
+          onRebill={async () => {
+            const refl = transactions.find((t) => t.sharedEntryId === conflict.id);
+            await rebillSharedEntry({
+              entry: conflict,
+              me: firebaseUser!,
+              reflectionTxnId: refl?.id ?? null,
+            });
+            toast({ title: "Re-sent for approval", variant: "success" });
           }}
         />
       )}
@@ -837,12 +852,14 @@ function ConflictDialog({
   onClose,
   onResolve,
   onWithdraw,
+  onRebill,
 }: {
   entry: SharedEntry;
   categories: { id: string; name: string }[];
   onClose: () => void;
   onResolve: (mode: "absorb" | "remove", categoryId?: string) => Promise<void>;
   onWithdraw: () => Promise<void>;
+  onRebill: () => Promise<void>;
 }) {
   const [categoryId, setCategoryId] = useState(categories[0]?.id ?? "");
   const [busy, setBusy] = useState(false);
@@ -883,7 +900,11 @@ function ConflictDialog({
           </Select>
         </div>
         <DialogFooter className="flex-col gap-2 sm:flex-col">
+          <Button className="w-full" disabled={busy} onClick={() => void run(onRebill)}>
+            Re-send for approval
+          </Button>
           <Button
+            variant="outline"
             className="w-full"
             disabled={busy}
             onClick={() => void run(() => onResolve("absorb", categoryId))}

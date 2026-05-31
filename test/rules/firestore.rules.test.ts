@@ -76,7 +76,8 @@ function allPerms(value: boolean) {
     "transactions.view","transactions.create","transactions.edit","transactions.delete",
     "accounts.view","accounts.manage","categories.view","categories.manage",
     "contacts.view","contacts.manage","debts.view","debts.manage",
-    "dues.view","dues.manage","reports.view","reports.export",
+    "dues.view","dues.manage","shared.view","shared.manage",
+    "reports.view","reports.export",
     "members.view","members.invite","members.remove","roles.view","roles.manage",
     "workspace.edit","workspace.delete",
   ];
