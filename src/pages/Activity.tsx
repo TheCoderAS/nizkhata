@@ -3,7 +3,7 @@
 // day. Entity names are resolved client-side from live data, falling back to
 // the revision snapshot for entities that have since been deleted.
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import {
   ArrowLeftRight,
   CalendarClock,
@@ -59,7 +59,23 @@ const DAY_FMT = new Intl.DateTimeFormat("en-IN", {
 export function Activity() {
   const { activeWorkspaceId } = useWorkspace();
   const data = useData();
-  const { activity, loading, error } = useWorkspaceActivity(activeWorkspaceId);
+  const { activity, loading, loadingMore, hasMore, loadMore, error } =
+    useWorkspaceActivity(activeWorkspaceId);
+
+  // Infinite scroll: fetch the next page when the sentinel scrolls into view.
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el || !hasMore) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) loadMore();
+      },
+      { rootMargin: "200px" },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [hasMore, loadMore, activity.length]);
 
   // Resolve a revision's entity to a display name from live data, falling back
   // to the snapshot (for deleted entities) and finally a short id.
@@ -176,6 +192,17 @@ export function Activity() {
               </Card>
             </section>
           ))}
+
+          {/* Infinite-scroll sentinel + status */}
+          {hasMore && <div ref={sentinelRef} aria-hidden className="h-px" />}
+          {loadingMore && (
+            <p className="py-2 text-center text-xs text-muted-foreground">Loading older activity…</p>
+          )}
+          {!hasMore && (
+            <p className="py-2 text-center text-xs text-muted-foreground">
+              You've reached the beginning.
+            </p>
+          )}
         </div>
       )}
     </div>

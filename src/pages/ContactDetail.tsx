@@ -63,12 +63,27 @@ export function ContactDetail() {
       <Link to="/contacts" className="mb-2 inline-flex items-center gap-1 text-sm text-muted-foreground hover:underline">
         <ArrowLeft className="h-4 w-4" /> Contacts
       </Link>
-      <div className="mb-6 flex items-center gap-3">
+      <div className="mb-2 flex flex-wrap items-center gap-2">
         <h1 className="text-2xl font-semibold tracking-tight">{contact.name}</h1>
         <Badge variant="secondary">
           {contact.type === "business" ? "Business" : "Person"}
         </Badge>
+        {contact.relationship === "family" && <Badge variant="outline">Family</Badge>}
       </div>
+      {(() => {
+        const emails =
+          contact.emails && contact.emails.length > 0
+            ? contact.emails.map((e) => e.value)
+            : contact.email
+              ? [contact.email]
+              : [];
+        const bits = [contact.phone, ...emails, contact.address].filter(Boolean);
+        return bits.length > 0 ? (
+          <p className="mb-6 text-sm text-muted-foreground">{bits.join(" · ")}</p>
+        ) : (
+          <div className="mb-6" />
+        );
+      })()}
 
       <div className="mb-6 grid grid-cols-3 gap-3">
         <Card>
@@ -78,7 +93,7 @@ export function ContactDetail() {
           </CardHeader>
           <CardContent
             className={cn(
-              "text-base font-semibold tabular-nums sm:text-lg",
+              "truncate text-sm font-semibold tabular-nums sm:text-lg",
               position.net > 0 && "text-green-600",
               position.net < 0 && "text-destructive",
             )}
@@ -91,7 +106,7 @@ export function ContactDetail() {
             <CardTitle className="text-xs font-normal text-muted-foreground">In</CardTitle>
             <ArrowDownLeft className="h-3.5 w-3.5 text-green-600" />
           </CardHeader>
-          <CardContent className="text-base font-semibold tabular-nums text-green-600 sm:text-lg">
+          <CardContent className="truncate text-sm font-semibold tabular-nums text-green-600 sm:text-lg">
             {formatMoney(position.totalIn, currency)}
           </CardContent>
         </Card>
@@ -100,7 +115,7 @@ export function ContactDetail() {
             <CardTitle className="text-xs font-normal text-muted-foreground">Out</CardTitle>
             <ArrowUpRight className="h-3.5 w-3.5 text-destructive" />
           </CardHeader>
-          <CardContent className="text-base font-semibold tabular-nums text-destructive sm:text-lg">
+          <CardContent className="truncate text-sm font-semibold tabular-nums text-destructive sm:text-lg">
             {formatMoney(position.totalOut, currency)}
           </CardContent>
         </Card>

@@ -10,7 +10,7 @@
     --card-foreground: 222.2 84% 4.9%;
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
-    --primary: 243 75% 59%;
+    --primary: 262 83% 58%;
     --primary-foreground: 210 40% 98%;
     --secondary: 210 40% 96.1%;
     --secondary-foreground: 222.2 47.4% 11.2%;
@@ -24,7 +24,7 @@
     --warning: 38 92% 50%;
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
-    --ring: 243 75% 59%;
+    --ring: 262 83% 58%;
     --radius: 0.65rem;
   }
 
@@ -35,7 +35,7 @@
     --card-foreground: 210 40% 96%;
     --popover: 222.2 44% 10%;
     --popover-foreground: 210 40% 96%;
-    --primary: 234 89% 74%;
+    --primary: 263 90% 70%;
     --primary-foreground: 222.2 47% 11%;
     --secondary: 217.2 32.6% 17.5%;
     --secondary-foreground: 210 40% 96%;
@@ -49,7 +49,7 @@
     --warning: 38 92% 55%;
     --border: 217.2 32.6% 20%;
     --input: 217.2 32.6% 22%;
-    --ring: 234 89% 74%;
+    --ring: 263 90% 70%;
   }
 }
 
@@ -137,3 +137,25 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
   opacity: 1;
 }
 
+/* ---------------------------------------------------------------------------
+   Typographic weight policy (product decision): only true headings and table
+   column headers are bold. Everything else — cards, table body cells, badges,
+   buttons — renders at normal weight, so emphasis comes from hierarchy, not
+   heaviness.
+
+   Two rules, ordered to win the cascade:
+   1) Neutralize the weight utilities to 400. Plain (unlayered) class rules at
+      the end of the file override Tailwind's own `.font-medium` etc.
+   2) Force headings + table headers back to 600 with !important, so they win
+      even when they ALSO carry a `font-semibold`/`font-medium` utility class
+      (a class selector would otherwise out-specify a bare element selector).
+--------------------------------------------------------------------------- */
+.font-medium,
+.font-semibold,
+.font-bold {
+  font-weight: 400;
+}
+
+h1, h2, h3, h4, h5, h6, th {
+  font-weight: 600 !important;
+}
