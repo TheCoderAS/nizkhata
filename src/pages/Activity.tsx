@@ -176,6 +176,17 @@ export function Activity() {
               </Card>
             </section>
           ))}
+
+          {/* Infinite-scroll sentinel + status */}
+          {hasMore && <div ref={sentinelRef} aria-hidden className="h-px" />}
+          {loadingMore && (
+            <p className="py-2 text-center text-xs text-muted-foreground">Loading older activity…</p>
+          )}
+          {!hasMore && (
+            <p className="py-2 text-center text-xs text-muted-foreground">
+              You've reached the beginning.
+            </p>
+          )}
         </div>
       )}
     </div>
