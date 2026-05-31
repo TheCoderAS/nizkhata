@@ -18,13 +18,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import {
-  Table,
   TableBody,
   TableCell,
-  TableHead,
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { ResizableTable, ResizableHead } from "@/components/ResizableTable";
+import { useColumnPrefs, type ColumnDef } from "@/lib/useColumnPrefs";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import type { Account } from "@/types/models";
 
@@ -40,8 +40,20 @@ function maskedId(a: Account): string | null {
   return null;
 }
 
+// Ledger columns exist only to drive persisted, drag-resizable widths
+// (all are always shown — no visibility toggling here).
+type LedgerCol = "date" | "description" | "type" | "amount" | "balance";
+const LEDGER_COLUMNS: ColumnDef<LedgerCol>[] = [
+  { key: "date", label: "Date", defaultVisible: true, locked: true },
+  { key: "description", label: "Description", defaultVisible: true, locked: true },
+  { key: "type", label: "Type", defaultVisible: true, locked: true },
+  { key: "amount", label: "Amount", defaultVisible: true, locked: true },
+  { key: "balance", label: "Balance", defaultVisible: true, locked: true },
+];
+
 export function AccountLedger() {
   const { accountId } = useParams<{ accountId: string }>();
+  const cols = useColumnPrefs<LedgerCol>("account-ledger", LEDGER_COLUMNS);
   const { activeWorkspace, can } = useWorkspace();
   const { accounts, debtsById, transactions, balanceOf, loading, error } = useData();
   const currency = activeWorkspace?.baseCurrency ?? "INR";
@@ -207,14 +219,14 @@ export function AccountLedger() {
           }
         />
       ) : (
-        <Table>
+        <ResizableTable prefs={cols} className="[&_td]:truncate">
           <TableHeader>
             <TableRow>
-              <TableHead>Date</TableHead>
-              <TableHead>Description</TableHead>
-              <TableHead className="hidden sm:table-cell">Type</TableHead>
-              <TableHead className="text-right">Amount</TableHead>
-              <TableHead className="text-right">Balance</TableHead>
+              <ResizableHead colKey="date">Date</ResizableHead>
+              <ResizableHead colKey="description">Description</ResizableHead>
+              <ResizableHead colKey="type" className="hidden sm:table-cell">Type</ResizableHead>
+              <ResizableHead colKey="amount" className="text-right">Amount</ResizableHead>
+              <ResizableHead colKey="balance" className="text-right">Balance</ResizableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -242,7 +254,7 @@ export function AccountLedger() {
               </TableRow>
             ))}
           </TableBody>
-        </Table>
+        </ResizableTable>
       )}
     </div>
   );
