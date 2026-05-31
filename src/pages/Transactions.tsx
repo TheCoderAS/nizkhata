@@ -19,7 +19,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { TransactionFormDialog } from "@/components/TransactionForm";
 import { RowActions, type RowAction } from "@/components/RowActions";
 import { SortableHead } from "@/components/SortableHead";
-import { DetailDialog, type DetailField } from "@/components/DetailDialog";
+import { TransactionDetailDialog } from "@/components/TransactionDetailDialog";
 import { FilterModal, FilterRow } from "@/components/FilterModal";
 import { ColumnsMenu } from "@/components/ColumnsMenu";
 import { Toolbar } from "@/components/Toolbar";
@@ -66,16 +66,8 @@ const COLUMNS: ColumnDef<ColKey>[] = [
 export function Transactions() {
   const { firebaseUser } = useAuth();
   const { activeWorkspaceId, activeWorkspace, can } = useWorkspace();
-  const {
-    transactions,
-    accounts,
-    contacts,
-    accountsById,
-    contactsById,
-    categoriesById,
-    loading,
-    error,
-  } = useData();
+  const { transactions, accounts, contacts, accountsById, contactsById, loading, error } =
+    useData();
   const { toast } = useToast();
   const currency = activeWorkspace?.baseCurrency ?? "INR";
 
@@ -367,14 +359,11 @@ export function Transactions() {
       )}
 
       {viewTxn && (
-        <TransactionDetail
+        <TransactionDetailDialog
           txn={viewTxn}
-          currency={currency}
-          accountName={(id) => accountsById[id]?.name ?? "—"}
-          contactName={(id) => contactsById[id]?.name ?? "—"}
-          categoryName={(id) => categoriesById[id]?.name ?? "—"}
-          actions={rowActions(viewTxn)}
           onClose={() => setViewTxn(null)}
+          onEdit={edit ? (t) => { setViewTxn(null); setEditTxn(t); } : undefined}
+          onDelete={del ? (t) => setToDelete(t) : undefined}
         />
       )}
 
@@ -412,116 +401,6 @@ export function Transactions() {
         }}
       />
     </div>
-  );
-}
-
-function TransactionDetail({
-  txn,
-  currency,
-  accountName,
-  contactName,
-  categoryName,
-  actions,
-  onClose,
-}: {
-  txn: Transaction;
-  currency: string;
-  accountName: (id: string) => string;
-  contactName: (id: string) => string;
-  categoryName: (id: string) => string;
-  actions: RowAction[];
-  onClose: () => void;
-}) {
-  const fields: DetailField[] = [
-    { label: "Date", value: formatDate(toDate(txn.date)) },
-    { label: "Account", value: accountName(txn.accountId) },
-    {
-      label: "Contact",
-      value: txn.contactId ? contactName(txn.contactId) : "—",
-    },
-    { label: "Financial year", value: txn.financialYear },
-    {
-      label: "Total",
-      value: (
-        <span
-          className={cn(
-            "tabular-nums",
-            txn.totalAmount < 0 && "text-destructive",
-            txn.totalAmount > 0 && "text-green-600",
-          )}
-        >
-          {formatMoney(txn.totalAmount, currency)}
-        </span>
-      ),
-    },
-    { label: "Note", value: txn.note ?? "—", block: true, hidden: !txn.note },
-  ];
-
-  return (
-    <DetailDialog
-      open
-      onClose={onClose}
-      title="Transaction"
-      fields={fields}
-      actions={actions}
-      entityId={txn.id}
-      audit={{
-        createdBy: txn.createdBy,
-        createdAt: txn.createdAt,
-        updatedBy: txn.updatedBy,
-        updatedAt: txn.updatedAt,
-      }}
-    >
-      <div className="mt-2">
-        <p className="mb-2 text-sm font-medium">Lines</p>
-        <div className="overflow-hidden rounded-md border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Type</TableHead>
-                <TableHead>Category / Detail</TableHead>
-                <TableHead className="text-right">Amount</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {txn.lines.map((l) => {
-                const detail =
-                  l.categoryId
-                    ? categoryName(l.categoryId)
-                    : l.toAccountId
-                      ? `→ ${accountName(l.toAccountId)}`
-                      : l.note ?? "—";
-                return (
-                  <TableRow key={l.lineId}>
-                    <TableCell>
-                      <div className="flex flex-wrap items-center gap-1">
-                        <Badge variant="secondary" className="text-[10px]">
-                          {l.type}
-                        </Badge>
-                        {l.external && (
-                          <Badge variant="outline" className="text-[10px]">
-                            external
-                          </Badge>
-                        )}
-                        {l.tax?.taxable && (
-                          <Badge variant="outline" className="text-[10px]">
-                            tax: {l.tax.head}
-                          </Badge>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">{detail}</TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {formatMoney(l.amount, currency)}
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </div>
-      </div>
-    </DetailDialog>
   );
 }
 

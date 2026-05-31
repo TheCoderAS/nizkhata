@@ -7,6 +7,7 @@ import { ArrowLeft } from "lucide-react";
 import { useWorkspace } from "@/workspace/WorkspaceProvider";
 import { useData } from "@/data/WorkspaceDataProvider";
 import type { DebtPurpose } from "@/types/models";
+import { ContactChat } from "@/components/ContactChat";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -19,8 +20,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
-import { toDate } from "@/lib/derive";
-import { cn, formatDate, formatMoney } from "@/lib/utils";
+import { cn, formatMoney } from "@/lib/utils";
 
 const PURPOSE_LABELS: Record<DebtPurpose, string> = {
   loan: "Loans",
@@ -114,36 +114,7 @@ export function ContactDetail() {
         </TabsList>
 
         <TabsContent value="transactions">
-          {contactTxns.length === 0 ? (
-            <EmptyState title="No transactions with this contact" />
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Note</TableHead>
-                  <TableHead className="text-right">Amount</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {contactTxns.map((t) => (
-                  <TableRow key={t.id}>
-                    <TableCell>{formatDate(toDate(t.date))}</TableCell>
-                    <TableCell className="text-muted-foreground">{t.note ?? "—"}</TableCell>
-                    <TableCell
-                      className={cn(
-                        "text-right tabular-nums",
-                        t.totalAmount < 0 && "text-destructive",
-                        t.totalAmount > 0 && "text-green-600",
-                      )}
-                    >
-                      {formatMoney(t.totalAmount, currency)}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
+          {contactId && <ContactChat contactId={contactId} />}
         </TabsContent>
 
         <TabsContent value="debts">
