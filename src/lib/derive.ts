@@ -18,6 +18,24 @@ export function toDate(ts: { toDate?: () => Date } | Date | undefined): Date {
   return ts.toDate ? ts.toDate() : new Date(0);
 }
 
+/**
+ * Full-precision sort key for a transaction. The user-picked `date` is stored at
+ * day precision, so same-day transactions tie; we break the tie with the real
+ * insertion moment (`createdAt`) so ordering is stable and reflects entry order.
+ * Returns milliseconds.
+ */
+export function txnSortValue(t: {
+  date: Parameters<typeof toDate>[0];
+  createdAt?: Parameters<typeof toDate>[0];
+}): number {
+  const day = toDate(t.date).getTime();
+  // createdAt only disambiguates within the same day; cap its contribution so a
+  // later-entered txn never jumps ahead of one dated a day later.
+  const created = t.createdAt ? toDate(t.createdAt).getTime() : 0;
+  const intraDay = created % 86400000; // ms within the createdAt day
+  return day + intraDay;
+}
+
 // ---- account balances ------------------------------------------------------
 
 export function accountBalances(

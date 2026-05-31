@@ -13,7 +13,7 @@ import { TransactionDetailDialog } from "@/components/TransactionDetailDialog";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/states";
 import type { Transaction } from "@/types/models";
-import { toDate } from "@/lib/derive";
+import { toDate, txnSortValue } from "@/lib/derive";
 import { cn, formatDate, formatMoney } from "@/lib/utils";
 
 export function ContactChat({ contactId }: { contactId: string }) {
@@ -27,7 +27,7 @@ export function ContactChat({ contactId }: { contactId: string }) {
     () =>
       transactions
         .filter((t) => t.contactId === contactId)
-        .sort((a, b) => toDate(a.date).getTime() - toDate(b.date).getTime()),
+        .sort((a, b) => txnSortValue(a) - txnSortValue(b)),
     [transactions, contactId],
   );
 

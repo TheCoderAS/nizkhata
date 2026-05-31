@@ -45,7 +45,7 @@ import {
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { useToast } from "@/components/ui/toast";
-import { toDate } from "@/lib/derive";
+import { toDate, txnSortValue } from "@/lib/derive";
 import { cn, formatDate, formatMoney } from "@/lib/utils";
 
 const PAGE_SIZE = 25;
@@ -118,7 +118,7 @@ export function Transactions() {
 
   const accessors: Record<SortKey, SortAccessor<Transaction>> = useMemo(
     () => ({
-      date: (t) => toDate(t.date),
+      date: (t) => txnSortValue(t),
       account: (t) => accountsById[t.accountId]?.name ?? "",
       contact: (t) => (t.contactId ? contactsById[t.contactId]?.name ?? "" : ""),
       amount: (t) => t.totalAmount,
