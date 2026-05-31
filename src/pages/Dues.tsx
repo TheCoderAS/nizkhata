@@ -23,6 +23,9 @@ import { TransactionFormDialog } from "@/components/TransactionForm";
 import { RowActions, type RowAction } from "@/components/RowActions";
 import { SortableHead } from "@/components/SortableHead";
 import { DetailDialog, type DetailField } from "@/components/DetailDialog";
+import { FilterModal, FilterRow } from "@/components/FilterModal";
+import { ColumnsMenu } from "@/components/ColumnsMenu";
+import { useColumnPrefs, type ColumnDef } from "@/lib/useColumnPrefs";
 import { useSort, type SortAccessor } from "@/lib/useSort";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -56,6 +59,17 @@ import { useToast } from "@/components/ui/toast";
 import { formatDate, formatMoney } from "@/lib/utils";
 
 type SortKey = "title" | "direction" | "contact" | "dueDate" | "amount" | "settled" | "status";
+type ColKey = "title" | "direction" | "contact" | "dueDate" | "amount" | "settled" | "status";
+
+const COLUMNS: ColumnDef<ColKey>[] = [
+  { key: "title", label: "Title", defaultVisible: true, locked: true },
+  { key: "direction", label: "Direction", defaultVisible: false },
+  { key: "contact", label: "Contact", defaultVisible: false },
+  { key: "dueDate", label: "Due date", defaultVisible: true },
+  { key: "amount", label: "Amount", defaultVisible: true },
+  { key: "settled", label: "Settled", defaultVisible: false },
+  { key: "status", label: "Status", defaultVisible: true },
+];
 
 export function Dues() {
   const { firebaseUser } = useAuth();
@@ -71,6 +85,24 @@ export function Dues() {
   const [paying, setPaying] = useState<Due | null>(null);
   const [toDelete, setToDelete] = useState<Due | null>(null);
 
+  const [directionFilter, setDirectionFilter] = useState("__all");
+  const [statusFilter, setStatusFilter] = useState("__all");
+
+  const cols = useColumnPrefs<ColKey>("dues", COLUMNS);
+
+  const filteredDues = dues.filter((d) => {
+    if (directionFilter !== "__all" && d.direction !== directionFilter) return false;
+    if (statusFilter !== "__all" && dueStatusFromSettled(d, settledOf(d.id)) !== statusFilter)
+      return false;
+    return true;
+  });
+  const activeFilterCount =
+    (directionFilter !== "__all" ? 1 : 0) + (statusFilter !== "__all" ? 1 : 0);
+  function clearFilters() {
+    setDirectionFilter("__all");
+    setStatusFilter("__all");
+  }
+
   const accessors: Record<SortKey, SortAccessor<Due>> = {
     title: (d) => d.title,
     direction: (d) => d.direction,
@@ -80,7 +112,7 @@ export function Dues() {
     settled: (d) => settledOf(d.id),
     status: (d) => dueStatusFromSettled(d, settledOf(d.id)),
   };
-  const { sorted, sort, toggle } = useSort(dues, accessors, {
+  const { sorted, sort, toggle } = useSort(filteredDues, accessors, {
     key: "dueDate",
     direction: "asc",
   });
@@ -146,6 +178,40 @@ export function Dues() {
         }}
       />
 
+      {dues.length > 0 && (
+        <div className="mb-4 flex items-center gap-2">
+          <FilterModal activeCount={activeFilterCount} onClear={clearFilters}>
+            <FilterRow label="Direction">
+              <DueFilterSelect
+                value={directionFilter}
+                onChange={setDirectionFilter}
+                allLabel="All directions"
+                options={[
+                  { value: "payable", label: "Payable" },
+                  { value: "receivable", label: "Receivable" },
+                ]}
+              />
+            </FilterRow>
+            <FilterRow label="Status">
+              <DueFilterSelect
+                value={statusFilter}
+                onChange={setStatusFilter}
+                allLabel="All statuses"
+                options={[
+                  { value: "open", label: "Open" },
+                  { value: "partial", label: "Partial" },
+                  { value: "settled", label: "Settled" },
+                  { value: "cancelled", label: "Cancelled" },
+                ]}
+              />
+            </FilterRow>
+          </FilterModal>
+          <div className="ml-auto">
+            <ColumnsMenu columns={cols.columns} isVisible={cols.isVisible} toggle={cols.toggle} reset={cols.reset} />
+          </div>
+        </div>
+      )}
+
       {dues.length === 0 ? (
         <EmptyState
           title="No dues"
@@ -156,27 +222,41 @@ export function Dues() {
         <Table>
           <TableHeader>
             <TableRow>
-              <SortableHead sortKey="title" sort={sort} onToggle={toggle}>
-                Title
-              </SortableHead>
-              <SortableHead sortKey="direction" sort={sort} onToggle={toggle}>
-                Direction
-              </SortableHead>
-              <SortableHead sortKey="contact" sort={sort} onToggle={toggle}>
-                Contact
-              </SortableHead>
-              <SortableHead sortKey="dueDate" sort={sort} onToggle={toggle}>
-                Due date
-              </SortableHead>
-              <SortableHead sortKey="amount" sort={sort} onToggle={toggle} className="text-right">
-                Amount
-              </SortableHead>
-              <SortableHead sortKey="settled" sort={sort} onToggle={toggle} className="text-right">
-                Settled
-              </SortableHead>
-              <SortableHead sortKey="status" sort={sort} onToggle={toggle}>
-                Status
-              </SortableHead>
+              {cols.isVisible("title") && (
+                <SortableHead sortKey="title" sort={sort} onToggle={toggle}>
+                  Title
+                </SortableHead>
+              )}
+              {cols.isVisible("direction") && (
+                <SortableHead sortKey="direction" sort={sort} onToggle={toggle}>
+                  Direction
+                </SortableHead>
+              )}
+              {cols.isVisible("contact") && (
+                <SortableHead sortKey="contact" sort={sort} onToggle={toggle}>
+                  Contact
+                </SortableHead>
+              )}
+              {cols.isVisible("dueDate") && (
+                <SortableHead sortKey="dueDate" sort={sort} onToggle={toggle}>
+                  Due date
+                </SortableHead>
+              )}
+              {cols.isVisible("amount") && (
+                <SortableHead sortKey="amount" sort={sort} onToggle={toggle} className="text-right">
+                  Amount
+                </SortableHead>
+              )}
+              {cols.isVisible("settled") && (
+                <SortableHead sortKey="settled" sort={sort} onToggle={toggle} className="text-right">
+                  Settled
+                </SortableHead>
+              )}
+              {cols.isVisible("status") && (
+                <SortableHead sortKey="status" sort={sort} onToggle={toggle}>
+                  Status
+                </SortableHead>
+              )}
               <TableHead className="w-12" />
             </TableRow>
           </TableHeader>
@@ -190,23 +270,37 @@ export function Dues() {
                   onClick={() => setViewing(d)}
                   className="cursor-pointer"
                 >
-                  <TableCell className="font-medium">{d.title}</TableCell>
-                  <TableCell>
-                    <Badge variant={d.direction === "receivable" ? "success" : "warning"}>
-                      {d.direction}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>{d.contactId ? contactsById[d.contactId]?.name ?? "—" : "—"}</TableCell>
-                  <TableCell className="whitespace-nowrap">{formatDate(toDate(d.dueDate))}</TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {formatMoney(d.amount, currency)}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {formatMoney(settled, currency)}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={statusVariant(status)}>{status}</Badge>
-                  </TableCell>
+                  {cols.isVisible("title") && (
+                    <TableCell className="font-medium">{d.title}</TableCell>
+                  )}
+                  {cols.isVisible("direction") && (
+                    <TableCell>
+                      <Badge variant={d.direction === "receivable" ? "success" : "warning"}>
+                        {d.direction}
+                      </Badge>
+                    </TableCell>
+                  )}
+                  {cols.isVisible("contact") && (
+                    <TableCell>{d.contactId ? contactsById[d.contactId]?.name ?? "—" : "—"}</TableCell>
+                  )}
+                  {cols.isVisible("dueDate") && (
+                    <TableCell className="whitespace-nowrap">{formatDate(toDate(d.dueDate))}</TableCell>
+                  )}
+                  {cols.isVisible("amount") && (
+                    <TableCell className="text-right tabular-nums">
+                      {formatMoney(d.amount, currency)}
+                    </TableCell>
+                  )}
+                  {cols.isVisible("settled") && (
+                    <TableCell className="text-right tabular-nums">
+                      {formatMoney(settled, currency)}
+                    </TableCell>
+                  )}
+                  {cols.isVisible("status") && (
+                    <TableCell>
+                      <Badge variant={statusVariant(status)}>{status}</Badge>
+                    </TableCell>
+                  )}
                   <TableCell>
                     <RowActions actions={rowActions(d)} />
                   </TableCell>
@@ -276,6 +370,34 @@ export function Dues() {
         }}
       />
     </div>
+  );
+}
+
+function DueFilterSelect({
+  value,
+  onChange,
+  allLabel,
+  options,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  allLabel: string;
+  options: { value: string; label: string }[];
+}) {
+  return (
+    <Select value={value} onValueChange={onChange}>
+      <SelectTrigger>
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="__all">{allLabel}</SelectItem>
+        {options.map((o) => (
+          <SelectItem key={o.value} value={o.value}>
+            {o.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }
 

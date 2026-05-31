@@ -19,6 +19,9 @@ import { TransactionFormDialog } from "@/components/TransactionForm";
 import { RowActions, type RowAction } from "@/components/RowActions";
 import { SortableHead } from "@/components/SortableHead";
 import { DetailDialog, type DetailField } from "@/components/DetailDialog";
+import { FilterModal, FilterRow } from "@/components/FilterModal";
+import { ColumnsMenu } from "@/components/ColumnsMenu";
+import { useColumnPrefs, type ColumnDef } from "@/lib/useColumnPrefs";
 import { useSort, type SortAccessor } from "@/lib/useSort";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -47,6 +50,17 @@ import { cn, formatDate, formatMoney } from "@/lib/utils";
 const PAGE_SIZE = 25;
 
 type SortKey = "date" | "account" | "contact" | "amount";
+type ColKey = "date" | "account" | "contact" | "lines" | "note" | "amount";
+
+// Minimal default view (4 columns); the rest are opt-in via the columns menu.
+const COLUMNS: ColumnDef<ColKey>[] = [
+  { key: "date", label: "Date", defaultVisible: true },
+  { key: "account", label: "Account", defaultVisible: true },
+  { key: "contact", label: "Contact", defaultVisible: false },
+  { key: "lines", label: "Lines", defaultVisible: false },
+  { key: "note", label: "Note", defaultVisible: false },
+  { key: "amount", label: "Amount", defaultVisible: true },
+];
 
 export function Transactions() {
   const { firebaseUser } = useAuth();
@@ -71,6 +85,21 @@ export function Transactions() {
   const [editTxn, setEditTxn] = useState<Transaction | null>(null);
   const [viewTxn, setViewTxn] = useState<Transaction | null>(null);
   const [toDelete, setToDelete] = useState<Transaction | null>(null);
+
+  const cols = useColumnPrefs<ColKey>("transactions", COLUMNS);
+
+  const activeFilterCount =
+    (accountFilter !== "__all" ? 1 : 0) +
+    (contactFilter !== "__all" ? 1 : 0) +
+    (typeFilter !== "__all" ? 1 : 0) +
+    (splitOnly ? 1 : 0);
+  function clearFilters() {
+    setAccountFilter("__all");
+    setContactFilter("__all");
+    setTypeFilter("__all");
+    setSplitOnly(false);
+    setPage(0);
+  }
 
   const filtered = useMemo(() => {
     return transactions.filter((t) => {
@@ -144,8 +173,8 @@ export function Transactions() {
         }}
       />
 
-      {/* filters */}
-      <div className="mb-4 flex flex-wrap gap-2">
+      {/* toolbar: search + filters modal + column chooser */}
+      <div className="mb-4 flex flex-wrap items-center gap-2">
         <Input
           placeholder="Search note / contact…"
           value={search}
@@ -155,44 +184,57 @@ export function Transactions() {
           }}
           className="max-w-xs"
         />
-        <FilterSelect
-          value={accountFilter}
-          onChange={setAccountFilter}
-          allLabel="All accounts"
-          options={accounts.map((a) => ({ value: a.id, label: a.name }))}
-        />
-        <FilterSelect
-          value={contactFilter}
-          onChange={setContactFilter}
-          allLabel="All contacts"
-          options={contacts.map((c) => ({ value: c.id, label: c.name }))}
-        />
-        <FilterSelect
-          value={typeFilter}
-          onChange={setTypeFilter}
-          allLabel="All types"
-          options={(
-            [
-              "income",
-              "expense",
-              "transfer_out",
-              "transfer_in",
-              "borrow",
-              "lend",
-              "repayment",
-              "fee",
-              "interest_income",
-              "interest_expense",
-              "tax",
-            ] as LineType[]
-          ).map((t) => ({ value: t, label: t }))}
-        />
-        <Button
-          variant={splitOnly ? "default" : "outline"}
-          onClick={() => setSplitOnly((s) => !s)}
-        >
-          Split only
-        </Button>
+        <FilterModal activeCount={activeFilterCount} onClear={clearFilters}>
+          <FilterRow label="Account">
+            <FilterSelect
+              value={accountFilter}
+              onChange={setAccountFilter}
+              allLabel="All accounts"
+              options={accounts.map((a) => ({ value: a.id, label: a.name }))}
+            />
+          </FilterRow>
+          <FilterRow label="Contact">
+            <FilterSelect
+              value={contactFilter}
+              onChange={setContactFilter}
+              allLabel="All contacts"
+              options={contacts.map((c) => ({ value: c.id, label: c.name }))}
+            />
+          </FilterRow>
+          <FilterRow label="Line type">
+            <FilterSelect
+              value={typeFilter}
+              onChange={setTypeFilter}
+              allLabel="All types"
+              options={(
+                [
+                  "income",
+                  "expense",
+                  "transfer_out",
+                  "transfer_in",
+                  "borrow",
+                  "lend",
+                  "repayment",
+                  "fee",
+                  "interest_income",
+                  "interest_expense",
+                  "tax",
+                ] as LineType[]
+              ).map((t) => ({ value: t, label: t }))}
+            />
+          </FilterRow>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={splitOnly}
+              onChange={(e) => setSplitOnly(e.target.checked)}
+            />
+            Split transactions only
+          </label>
+        </FilterModal>
+        <div className="ml-auto">
+          <ColumnsMenu columns={cols.columns} isVisible={cols.isVisible} toggle={cols.toggle} reset={cols.reset} />
+        </div>
       </div>
 
       {sorted.length === 0 ? (
@@ -208,20 +250,28 @@ export function Transactions() {
           <Table>
             <TableHeader>
               <TableRow>
-                <SortableHead sortKey="date" sort={sort} onToggle={toggle}>
-                  Date
-                </SortableHead>
-                <SortableHead sortKey="account" sort={sort} onToggle={toggle}>
-                  Account
-                </SortableHead>
-                <SortableHead sortKey="contact" sort={sort} onToggle={toggle}>
-                  Contact
-                </SortableHead>
-                <TableHead>Lines</TableHead>
-                <TableHead>Note</TableHead>
-                <SortableHead sortKey="amount" sort={sort} onToggle={toggle} className="text-right">
-                  Amount
-                </SortableHead>
+                {cols.isVisible("date") && (
+                  <SortableHead sortKey="date" sort={sort} onToggle={toggle}>
+                    Date
+                  </SortableHead>
+                )}
+                {cols.isVisible("account") && (
+                  <SortableHead sortKey="account" sort={sort} onToggle={toggle}>
+                    Account
+                  </SortableHead>
+                )}
+                {cols.isVisible("contact") && (
+                  <SortableHead sortKey="contact" sort={sort} onToggle={toggle}>
+                    Contact
+                  </SortableHead>
+                )}
+                {cols.isVisible("lines") && <TableHead>Lines</TableHead>}
+                {cols.isVisible("note") && <TableHead>Note</TableHead>}
+                {cols.isVisible("amount") && (
+                  <SortableHead sortKey="amount" sort={sort} onToggle={toggle} className="text-right">
+                    Amount
+                  </SortableHead>
+                )}
                 <TableHead className="w-12" />
               </TableRow>
             </TableHeader>
@@ -232,35 +282,47 @@ export function Transactions() {
                   onClick={() => setViewTxn(t)}
                   className="cursor-pointer"
                 >
-                  <TableCell className="whitespace-nowrap">{formatDate(toDate(t.date))}</TableCell>
-                  <TableCell>{accountsById[t.accountId]?.name ?? "—"}</TableCell>
-                  <TableCell>{t.contactId ? contactsById[t.contactId]?.name ?? "—" : "—"}</TableCell>
-                  <TableCell>
-                    <div className="flex flex-wrap gap-1">
-                      {t.lines.slice(0, 3).map((l) => (
-                        <Badge key={l.lineId} variant="secondary" className="text-[10px]">
-                          {l.type}
-                        </Badge>
-                      ))}
-                      {t.lines.length > 3 && (
-                        <Badge variant="outline" className="text-[10px]">
-                          +{t.lines.length - 3}
-                        </Badge>
+                  {cols.isVisible("date") && (
+                    <TableCell className="whitespace-nowrap">{formatDate(toDate(t.date))}</TableCell>
+                  )}
+                  {cols.isVisible("account") && (
+                    <TableCell>{accountsById[t.accountId]?.name ?? "—"}</TableCell>
+                  )}
+                  {cols.isVisible("contact") && (
+                    <TableCell>{t.contactId ? contactsById[t.contactId]?.name ?? "—" : "—"}</TableCell>
+                  )}
+                  {cols.isVisible("lines") && (
+                    <TableCell>
+                      <div className="flex flex-wrap gap-1">
+                        {t.lines.slice(0, 3).map((l) => (
+                          <Badge key={l.lineId} variant="secondary" className="text-[10px]">
+                            {l.type}
+                          </Badge>
+                        ))}
+                        {t.lines.length > 3 && (
+                          <Badge variant="outline" className="text-[10px]">
+                            +{t.lines.length - 3}
+                          </Badge>
+                        )}
+                      </div>
+                    </TableCell>
+                  )}
+                  {cols.isVisible("note") && (
+                    <TableCell className="max-w-[160px] truncate text-muted-foreground">
+                      {t.note ?? "—"}
+                    </TableCell>
+                  )}
+                  {cols.isVisible("amount") && (
+                    <TableCell
+                      className={cn(
+                        "text-right tabular-nums font-medium",
+                        t.totalAmount < 0 && "text-destructive",
+                        t.totalAmount > 0 && "text-green-600",
                       )}
-                    </div>
-                  </TableCell>
-                  <TableCell className="max-w-[160px] truncate text-muted-foreground">
-                    {t.note ?? "—"}
-                  </TableCell>
-                  <TableCell
-                    className={cn(
-                      "text-right tabular-nums font-medium",
-                      t.totalAmount < 0 && "text-destructive",
-                      t.totalAmount > 0 && "text-green-600",
-                    )}
-                  >
-                    {formatMoney(t.totalAmount, currency)}
-                  </TableCell>
+                    >
+                      {formatMoney(t.totalAmount, currency)}
+                    </TableCell>
+                  )}
                   <TableCell>
                     <RowActions actions={rowActions(t)} />
                   </TableCell>

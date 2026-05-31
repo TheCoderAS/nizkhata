@@ -11,6 +11,8 @@ import { PageHeader } from "@/components/PageHeader";
 import { RowActions, type RowAction } from "@/components/RowActions";
 import { SortableHead } from "@/components/SortableHead";
 import { DetailDialog, type DetailField } from "@/components/DetailDialog";
+import { ColumnsMenu } from "@/components/ColumnsMenu";
+import { useColumnPrefs, type ColumnDef } from "@/lib/useColumnPrefs";
 import { useSort, type SortAccessor } from "@/lib/useSort";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -50,11 +52,20 @@ const TYPE_LABELS: Record<AccountType, string> = {
 };
 
 type SortKey = "name" | "type" | "opening" | "balance";
+type ColKey = "name" | "type" | "opening" | "balance";
+
+const COLUMNS: ColumnDef<ColKey>[] = [
+  { key: "name", label: "Name", defaultVisible: true, locked: true },
+  { key: "type", label: "Type", defaultVisible: true },
+  { key: "opening", label: "Opening", defaultVisible: false },
+  { key: "balance", label: "Balance", defaultVisible: true },
+];
 
 export function Accounts() {
   const { activeWorkspaceId, activeWorkspace, can } = useWorkspace();
   const { accounts, balanceOf, loading, error } = useData();
   const { toast } = useToast();
+  const cols = useColumnPrefs<ColKey>("accounts", COLUMNS);
   const currency = activeWorkspace?.baseCurrency ?? "INR";
   const manage = can("accounts.manage");
 
@@ -106,6 +117,12 @@ export function Accounts() {
         }}
       />
 
+      {accounts.length > 0 && (
+        <div className="mb-4 flex justify-end">
+          <ColumnsMenu columns={cols.columns} isVisible={cols.isVisible} toggle={cols.toggle} reset={cols.reset} />
+        </div>
+      )}
+
       {accounts.length === 0 ? (
         <EmptyState
           title="No accounts yet"
@@ -118,18 +135,26 @@ export function Accounts() {
         <Table>
           <TableHeader>
             <TableRow>
-              <SortableHead sortKey="name" sort={sort} onToggle={toggle}>
-                Name
-              </SortableHead>
-              <SortableHead sortKey="type" sort={sort} onToggle={toggle}>
-                Type
-              </SortableHead>
-              <SortableHead sortKey="opening" sort={sort} onToggle={toggle} className="text-right">
-                Opening
-              </SortableHead>
-              <SortableHead sortKey="balance" sort={sort} onToggle={toggle} className="text-right">
-                Balance
-              </SortableHead>
+              {cols.isVisible("name") && (
+                <SortableHead sortKey="name" sort={sort} onToggle={toggle}>
+                  Name
+                </SortableHead>
+              )}
+              {cols.isVisible("type") && (
+                <SortableHead sortKey="type" sort={sort} onToggle={toggle}>
+                  Type
+                </SortableHead>
+              )}
+              {cols.isVisible("opening") && (
+                <SortableHead sortKey="opening" sort={sort} onToggle={toggle} className="text-right">
+                  Opening
+                </SortableHead>
+              )}
+              {cols.isVisible("balance") && (
+                <SortableHead sortKey="balance" sort={sort} onToggle={toggle} className="text-right">
+                  Balance
+                </SortableHead>
+              )}
               <TableHead className="w-12" />
             </TableRow>
           </TableHeader>
@@ -143,23 +168,31 @@ export function Accounts() {
                   onClick={() => setViewing(a)}
                   className="cursor-pointer"
                 >
-                  <TableCell className="font-medium">{a.name}</TableCell>
-                  <TableCell>
-                    <Badge variant="secondary">{TYPE_LABELS[a.type]}</Badge>
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {formatMoney(a.openingBalance, currency)}
-                  </TableCell>
-                  <TableCell
-                    className={cn(
-                      "text-right tabular-nums font-medium",
-                      bal < 0 ? "text-destructive" : "",
-                    )}
-                  >
-                    {isCard && bal < 0
-                      ? `${formatMoney(-bal, currency)} owed`
-                      : formatMoney(bal, currency)}
-                  </TableCell>
+                  {cols.isVisible("name") && (
+                    <TableCell className="font-medium">{a.name}</TableCell>
+                  )}
+                  {cols.isVisible("type") && (
+                    <TableCell>
+                      <Badge variant="secondary">{TYPE_LABELS[a.type]}</Badge>
+                    </TableCell>
+                  )}
+                  {cols.isVisible("opening") && (
+                    <TableCell className="text-right tabular-nums">
+                      {formatMoney(a.openingBalance, currency)}
+                    </TableCell>
+                  )}
+                  {cols.isVisible("balance") && (
+                    <TableCell
+                      className={cn(
+                        "text-right tabular-nums font-medium",
+                        bal < 0 ? "text-destructive" : "",
+                      )}
+                    >
+                      {isCard && bal < 0
+                        ? `${formatMoney(-bal, currency)} owed`
+                        : formatMoney(bal, currency)}
+                    </TableCell>
+                  )}
                   <TableCell>
                     <RowActions actions={rowActions(a)} />
                   </TableCell>

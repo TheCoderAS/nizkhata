@@ -21,6 +21,8 @@ import { TransactionFormDialog } from "@/components/TransactionForm";
 import { RowActions, type RowAction } from "@/components/RowActions";
 import { SortableHead } from "@/components/SortableHead";
 import { DetailDialog, type DetailField } from "@/components/DetailDialog";
+import { ColumnsMenu } from "@/components/ColumnsMenu";
+import { useColumnPrefs, type ColumnDef } from "@/lib/useColumnPrefs";
 import { useSort, type SortAccessor } from "@/lib/useSort";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -62,6 +64,15 @@ const PURPOSE_LABELS: Record<DebtPurpose, string> = {
 };
 
 type SortKey = "label" | "contact" | "purpose" | "status" | "outstanding";
+type ColKey = "label" | "contact" | "purpose" | "status" | "outstanding";
+
+const COLUMNS: ColumnDef<ColKey>[] = [
+  { key: "label", label: "Label", defaultVisible: true, locked: true },
+  { key: "contact", label: "Contact", defaultVisible: true },
+  { key: "purpose", label: "Purpose", defaultVisible: false },
+  { key: "status", label: "Status", defaultVisible: true },
+  { key: "outstanding", label: "Outstanding", defaultVisible: true },
+];
 
 export function Debts() {
   const { firebaseUser } = useAuth();
@@ -76,6 +87,8 @@ export function Debts() {
   const [viewing, setViewing] = useState<Debt | null>(null);
   const [settling, setSettling] = useState<Debt | null>(null);
   const [toDelete, setToDelete] = useState<Debt | null>(null);
+
+  const cols = useColumnPrefs<ColKey>("debts", COLUMNS);
 
   if (loading) return <LoadingState />;
   if (error) return <ErrorState message={error} />;
@@ -127,6 +140,12 @@ export function Debts() {
         }}
       />
 
+      {debts.length > 0 && (
+        <div className="mb-4 flex justify-end">
+          <ColumnsMenu columns={cols.columns} isVisible={cols.isVisible} toggle={cols.toggle} reset={cols.reset} />
+        </div>
+      )}
+
       {debts.length === 0 ? (
         <EmptyState
           title="No debts yet"
@@ -143,6 +162,7 @@ export function Debts() {
             outstandingOf={outstandingOf}
             onRowClick={setViewing}
             rowActions={rowActions}
+            cols={cols}
           />
           <DebtGroup
             title="You owe"
@@ -152,6 +172,7 @@ export function Debts() {
             outstandingOf={outstandingOf}
             onRowClick={setViewing}
             rowActions={rowActions}
+            cols={cols}
           />
         </div>
       )}
@@ -226,6 +247,7 @@ function DebtGroup({
   outstandingOf,
   onRowClick,
   rowActions,
+  cols,
 }: {
   title: string;
   debts: Debt[];
@@ -234,6 +256,7 @@ function DebtGroup({
   outstandingOf: (id: string) => number;
   onRowClick: (d: Debt) => void;
   rowActions: (d: Debt) => RowAction[];
+  cols: ReturnType<typeof useColumnPrefs<ColKey>>;
 }) {
   const accessors: Record<SortKey, SortAccessor<Debt>> = {
     label: (d) => d.label ?? "",
@@ -256,21 +279,31 @@ function DebtGroup({
       <Table>
         <TableHeader>
           <TableRow>
-            <SortableHead sortKey="label" sort={sort} onToggle={toggle}>
-              Label
-            </SortableHead>
-            <SortableHead sortKey="contact" sort={sort} onToggle={toggle}>
-              Contact
-            </SortableHead>
-            <SortableHead sortKey="purpose" sort={sort} onToggle={toggle}>
-              Purpose
-            </SortableHead>
-            <SortableHead sortKey="status" sort={sort} onToggle={toggle}>
-              Status
-            </SortableHead>
-            <SortableHead sortKey="outstanding" sort={sort} onToggle={toggle} className="text-right">
-              Outstanding
-            </SortableHead>
+            {cols.isVisible("label") && (
+              <SortableHead sortKey="label" sort={sort} onToggle={toggle}>
+                Label
+              </SortableHead>
+            )}
+            {cols.isVisible("contact") && (
+              <SortableHead sortKey="contact" sort={sort} onToggle={toggle}>
+                Contact
+              </SortableHead>
+            )}
+            {cols.isVisible("purpose") && (
+              <SortableHead sortKey="purpose" sort={sort} onToggle={toggle}>
+                Purpose
+              </SortableHead>
+            )}
+            {cols.isVisible("status") && (
+              <SortableHead sortKey="status" sort={sort} onToggle={toggle}>
+                Status
+              </SortableHead>
+            )}
+            {cols.isVisible("outstanding") && (
+              <SortableHead sortKey="outstanding" sort={sort} onToggle={toggle} className="text-right">
+                Outstanding
+              </SortableHead>
+            )}
             <TableHead className="w-12" />
           </TableRow>
         </TableHeader>
@@ -281,19 +314,29 @@ function DebtGroup({
               onClick={() => onRowClick(d)}
               className="cursor-pointer"
             >
-              <TableCell className="font-medium">{d.label ?? "—"}</TableCell>
-              <TableCell>{contactName(d.contactId)}</TableCell>
-              <TableCell>
-                <Badge variant="secondary">{PURPOSE_LABELS[d.purpose]}</Badge>
-              </TableCell>
-              <TableCell>
-                <Badge variant={d.status === "open" ? "warning" : "success"}>
-                  {d.status}
-                </Badge>
-              </TableCell>
-              <TableCell className="text-right tabular-nums">
-                {formatMoney(outstandingOf(d.id), currency)}
-              </TableCell>
+              {cols.isVisible("label") && (
+                <TableCell className="font-medium">{d.label ?? "—"}</TableCell>
+              )}
+              {cols.isVisible("contact") && (
+                <TableCell>{contactName(d.contactId)}</TableCell>
+              )}
+              {cols.isVisible("purpose") && (
+                <TableCell>
+                  <Badge variant="secondary">{PURPOSE_LABELS[d.purpose]}</Badge>
+                </TableCell>
+              )}
+              {cols.isVisible("status") && (
+                <TableCell>
+                  <Badge variant={d.status === "open" ? "warning" : "success"}>
+                    {d.status}
+                  </Badge>
+                </TableCell>
+              )}
+              {cols.isVisible("outstanding") && (
+                <TableCell className="text-right tabular-nums">
+                  {formatMoney(outstandingOf(d.id), currency)}
+                </TableCell>
+              )}
               <TableCell>
                 <RowActions actions={rowActions(d)} />
               </TableCell>
