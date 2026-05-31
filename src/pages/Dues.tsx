@@ -4,7 +4,7 @@
 // Sortable headers, clickable rows -> detail modal, kebab row actions.
 
 import { useState } from "react";
-import { Plus, Receipt, Pencil, Trash2, Eye, Ban } from "lucide-react";
+import { Plus, Receipt, Pencil, Trash2, Ban } from "lucide-react";
 import { Timestamp } from "firebase/firestore";
 import { useAuth } from "@/auth/AuthProvider";
 import { useWorkspace } from "@/workspace/WorkspaceProvider";
@@ -124,7 +124,6 @@ export function Dues() {
     const status = dueStatusFromSettled(d, settledOf(d.id));
     const settleable = status !== "settled" && status !== "cancelled";
     return [
-      { label: "View details", icon: Eye, onSelect: () => setViewing(d) },
       {
         label: "Record payment",
         icon: Receipt,
@@ -318,7 +317,7 @@ export function Dues() {
           settled={settledOf(viewing.id)}
           contactName={viewing.contactId ? contactsById[viewing.contactId]?.name ?? "—" : "—"}
           accountName={viewing.accountId ? accountsById[viewing.accountId]?.name ?? "—" : "—"}
-          actions={rowActions(viewing).filter((a) => a.label !== "View details")}
+          actions={rowActions(viewing)}
           onClose={() => setViewing(null)}
         />
       )}

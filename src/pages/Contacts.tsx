@@ -3,7 +3,7 @@
 
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Pencil, Trash2, Eye } from "lucide-react";
+import { Plus, Pencil, Trash2 } from "lucide-react";
 import { useWorkspace } from "@/workspace/WorkspaceProvider";
 import { useData } from "@/data/WorkspaceDataProvider";
 import { createContact, deleteContact, updateContact } from "@/data/mutations";
@@ -89,7 +89,6 @@ export function Contacts() {
 
   function rowActions(c: Contact): RowAction[] {
     return [
-      { label: "View details", icon: Eye, onSelect: () => navigate(`/contacts/${c.id}`) },
       { label: "Edit", icon: Pencil, onSelect: () => setEditing(c), hidden: !manage },
       {
         label: "Delete",

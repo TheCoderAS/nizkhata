@@ -4,7 +4,7 @@
 // modal, kebab row actions.
 
 import { useState } from "react";
-import { Plus, HandCoins, Pencil, Trash2, Eye } from "lucide-react";
+import { Plus, HandCoins, Pencil, Trash2 } from "lucide-react";
 import { useAuth } from "@/auth/AuthProvider";
 import { useWorkspace } from "@/workspace/WorkspaceProvider";
 import { useData } from "@/data/WorkspaceDataProvider";
@@ -99,7 +99,6 @@ export function Debts() {
   function rowActions(d: Debt): RowAction[] {
     const outstanding = outstandingOf(d.id);
     return [
-      { label: "View details", icon: Eye, onSelect: () => setViewing(d) },
       {
         label: d.direction === "owed" ? "Record receipt" : "Record repayment",
         icon: HandCoins,
@@ -183,7 +182,7 @@ export function Debts() {
           currency={currency}
           outstanding={outstandingOf(viewing.id)}
           contactName={contactsById[viewing.contactId]?.name ?? "—"}
-          actions={rowActions(viewing).filter((a) => a.label !== "View details")}
+          actions={rowActions(viewing)}
           onClose={() => setViewing(null)}
         />
       )}

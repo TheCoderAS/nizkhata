@@ -3,7 +3,7 @@
 // modal; row actions live in a kebab menu (both on the row and in the modal).
 
 import { useMemo, useState } from "react";
-import { Plus, Pencil, Trash2, Eye } from "lucide-react";
+import { Plus, Pencil, Trash2 } from "lucide-react";
 import { useAuth } from "@/auth/AuthProvider";
 import { useWorkspace } from "@/workspace/WorkspaceProvider";
 import { useData } from "@/data/WorkspaceDataProvider";
@@ -149,7 +149,6 @@ export function Transactions() {
 
   function rowActions(t: Transaction): RowAction[] {
     return [
-      { label: "View details", icon: Eye, onSelect: () => setViewTxn(t) },
       { label: "Edit", icon: Pencil, onSelect: () => setEditTxn(t), hidden: !edit },
       {
         label: "Delete",
@@ -369,7 +368,7 @@ export function Transactions() {
           currency={currency}
           accountName={(id) => accountsById[id]?.name ?? "—"}
           contactName={(id) => contactsById[id]?.name ?? "—"}
-          actions={rowActions(viewTxn).filter((a) => a.label !== "View details")}
+          actions={rowActions(viewTxn)}
           onClose={() => setViewTxn(null)}
         />
       )}

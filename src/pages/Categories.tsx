@@ -2,7 +2,7 @@
 // Sortable headers; rows open a detail modal; actions in a kebab menu.
 
 import { useState } from "react";
-import { Plus, Pencil, Trash2, Lock, Eye } from "lucide-react";
+import { Plus, Pencil, Trash2, Lock } from "lucide-react";
 import { useWorkspace } from "@/workspace/WorkspaceProvider";
 import { useData } from "@/data/WorkspaceDataProvider";
 import { createCategory, deleteCategory, updateCategory } from "@/data/mutations";
@@ -71,7 +71,6 @@ export function Categories() {
 
   function rowActions(c: Category): RowAction[] {
     return [
-      { label: "View details", icon: Eye, onSelect: () => setViewing(c) },
       {
         label: "Edit",
         icon: Pencil,
@@ -161,7 +160,7 @@ export function Categories() {
             { label: "Kind", value: viewing.kind === "income" ? "Income" : "Expense" },
             { label: "Source", value: viewing.isSystem ? "System (read-only)" : "Custom" },
           ]}
-          actions={rowActions(viewing).filter((a) => a.label !== "View details")}
+          actions={rowActions(viewing)}
           entityId={viewing.id}
           audit={{
             createdBy: viewing.createdBy,

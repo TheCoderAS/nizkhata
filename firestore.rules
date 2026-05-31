@@ -133,8 +133,13 @@ service cloud.firestore {
         && wsImmutable()
         && resource.data.uid != workspaceDoc(exWs()).data.ownerId;
 
-      allow delete: if can(exWs(), 'members.remove')
-        && resource.data.uid != workspaceDoc(exWs()).data.ownerId;
+      // A member can leave on their own; an admin can remove others. The owner
+      // can neither be removed nor leave (ownership must transfer/delete first).
+      allow delete: if resource.data.uid != workspaceDoc(exWs()).data.ownerId
+        && (
+          resource.data.uid == request.auth.uid ||
+          can(exWs(), 'members.remove')
+        );
     }
 
     // ---- roles -------------------------------------------------------------
