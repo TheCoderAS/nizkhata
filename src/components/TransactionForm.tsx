@@ -407,6 +407,16 @@ export function TransactionFormDialog({
               </div>
             );
           })}
+
+          {/* Add-line button at the end so it's reachable without scrolling up */}
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full border-dashed"
+            onClick={addLine}
+          >
+            <Plus className="h-4 w-4" /> Add line
+          </Button>
         </div>
 
         {/* footer: total + header issues */}

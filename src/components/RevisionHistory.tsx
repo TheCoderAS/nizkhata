@@ -78,8 +78,8 @@ export function AuditFooter({
   const edited =
     updatedBy && updatedAt && createdAt && toDate(updatedAt) > toDate(createdAt);
   return (
-    <p className="flex items-center gap-1.5 pt-1 text-xs text-muted-foreground">
-      <History className="h-3 w-3" />
+    <p className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 pt-1 text-xs text-muted-foreground">
+      <History className="h-3 w-3 shrink-0" />
       {createdBy && (
         <span>
           Added by {createdBy.name}
@@ -88,7 +88,7 @@ export function AuditFooter({
       )}
       {edited && (
         <span>
-          · edited by {updatedBy!.name} · {formatRelative(toDate(updatedAt!))}
+          {createdBy ? "· " : ""}Edited by {updatedBy!.name} · {formatRelative(toDate(updatedAt!))}
         </span>
       )}
     </p>
