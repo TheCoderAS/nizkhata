@@ -178,7 +178,7 @@ export async function createDebt(
 }
 export async function updateDebt(
   id: string,
-  data: Partial<Pick<Debt, "label" | "principal" | "status">>,
+  data: Partial<Pick<Debt, "label" | "note" | "principal" | "status">>,
 ) {
   await auditedUpdate("debts", id, data);
 }
@@ -202,8 +202,8 @@ export async function createDebtWithOpening(
   _createdByUid: string, // retained for call-site compat; actor comes from holder
   fyStartMonth: number,
   debtData: Pick<Debt, "contactId" | "direction" | "purpose" | "principal"> &
-    Partial<Pick<Debt, "label">>,
-  opening: { amount: number; accountId?: string },
+    Partial<Pick<Debt, "label" | "note">>,
+  opening: { amount: number; accountId?: string; date?: Date },
 ): Promise<string> {
   const by = getCurrentActor();
   const debtId = newId("debts");
@@ -240,11 +240,11 @@ export async function createDebtWithOpening(
       note: "Opening balance",
       ...(external ? { external: true } : {}),
     };
-    const now = new Date();
+    const when = opening.date ?? new Date();
     batch.set(doc(db, "transactions", txnId), {
       id: txnId,
       workspaceId,
-      date: Timestamp.fromDate(now),
+      date: Timestamp.fromDate(when),
       accountId: opening.accountId ?? EXTERNAL_ACCOUNT,
       contactId: debtData.contactId,
       // external line contributes 0; a real account records the signed movement
@@ -252,7 +252,7 @@ export async function createDebtWithOpening(
         ? 0
         : (debtData.direction === "owe" ? 1 : -1) * opening.amount,
       hasSplit: false,
-      financialYear: financialYearOf(now, fyStartMonth),
+      financialYear: financialYearOf(when, fyStartMonth),
       note: "Opening balance",
       createdBy: by,
       createdAt: serverTimestamp(),

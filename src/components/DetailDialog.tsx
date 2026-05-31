@@ -10,7 +10,6 @@ import { useEffect, useState, type ReactNode } from "react";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -31,7 +30,6 @@ export function DetailDialog({
   open,
   onClose,
   title,
-  subtitle,
   fields,
   actions = [],
   children,
@@ -41,7 +39,6 @@ export function DetailDialog({
   open: boolean;
   onClose: () => void;
   title: ReactNode;
-  subtitle?: ReactNode;
   fields: DetailField[];
   actions?: RowAction[];
   children?: ReactNode;
@@ -78,7 +75,6 @@ export function DetailDialog({
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0 space-y-1">
               <DialogTitle className="truncate text-lg">{title}</DialogTitle>
-              {subtitle && <DialogDescription>{subtitle}</DialogDescription>}
             </div>
             <div className="flex shrink-0 items-center gap-1">
               {actions.length > 0 && <RowActions actions={actions} />}

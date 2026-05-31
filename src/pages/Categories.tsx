@@ -155,7 +155,6 @@ export function Categories() {
           open
           onClose={() => setViewing(null)}
           title={viewing.name}
-          subtitle={viewing.kind === "income" ? "Income category" : "Expense category"}
           fields={[
             { label: "Kind", value: viewing.kind === "income" ? "Income" : "Expense" },
             { label: "Source", value: viewing.isSystem ? "System (read-only)" : "Custom" },

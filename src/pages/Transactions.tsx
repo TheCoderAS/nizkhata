@@ -22,10 +22,10 @@ import { SortableHead } from "@/components/SortableHead";
 import { DetailDialog, type DetailField } from "@/components/DetailDialog";
 import { FilterModal, FilterRow } from "@/components/FilterModal";
 import { ColumnsMenu } from "@/components/ColumnsMenu";
+import { Toolbar } from "@/components/Toolbar";
 import { useColumnPrefs, type ColumnDef } from "@/lib/useColumnPrefs";
 import { useSort, type SortAccessor } from "@/lib/useSort";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -66,8 +66,16 @@ const COLUMNS: ColumnDef<ColKey>[] = [
 export function Transactions() {
   const { firebaseUser } = useAuth();
   const { activeWorkspaceId, activeWorkspace, can } = useWorkspace();
-  const { transactions, accounts, contacts, accountsById, contactsById, loading, error } =
-    useData();
+  const {
+    transactions,
+    accounts,
+    contacts,
+    accountsById,
+    contactsById,
+    categoriesById,
+    loading,
+    error,
+  } = useData();
   const { toast } = useToast();
   const currency = activeWorkspace?.baseCurrency ?? "INR";
 
@@ -173,17 +181,15 @@ export function Transactions() {
         }}
       />
 
-      {/* toolbar: search + filters modal + column chooser */}
-      <div className="mb-4 flex flex-wrap items-center gap-2">
-        <Input
-          placeholder="Search note / contact…"
-          value={search}
-          onChange={(e) => {
-            setSearch(e.target.value);
-            setPage(0);
-          }}
-          className="max-w-xs"
-        />
+      {/* toolbar: search (grows) + filters modal + column chooser */}
+      <Toolbar
+        search={search}
+        onSearch={(v) => {
+          setSearch(v);
+          setPage(0);
+        }}
+        placeholder="Search note / contact…"
+      >
         <FilterModal activeCount={activeFilterCount} onClear={clearFilters}>
           <FilterRow label="Account">
             <FilterSelect
@@ -232,10 +238,8 @@ export function Transactions() {
             Split transactions only
           </label>
         </FilterModal>
-        <div className="ml-auto">
-          <ColumnsMenu columns={cols.columns} isVisible={cols.isVisible} toggle={cols.toggle} reset={cols.reset} />
-        </div>
-      </div>
+        <ColumnsMenu columns={cols.columns} isVisible={cols.isVisible} toggle={cols.toggle} reset={cols.reset} />
+      </Toolbar>
 
       {sorted.length === 0 ? (
         <EmptyState
@@ -368,6 +372,7 @@ export function Transactions() {
           currency={currency}
           accountName={(id) => accountsById[id]?.name ?? "—"}
           contactName={(id) => contactsById[id]?.name ?? "—"}
+          categoryName={(id) => categoriesById[id]?.name ?? "—"}
           actions={rowActions(viewTxn)}
           onClose={() => setViewTxn(null)}
         />
@@ -415,6 +420,7 @@ function TransactionDetail({
   currency,
   accountName,
   contactName,
+  categoryName,
   actions,
   onClose,
 }: {
@@ -422,6 +428,7 @@ function TransactionDetail({
   currency: string;
   accountName: (id: string) => string;
   contactName: (id: string) => string;
+  categoryName: (id: string) => string;
   actions: RowAction[];
   onClose: () => void;
 }) {
@@ -455,7 +462,6 @@ function TransactionDetail({
       open
       onClose={onClose}
       title="Transaction"
-      subtitle={`${txn.lines.length} line${txn.lines.length > 1 ? "s" : ""}`}
       fields={fields}
       actions={actions}
       entityId={txn.id}
@@ -468,26 +474,51 @@ function TransactionDetail({
     >
       <div className="mt-2">
         <p className="mb-2 text-sm font-medium">Lines</p>
-        <div className="space-y-2">
-          {txn.lines.map((l) => (
-            <div
-              key={l.lineId}
-              className="flex items-center justify-between rounded-md border p-2 text-sm"
-            >
-              <div className="flex items-center gap-2">
-                <Badge variant="secondary" className="text-[10px]">
-                  {l.type}
-                </Badge>
-                {l.tax?.taxable && (
-                  <Badge variant="outline" className="text-[10px]">
-                    tax: {l.tax.head}
-                  </Badge>
-                )}
-                {l.note && <span className="text-muted-foreground">{l.note}</span>}
-              </div>
-              <span className="tabular-nums">{formatMoney(l.amount, currency)}</span>
-            </div>
-          ))}
+        <div className="overflow-hidden rounded-md border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Type</TableHead>
+                <TableHead>Category / Detail</TableHead>
+                <TableHead className="text-right">Amount</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {txn.lines.map((l) => {
+                const detail =
+                  l.categoryId
+                    ? categoryName(l.categoryId)
+                    : l.toAccountId
+                      ? `→ ${accountName(l.toAccountId)}`
+                      : l.note ?? "—";
+                return (
+                  <TableRow key={l.lineId}>
+                    <TableCell>
+                      <div className="flex flex-wrap items-center gap-1">
+                        <Badge variant="secondary" className="text-[10px]">
+                          {l.type}
+                        </Badge>
+                        {l.external && (
+                          <Badge variant="outline" className="text-[10px]">
+                            external
+                          </Badge>
+                        )}
+                        {l.tax?.taxable && (
+                          <Badge variant="outline" className="text-[10px]">
+                            tax: {l.tax.head}
+                          </Badge>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">{detail}</TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {formatMoney(l.amount, currency)}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
         </div>
       </div>
     </DetailDialog>

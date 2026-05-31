@@ -129,6 +129,7 @@ export interface Debt {
   direction: DebtDirection;
   purpose: DebtPurpose;
   label?: string;
+  note?: string;
   principal: number;
   status: DebtStatus;
   createdAt: Ts;

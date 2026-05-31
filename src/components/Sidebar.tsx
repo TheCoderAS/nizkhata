@@ -51,7 +51,7 @@ const SETTINGS_NAV: NavItem[] = [
   { to: "/settings/members", label: "Members", icon: UserCog, perm: "members.view" },
   { to: "/settings/roles", label: "Roles", icon: ShieldCheck, perm: "roles.view" },
   { to: "/settings/workspace", label: "Workspace", icon: Building2, perm: "workspace.edit" },
-  { to: "/settings/account", label: "Account", icon: CircleUser },
+  { to: "/settings/account", label: "Profile", icon: CircleUser },
 ];
 
 function itemClass(isActive: boolean) {

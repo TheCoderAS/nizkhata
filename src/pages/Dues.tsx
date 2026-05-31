@@ -25,6 +25,7 @@ import { SortableHead } from "@/components/SortableHead";
 import { DetailDialog, type DetailField } from "@/components/DetailDialog";
 import { FilterModal, FilterRow } from "@/components/FilterModal";
 import { ColumnsMenu } from "@/components/ColumnsMenu";
+import { Toolbar } from "@/components/Toolbar";
 import { useColumnPrefs, type ColumnDef } from "@/lib/useColumnPrefs";
 import { useSort, type SortAccessor } from "@/lib/useSort";
 import { Button } from "@/components/ui/button";
@@ -85,6 +86,7 @@ export function Dues() {
   const [paying, setPaying] = useState<Due | null>(null);
   const [toDelete, setToDelete] = useState<Due | null>(null);
 
+  const [search, setSearch] = useState("");
   const [directionFilter, setDirectionFilter] = useState("__all");
   const [statusFilter, setStatusFilter] = useState("__all");
 
@@ -94,6 +96,12 @@ export function Dues() {
     if (directionFilter !== "__all" && d.direction !== directionFilter) return false;
     if (statusFilter !== "__all" && dueStatusFromSettled(d, settledOf(d.id)) !== statusFilter)
       return false;
+    if (search) {
+      const hay = `${d.title} ${
+        d.contactId ? contactsById[d.contactId]?.name ?? "" : ""
+      }`.toLowerCase();
+      if (!hay.includes(search.toLowerCase())) return false;
+    }
     return true;
   });
   const activeFilterCount =
@@ -178,7 +186,7 @@ export function Dues() {
       />
 
       {dues.length > 0 && (
-        <div className="mb-4 flex items-center gap-2">
+        <Toolbar search={search} onSearch={setSearch} placeholder="Search dues…">
           <FilterModal activeCount={activeFilterCount} onClear={clearFilters}>
             <FilterRow label="Direction">
               <DueFilterSelect
@@ -205,10 +213,8 @@ export function Dues() {
               />
             </FilterRow>
           </FilterModal>
-          <div className="ml-auto">
-            <ColumnsMenu columns={cols.columns} isVisible={cols.isVisible} toggle={cols.toggle} reset={cols.reset} />
-          </div>
-        </div>
+          <ColumnsMenu columns={cols.columns} isVisible={cols.isVisible} toggle={cols.toggle} reset={cols.reset} />
+        </Toolbar>
       )}
 
       {dues.length === 0 ? (
@@ -443,7 +449,6 @@ function DueDetail({
       open
       onClose={onClose}
       title={due.title}
-      subtitle={due.direction === "payable" ? "Payable" : "Receivable"}
       fields={fields}
       actions={actions}
       entityId={due.id}
