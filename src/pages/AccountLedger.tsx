@@ -128,24 +128,29 @@ export function AccountLedger() {
       <BackLink />
 
       {/* Header */}
-      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl font-semibold tracking-tight">{account.name}</h1>
-            <Badge variant="secondary">{TYPE_LABELS[account.type]}</Badge>
-            {maskedId(account) && (
-              <span className="text-sm tabular-nums text-muted-foreground">{maskedId(account)}</span>
-            )}
-          </div>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Opening {formatMoney(account.openingBalance, currency)}
+      <div className="mb-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <h1 className="text-2xl font-semibold tracking-tight">{account.name}</h1>
+          <Badge variant="secondary">{TYPE_LABELS[account.type]}</Badge>
+          {maskedId(account) && (
+            <span className="text-sm tabular-nums text-muted-foreground">{maskedId(account)}</span>
+          )}
+        </div>
+      </div>
+
+      {/* Balance summary */}
+      <div className="mb-4 grid grid-cols-2 gap-3 sm:max-w-md">
+        <div className="rounded-xl border bg-card p-3">
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">Opening balance</p>
+          <p className="mt-1 truncate font-strong text-lg tabular-nums sm:text-xl">
+            {formatMoney(account.openingBalance, currency)}
           </p>
         </div>
-        <div className="text-right">
-          <p className="text-xs text-muted-foreground">Current balance</p>
+        <div className="rounded-xl border bg-card p-3">
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">Current balance</p>
           <p
             className={cn(
-              "font-strong text-xl tabular-nums sm:text-2xl",
+              "mt-1 truncate font-strong text-lg tabular-nums sm:text-xl",
               balance < 0 && "text-destructive",
             )}
           >
@@ -159,12 +164,26 @@ export function AccountLedger() {
       {/* Filters + export */}
       <div className="mb-4 flex flex-wrap items-end gap-3">
         <div className="space-y-1">
-          <Label className="text-xs">From</Label>
-          <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="h-9 w-40" />
+          <Label htmlFor="led-from" className="text-xs text-muted-foreground">From</Label>
+          <Input
+            id="led-from"
+            type="date"
+            value={from}
+            max={to || undefined}
+            onChange={(e) => setFrom(e.target.value)}
+            className="h-9 w-40"
+          />
         </div>
         <div className="space-y-1">
-          <Label className="text-xs">To</Label>
-          <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="h-9 w-40" />
+          <Label htmlFor="led-to" className="text-xs text-muted-foreground">To</Label>
+          <Input
+            id="led-to"
+            type="date"
+            value={to}
+            min={from || undefined}
+            onChange={(e) => setTo(e.target.value)}
+            className="h-9 w-40"
+          />
         </div>
         {(from || to) && (
           <Button variant="ghost" size="sm" onClick={() => { setFrom(""); setTo(""); }}>
@@ -215,7 +234,6 @@ export function AccountLedger() {
                     r.delta < 0 ? "text-destructive" : "text-emerald-600 dark:text-emerald-400",
                   )}
                 >
-                  {r.delta > 0 ? "+" : ""}
                   {formatMoney(r.delta, currency)}
                 </TableCell>
                 <TableCell className="text-right font-strong tabular-nums">

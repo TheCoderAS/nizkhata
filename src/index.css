@@ -124,6 +124,19 @@ input[type="date"]::-webkit-datetime-edit {
   padding: 0;
   line-height: 1.25rem;
 }
+/* Make the empty "dd/mm/yyyy" placeholder fields legible (esp. in dark mode,
+   where the browser default is nearly invisible). */
+input[type="date"]::-webkit-datetime-edit-year-field,
+input[type="date"]::-webkit-datetime-edit-month-field,
+input[type="date"]::-webkit-datetime-edit-day-field,
+input[type="date"]::-webkit-datetime-edit-text {
+  color: hsl(var(--muted-foreground));
+}
+input[type="date"]:not([value=""])::-webkit-datetime-edit-year-field,
+input[type="date"]:not([value=""])::-webkit-datetime-edit-month-field,
+input[type="date"]:not([value=""])::-webkit-datetime-edit-day-field {
+  color: hsl(var(--foreground));
+}
 input[type="date"]::-webkit-calendar-picker-indicator {
   cursor: pointer;
   opacity: 0.6;
