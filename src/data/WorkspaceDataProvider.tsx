@@ -11,14 +11,9 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import {
-  collection,
-  onSnapshot,
-  orderBy,
-  query,
-  where,
-} from "firebase/firestore";
+import { collection, orderBy, query, where } from "firebase/firestore";
 import { db } from "@/firebase/config";
+import { subscribeWithRetry } from "@/lib/firestoreRetry";
 import { useWorkspace } from "@/workspace/WorkspaceProvider";
 import type {
   Account,
@@ -80,10 +75,11 @@ function useLiveCollection<T>(
       constraints.push(orderBy(opts.orderByField, opts.desc ? "desc" : "asc") as never);
     }
     const q = query(collection(db, name), ...constraints);
-    const unsub = onSnapshot(
+    const unsub = subscribeWithRetry(
       q,
       (snap) => {
         setData(snap.docs.map((d) => d.data() as T));
+        setError(null);
         setLoading(false);
       },
       (e) => {
