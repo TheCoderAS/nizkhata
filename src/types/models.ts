@@ -96,6 +96,21 @@ export interface Category {
   updatedAt?: Ts;
 }
 
+// ---- budgets ---------------------------------------------------------------
+// A monthly spending limit for an expense category. Actual spend is DERIVED
+// from transaction lines; only the limit is stored.
+export interface Budget {
+  id: Id;
+  workspaceId: Id;
+  categoryId: Id;
+  amount: number; // limit per period
+  period: "monthly";
+  createdAt: Ts;
+  createdBy?: Actor;
+  updatedBy?: Actor;
+  updatedAt?: Ts;
+}
+
 // ---- contacts --------------------------------------------------------------
 export type ContactType = "person" | "business";
 export interface Contact {

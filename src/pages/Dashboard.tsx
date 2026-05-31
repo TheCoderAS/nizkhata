@@ -9,6 +9,7 @@ import { ArrowDownRight, ArrowUpRight, Wallet, Users } from "lucide-react";
 import { useWorkspace } from "@/workspace/WorkspaceProvider";
 import { useData } from "@/data/WorkspaceDataProvider";
 import {
+  budgetProgress,
   custodialHeld,
   dueStatusFromSettled,
   spendByCategory,
@@ -41,8 +42,19 @@ import { cn, formatDate, formatMoney } from "@/lib/utils";
 
 export function Dashboard() {
   const { activeWorkspace } = useWorkspace();
-  const { accounts, transactions, dues, debts, categories, balanceOf, settledOf, loading, error } =
-    useData();
+  const {
+    accounts,
+    transactions,
+    dues,
+    debts,
+    categories,
+    budgets,
+    categoriesById,
+    balanceOf,
+    settledOf,
+    loading,
+    error,
+  } = useData();
   const currency = activeWorkspace?.baseCurrency ?? "INR";
   const fyStartMonth = activeWorkspace?.fyStartMonth ?? 4;
   const now = new Date();
@@ -77,6 +89,11 @@ export function Dashboard() {
   const topSpend = useMemo(
     () => spendByCategory(transactions, categories, fy, fyStartMonth).slice(0, 6),
     [transactions, categories, fy, fyStartMonth],
+  );
+
+  const budgetRows = useMemo(
+    () => budgetProgress(budgets, transactions, categoriesById).slice(0, 4),
+    [budgets, transactions, categoriesById],
   );
 
   const upcoming = useMemo(
@@ -241,6 +258,45 @@ export function Dashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {budgetRows.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Budgets · this month</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {budgetRows.map((p) => {
+                const pct = Math.min(100, Math.round(p.ratio * 100));
+                return (
+                  <div key={p.budgetId}>
+                    <div className="flex justify-between text-sm">
+                      <span className="truncate pr-2">{p.categoryName}</span>
+                      <span
+                        className={cn(
+                          "tabular-nums",
+                          p.over ? "text-destructive" : "text-muted-foreground",
+                        )}
+                      >
+                        {formatMoney(p.spent, currency)} / {formatMoney(p.limit, currency)}
+                      </span>
+                    </div>
+                    <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-muted">
+                      <div
+                        className={cn(
+                          "h-2 rounded-full transition-all",
+                          p.over ? "bg-destructive" : p.ratio > 0.8 ? "bg-warning" : "bg-primary",
+                        )}
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* recent */}
       <Card>
