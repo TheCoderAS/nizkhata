@@ -11,7 +11,9 @@ import { ToastProvider } from "@/components/ui/toast";
 import { PWAPrompt } from "@/components/PWAPrompt";
 import { RequireAuth, RequirePermission } from "@/components/ProtectedRoute";
 import { AppShell } from "@/components/AppShell";
+import { useAuth } from "@/auth/AuthProvider";
 import { Login } from "@/pages/Login";
+import { Landing } from "@/pages/Landing";
 import { Dashboard } from "@/pages/Dashboard";
 import type { Permission } from "@/types/permissions";
 
@@ -43,6 +45,14 @@ function Gated({ perm, children }: { perm: Permission; children: ReactNode }) {
   return <RequirePermission perm={perm}>{children}</RequirePermission>;
 }
 
+// Public home: the marketing landing for logged-out visitors; signed-in users
+// are sent straight to the app dashboard.
+function PublicHome() {
+  const { firebaseUser, loading } = useAuth();
+  if (loading) return null;
+  return firebaseUser ? <Navigate to="/dashboard" replace /> : <Landing />;
+}
+
 export default function App() {
   return (
     <AuthProvider>
@@ -50,6 +60,7 @@ export default function App() {
         <PWAPrompt />
         <BrowserRouter>
           <Routes>
+            <Route path="/" element={<PublicHome />} />
             <Route path="/login" element={<Login />} />
             <Route
               element={
@@ -64,7 +75,7 @@ export default function App() {
                 </RequireAuth>
               }
             >
-              <Route index element={<Dashboard />} />
+              <Route path="dashboard" element={<Dashboard />} />
               <Route
                 path="transactions"
                 element={

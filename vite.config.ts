@@ -9,13 +9,13 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: "autoUpdate",
-      includeAssets: ["favicon.svg", "apple-touch-icon.png"],
+      includeAssets: ["favicon-32.png", "favicon-48.png", "apple-touch-icon.png"],
       manifest: {
         name: "NizKhata — Every rupee, accounted for.",
         short_name: "NizKhata",
         description:
           "Shared, multi-workspace accounting: multi-line transactions, accounts, contacts, debts, dues and financial-year tax summaries with role-based access.",
-        theme_color: "#7c3aed",
+        theme_color: "#0b1120",
         background_color: "#0b1120",
         display: "standalone",
         orientation: "portrait",
