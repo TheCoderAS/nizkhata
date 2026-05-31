@@ -39,7 +39,9 @@ interface NavItem {
   perm?: Permission; // undefined = always visible
 }
 
-const MAIN_NAV: NavItem[] = [
+export type { NavItem };
+
+export const MAIN_NAV: NavItem[] = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
   { to: "/transactions", label: "Transactions", icon: ArrowLeftRight, perm: "transactions.view" },
   { to: "/dues", label: "Dues", icon: CalendarClock, perm: "dues.view" },

@@ -3,10 +3,11 @@
 
 import { useState } from "react";
 import { Outlet, useLocation } from "react-router-dom";
-import { Menu, LogOut, ArrowLeftRight } from "lucide-react";
+import { LogOut, ArrowLeftRight } from "lucide-react";
 import { useAuth } from "@/auth/AuthProvider";
 import { useWorkspace } from "@/workspace/WorkspaceProvider";
 import { Sidebar, SidebarContent } from "./Sidebar";
+import { BottomNav } from "./BottomNav";
 import { WorkspaceSwitcherDialog } from "./WorkspaceSwitcherDialog";
 import { ErrorState, LoadingState } from "./states";
 import { Button } from "@/components/ui/button";
@@ -47,17 +48,6 @@ export function AppShell() {
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex h-14 shrink-0 items-center justify-between gap-2 border-b bg-card/80 px-3 backdrop-blur supports-[backdrop-filter]:bg-card/60 sm:px-4">
           <div className="flex items-center gap-2">
-            {hasNav && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="md:hidden"
-                aria-label="Open menu"
-                onClick={() => setDrawerOpen(true)}
-              >
-                <Menu className="h-5 w-5" />
-              </Button>
-            )}
             <span className="font-semibold tracking-tight md:hidden">NizKhata</span>
           </div>
 
@@ -100,12 +90,14 @@ export function AppShell() {
           {/* key on pathname so each route fades in on navigation */}
           <div
             key={location.pathname}
-            className="mx-auto max-w-6xl animate-fade-in-up p-4 sm:p-6"
+            className="mx-auto max-w-6xl animate-fade-in-up p-4 pb-20 sm:p-6 md:pb-6"
           >
             <Outlet />
           </div>
         </main>
       </div>
+
+      {hasNav && <BottomNav onMore={() => setDrawerOpen(true)} />}
 
       {/* Mobile drawer */}
       <Dialog open={drawerOpen} onOpenChange={setDrawerOpen}>
