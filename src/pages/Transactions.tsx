@@ -46,7 +46,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
-import { EmptyState, ErrorState, LoadingState } from "@/components/states";
+import { EmptyState, ErrorState, PageSkeleton } from "@/components/states";
 import { useToast } from "@/components/ui/toast";
 import { toDate } from "@/lib/derive";
 import { lineTypeLabel } from "@/lib/lineTypes";
@@ -173,7 +173,7 @@ export function Transactions() {
   const pagination = usePagination(sorted, PAGE_SIZE);
   const { pageItems } = pagination;
 
-  if (loading) return <LoadingState />;
+  if (loading) return <PageSkeleton />;
   if (error) return <ErrorState message={error} />;
 
   async function handleCreate(input: TransactionInput) {

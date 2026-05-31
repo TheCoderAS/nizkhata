@@ -14,6 +14,7 @@ import { AppShell } from "@/components/AppShell";
 import { useAuth } from "@/auth/AuthProvider";
 import { Login } from "@/pages/Login";
 import { Landing } from "@/pages/Landing";
+import { FullScreenLoader } from "@/components/states";
 import { Dashboard } from "@/pages/Dashboard";
 import type { Permission } from "@/types/permissions";
 
@@ -49,7 +50,7 @@ function Gated({ perm, children }: { perm: Permission; children: ReactNode }) {
 // are sent straight to the app dashboard.
 function PublicHome() {
   const { firebaseUser, loading } = useAuth();
-  if (loading) return null;
+  if (loading) return <FullScreenLoader />;
   return firebaseUser ? <Navigate to="/dashboard" replace /> : <Landing />;
 }
 

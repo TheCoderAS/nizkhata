@@ -37,7 +37,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ErrorState, LoadingState } from "@/components/states";
+import { ErrorState, PageSkeleton } from "@/components/states";
 import { cn, formatDate, formatMoney } from "@/lib/utils";
 
 export function Dashboard() {
@@ -116,7 +116,7 @@ export function Dashboard() {
     [transactions],
   );
 
-  if (loading) return <LoadingState />;
+  if (loading) return <PageSkeleton />;
   if (error) return <ErrorState message={error} />;
 
   return (

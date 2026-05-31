@@ -3,7 +3,7 @@
 
 import { Navigate } from "react-router-dom";
 import { useAuth } from "@/auth/AuthProvider";
-import { ErrorState, LoadingState } from "@/components/states";
+import { ErrorState, FullScreenLoader } from "@/components/states";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { LogoMark } from "@/components/Logo";
@@ -34,7 +34,7 @@ function GoogleIcon() {
 export function Login() {
   const { firebaseUser, loading, error, signIn } = useAuth();
 
-  if (loading) return <LoadingState label="Loading…" />;
+  if (loading) return <FullScreenLoader />;
   if (firebaseUser) return <Navigate to="/dashboard" replace />;
 
   return (

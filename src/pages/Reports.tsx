@@ -33,7 +33,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { EmptyState, ErrorState, LoadingState } from "@/components/states";
+import { EmptyState, ErrorState, PageSkeleton } from "@/components/states";
 import { formatMoney } from "@/lib/utils";
 
 export function Reports() {
@@ -79,7 +79,7 @@ export function Reports() {
     [transactions, fy, fyStartMonth],
   );
 
-  if (loading) return <LoadingState />;
+  if (loading) return <PageSkeleton />;
   if (error) return <ErrorState message={error} />;
 
   return (

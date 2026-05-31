@@ -30,7 +30,7 @@ import {
 } from "@/components/ui/select";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { RowActions } from "@/components/RowActions";
-import { EmptyState, ErrorState, LoadingState } from "@/components/states";
+import { EmptyState, ErrorState, PageSkeleton } from "@/components/states";
 import { useToast } from "@/components/ui/toast";
 import { cn, formatMoney } from "@/lib/utils";
 
@@ -70,7 +70,7 @@ export function Budgets() {
       .filter((g) => g.rows.length > 0);
   }, [progress]);
 
-  if (loading) return <LoadingState />;
+  if (loading) return <PageSkeleton />;
   if (error) return <ErrorState message={error} />;
 
   return (

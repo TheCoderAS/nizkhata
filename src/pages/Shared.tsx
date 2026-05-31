@@ -67,7 +67,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { EmptyState, ErrorState, LoadingState } from "@/components/states";
+import { EmptyState, ErrorState, PageSkeleton } from "@/components/states";
 import { useToast } from "@/components/ui/toast";
 import type { SharedEntry, Account } from "@/types/models";
 
@@ -124,7 +124,7 @@ export function Shared() {
   const partnerName = (uid: string) =>
     uid === myUid ? "You" : (partners.find((p) => p.uid === uid)?.name ?? "Partner");
 
-  if (wsLoading || sharedLoading) return <LoadingState />;
+  if (wsLoading || sharedLoading) return <PageSkeleton />;
   if (error) return <ErrorState message={error} />;
 
   const pendingInvites = sentInvites.filter((i) => i.status === "pending");

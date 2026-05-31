@@ -19,7 +19,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { EmptyState, ErrorState, LoadingState } from "@/components/states";
+import { EmptyState, ErrorState, PageSkeleton } from "@/components/states";
 import { cn, formatMoney } from "@/lib/utils";
 
 const PURPOSE_LABELS: Record<DebtPurpose, string> = {
@@ -44,7 +44,7 @@ export function ContactDetail() {
     [contactId, positionOf],
   );
 
-  if (loading) return <LoadingState />;
+  if (loading) return <PageSkeleton />;
   if (error) return <ErrorState message={error} />;
   if (!contact || !position)
     return <EmptyState title="Contact not found" />;

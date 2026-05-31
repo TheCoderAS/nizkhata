@@ -50,7 +50,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
-import { EmptyState, ErrorState, LoadingState } from "@/components/states";
+import { EmptyState, ErrorState, PageSkeleton } from "@/components/states";
 import { useToast } from "@/components/ui/toast";
 import { cn, formatMoney } from "@/lib/utils";
 
@@ -105,7 +105,7 @@ export function Contacts() {
   const pagination = usePagination(sorted);
   const { pageItems } = pagination;
 
-  if (loading) return <LoadingState />;
+  if (loading) return <PageSkeleton />;
   if (error) return <ErrorState message={error} />;
 
   function rowActions(c: Contact): RowAction[] {
