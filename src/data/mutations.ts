@@ -18,6 +18,7 @@ import { appendRevision } from "./revisions";
 import type {
   Account,
   Actor,
+  Budget,
   Category,
   Contact,
   Debt,
@@ -166,6 +167,23 @@ export async function updateContact(
 }
 export async function deleteContact(id: string) {
   await auditedDelete("contacts", id);
+}
+
+// ---- budgets ---------------------------------------------------------------
+export async function createBudget(
+  workspaceId: string,
+  data: Pick<Budget, "categoryId" | "amount">,
+): Promise<string> {
+  return auditedCreate("budgets", workspaceId, { ...data, period: "monthly" });
+}
+export async function updateBudget(
+  id: string,
+  data: Partial<Pick<Budget, "amount" | "categoryId">>,
+) {
+  await auditedUpdate("budgets", id, data);
+}
+export async function deleteBudget(id: string) {
+  await auditedDelete("budgets", id);
 }
 
 // ---- debts -----------------------------------------------------------------

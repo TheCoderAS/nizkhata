@@ -17,6 +17,7 @@ import { subscribeWithRetry } from "@/lib/firestoreRetry";
 import { useWorkspace } from "@/workspace/WorkspaceProvider";
 import type {
   Account,
+  Budget,
   Category,
   Contact,
   Debt,
@@ -39,6 +40,7 @@ interface WorkspaceData {
   contacts: Contact[];
   debts: Debt[];
   dues: Due[];
+  budgets: Budget[];
   transactions: Transaction[];
   // lookup maps
   accountsById: Record<string, Account>;
@@ -102,6 +104,7 @@ export function WorkspaceDataProvider({ children }: { children: ReactNode }) {
   const categories = useLiveCollection<Category>("categories", ws);
   const contacts = useLiveCollection<Contact>("contacts", ws);
   const debts = useLiveCollection<Debt>("debts", ws);
+  const budgets = useLiveCollection<Budget>("budgets", ws);
   const dues = useLiveCollection<Due>("dues", ws, { orderByField: "dueDate" });
   const transactions = useLiveCollection<Transaction>("transactions", ws, {
     orderByField: "date",
@@ -122,6 +125,7 @@ export function WorkspaceDataProvider({ children }: { children: ReactNode }) {
         categories.loading ||
         contacts.loading ||
         debts.loading ||
+        budgets.loading ||
         dues.loading ||
         transactions.loading,
       error:
@@ -129,6 +133,7 @@ export function WorkspaceDataProvider({ children }: { children: ReactNode }) {
         categories.error ||
         contacts.error ||
         debts.error ||
+        budgets.error ||
         dues.error ||
         transactions.error,
       accounts: accounts.data,
@@ -136,6 +141,7 @@ export function WorkspaceDataProvider({ children }: { children: ReactNode }) {
       contacts: contacts.data,
       debts: debts.data,
       dues: dues.data,
+      budgets: budgets.data,
       transactions: transactions.data,
       accountsById,
       categoriesById,
@@ -150,7 +156,7 @@ export function WorkspaceDataProvider({ children }: { children: ReactNode }) {
         return due ? dueSettledAmount(due, transactions.data) : 0;
       },
     };
-  }, [accounts, categories, contacts, debts, dues, transactions]);
+  }, [accounts, categories, contacts, debts, budgets, dues, transactions]);
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
 }

@@ -15,6 +15,7 @@ import {
   BarChart3,
   Wallet,
   Tags,
+  Target,
   UserCog,
   ShieldCheck,
   Building2,
@@ -48,6 +49,7 @@ const MAIN_NAV: NavItem[] = [
 const SETTINGS_NAV: NavItem[] = [
   { to: "/settings/accounts", label: "Accounts", icon: Wallet, perm: "accounts.view" },
   { to: "/settings/categories", label: "Categories", icon: Tags, perm: "categories.view" },
+  { to: "/settings/budgets", label: "Budgets", icon: Target, perm: "categories.view" },
   { to: "/settings/members", label: "Members", icon: UserCog, perm: "members.view" },
   { to: "/settings/roles", label: "Roles", icon: ShieldCheck, perm: "roles.view" },
   { to: "/settings/workspace", label: "Workspace", icon: Building2, perm: "workspace.edit" },

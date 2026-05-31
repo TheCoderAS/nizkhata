@@ -145,6 +145,73 @@ export interface CategorySpend {
   amount: number;
 }
 
+// ---- budgets ---------------------------------------------------------------
+// Spend per category within an arbitrary [start, end) window (expense lines).
+export function categorySpendInRange(
+  txns: Transaction[],
+  start: Date,
+  end: Date,
+): Record<string, number> {
+  const totals: Record<string, number> = {};
+  for (const txn of txns) {
+    const d = toDate(txn.date);
+    if (d < start || d >= end) continue;
+    for (const line of txn.lines) {
+      const isExpense =
+        line.type === "expense" ||
+        line.type === "interest_expense" ||
+        line.type === "fee" ||
+        line.type === "tax";
+      if (!isExpense || !line.categoryId) continue;
+      totals[line.categoryId] = roundMoney((totals[line.categoryId] ?? 0) + line.amount);
+    }
+  }
+  return totals;
+}
+
+export interface BudgetProgress {
+  budgetId: string;
+  categoryId: string;
+  categoryName: string;
+  limit: number;
+  spent: number;
+  remaining: number;
+  ratio: number; // spent / limit (0..n)
+  over: boolean;
+}
+
+/**
+ * Budget vs actual for a given calendar month (defaults to current). Spend is
+ * derived from expense lines dated within that month.
+ */
+export function budgetProgress(
+  budgets: { id: string; categoryId: string; amount: number }[],
+  txns: Transaction[],
+  categoriesById: Record<string, { name: string }>,
+  month: Date = new Date(),
+): BudgetProgress[] {
+  const start = new Date(month.getFullYear(), month.getMonth(), 1);
+  const end = new Date(month.getFullYear(), month.getMonth() + 1, 1);
+  const spendByCat = categorySpendInRange(txns, start, end);
+
+  return budgets
+    .map((b) => {
+      const spent = spendByCat[b.categoryId] ?? 0;
+      const limit = b.amount;
+      return {
+        budgetId: b.id,
+        categoryId: b.categoryId,
+        categoryName: categoriesById[b.categoryId]?.name ?? "Uncategorized",
+        limit,
+        spent: roundMoney(spent),
+        remaining: roundMoney(limit - spent),
+        ratio: limit > 0 ? spent / limit : 0,
+        over: spent > limit + 0.005,
+      };
+    })
+    .sort((a, b) => b.ratio - a.ratio);
+}
+
 export function spendByCategory(
   txns: Transaction[],
   categories: Category[],

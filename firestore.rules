@@ -212,6 +212,14 @@ service cloud.firestore {
       allow delete:         if can(exWs(), 'contacts.manage');
     }
 
+    // Budgets: gated by category permissions (no new permission key in v2).
+    match /budgets/{id} {
+      allow read:           if can(exWs(), 'categories.view');
+      allow create:         if can(inWs(), 'categories.manage');
+      allow update:         if can(exWs(), 'categories.manage') && wsImmutable();
+      allow delete:         if can(exWs(), 'categories.manage');
+    }
+
     match /debts/{id} {
       allow read:           if can(exWs(), 'debts.view');
       allow create:         if can(inWs(), 'debts.manage');

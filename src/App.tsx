@@ -14,6 +14,7 @@ import { Login } from "@/pages/Login";
 import { Dashboard } from "@/pages/Dashboard";
 import { Accounts } from "@/pages/Accounts";
 import { Categories } from "@/pages/Categories";
+import { Budgets } from "@/pages/Budgets";
 import { Contacts } from "@/pages/Contacts";
 import { ContactDetail } from "@/pages/ContactDetail";
 import { Debts } from "@/pages/Debts";
@@ -112,6 +113,14 @@ export default function App() {
                 element={
                   <Gated perm="categories.view">
                     <Categories />
+                  </Gated>
+                }
+              />
+              <Route
+                path="settings/budgets"
+                element={
+                  <Gated perm="categories.view">
+                    <Budgets />
                   </Gated>
                 }
               />
