@@ -20,6 +20,7 @@ import type {
 } from "@/types/models";
 import type { TransactionInput } from "@/data/mutations";
 import { computeTotal, validateTransaction } from "@/lib/txn";
+import { LINE_TYPE_LABELS } from "@/lib/lineTypes";
 import { financialYearOf } from "@/lib/financialYear";
 import { toDate } from "@/lib/derive";
 import { Button } from "@/components/ui/button";
@@ -42,19 +43,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { cn, formatMoney } from "@/lib/utils";
 
-const LINE_TYPE_LABELS: Record<LineType, string> = {
-  income: "Income",
-  expense: "Expense",
-  transfer_out: "Transfer out",
-  transfer_in: "Transfer in",
-  borrow: "Borrow",
-  lend: "Lend",
-  repayment: "Repayment",
-  fee: "Fee",
-  interest_income: "Interest income",
-  interest_expense: "Interest expense",
-  tax: "Tax / GST",
-};
+// LINE_TYPE_LABELS lives in @/lib/lineTypes so the detail dialog can reuse it.
 
 const NEEDS_CATEGORY: LineType[] = [
   "income",

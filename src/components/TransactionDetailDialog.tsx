@@ -20,6 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import { Pencil, Trash2 } from "lucide-react";
 import type { Transaction } from "@/types/models";
 import { toDate } from "@/lib/derive";
+import { lineTypeLabel } from "@/lib/lineTypes";
 import { cn, formatDate, formatMoney } from "@/lib/utils";
 
 export function TransactionDetailDialog({
@@ -114,7 +115,7 @@ export function TransactionDetailDialog({
                     <TableCell>
                       <div className="flex flex-wrap items-center gap-1">
                         <Badge variant="secondary" className="text-[10px]">
-                          {l.type}
+                          {lineTypeLabel(l.type)}
                         </Badge>
                         {l.external && (
                           <Badge variant="outline" className="text-[10px]">
