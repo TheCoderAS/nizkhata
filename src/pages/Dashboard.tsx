@@ -13,6 +13,7 @@ import {
   dueStatusFromSettled,
   spendByCategory,
   toDate,
+  compareTxnChrono,
 } from "@/lib/derive";
 import { financialYearOf } from "@/lib/financialYear";
 import {
@@ -90,7 +91,13 @@ export function Dashboard() {
     [dues, settledOf],
   );
 
-  const recent = transactions.slice(0, 6);
+  const recent = useMemo(
+    () =>
+      [...transactions]
+        .sort((a, b) => compareTxnChrono(b, a)) // newest first
+        .slice(0, 6),
+    [transactions],
+  );
 
   if (loading) return <LoadingState />;
   if (error) return <ErrorState message={error} />;

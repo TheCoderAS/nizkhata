@@ -18,6 +18,23 @@ export function toDate(ts: { toDate?: () => Date } | Date | undefined): Date {
   return ts.toDate ? ts.toDate() : new Date(0);
 }
 
+/**
+ * Chronological comparator for transactions: by the user-picked `date` first,
+ * then — for same-date entries — by the full `createdAt` timestamp. Ascending
+ * (oldest first); negate for newest-first.
+ */
+export function compareTxnChrono(
+  a: { date: Parameters<typeof toDate>[0]; createdAt?: Parameters<typeof toDate>[0] },
+  b: { date: Parameters<typeof toDate>[0]; createdAt?: Parameters<typeof toDate>[0] },
+): number {
+  const da = toDate(a.date).getTime();
+  const db = toDate(b.date).getTime();
+  if (da !== db) return da - db;
+  const ca = a.createdAt ? toDate(a.createdAt).getTime() : 0;
+  const cb = b.createdAt ? toDate(b.createdAt).getTime() : 0;
+  return ca - cb;
+}
+
 // ---- account balances ------------------------------------------------------
 
 export function accountBalances(

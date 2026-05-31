@@ -3,7 +3,7 @@
 
 import { useMemo } from "react";
 import { Link, useParams } from "react-router-dom";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, ArrowDownLeft, ArrowUpRight, Scale } from "lucide-react";
 import { useWorkspace } from "@/workspace/WorkspaceProvider";
 import { useData } from "@/data/WorkspaceDataProvider";
 import type { DebtPurpose } from "@/types/models";
@@ -69,38 +69,37 @@ export function ContactDetail() {
         </Badge>
       </div>
 
-      <div className="mb-6 grid gap-4 sm:grid-cols-3">
+      <div className="mb-6 grid grid-cols-3 gap-3">
         <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm text-muted-foreground">Net position</CardTitle>
+          <CardHeader className="flex-row items-center justify-between space-y-0 pb-1">
+            <CardTitle className="text-xs font-normal text-muted-foreground">Net</CardTitle>
+            <Scale className="h-3.5 w-3.5 text-muted-foreground" />
           </CardHeader>
           <CardContent
             className={cn(
-              "text-2xl font-semibold tabular-nums",
+              "text-base font-semibold tabular-nums sm:text-lg",
               position.net > 0 && "text-green-600",
               position.net < 0 && "text-destructive",
             )}
           >
-            {position.net === 0
-              ? "Settled"
-              : position.net > 0
-                ? `${formatMoney(position.net, currency)} owes you`
-                : `${formatMoney(-position.net, currency)} you owe`}
+            {position.net === 0 ? "—" : formatMoney(position.net, currency)}
           </CardContent>
         </Card>
         <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm text-muted-foreground">Total in</CardTitle>
+          <CardHeader className="flex-row items-center justify-between space-y-0 pb-1">
+            <CardTitle className="text-xs font-normal text-muted-foreground">In</CardTitle>
+            <ArrowDownLeft className="h-3.5 w-3.5 text-green-600" />
           </CardHeader>
-          <CardContent className="text-2xl font-semibold tabular-nums text-green-600">
+          <CardContent className="text-base font-semibold tabular-nums text-green-600 sm:text-lg">
             {formatMoney(position.totalIn, currency)}
           </CardContent>
         </Card>
         <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm text-muted-foreground">Total out</CardTitle>
+          <CardHeader className="flex-row items-center justify-between space-y-0 pb-1">
+            <CardTitle className="text-xs font-normal text-muted-foreground">Out</CardTitle>
+            <ArrowUpRight className="h-3.5 w-3.5 text-destructive" />
           </CardHeader>
-          <CardContent className="text-2xl font-semibold tabular-nums text-destructive">
+          <CardContent className="text-base font-semibold tabular-nums text-destructive sm:text-lg">
             {formatMoney(position.totalOut, currency)}
           </CardContent>
         </Card>

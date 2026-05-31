@@ -10,7 +10,10 @@ export interface SortState<K extends string> {
   direction: SortDirection;
 }
 
-export type SortAccessor<T> = (row: T) => string | number | Date | null | undefined;
+export type SortPrimitive = string | number | Date | null | undefined;
+// An accessor may return a single value or a tuple for multi-level (tie-broken)
+// comparison — e.g. [date, createdAt] sorts by date, then by full timestamp.
+export type SortAccessor<T> = (row: T) => SortPrimitive | SortPrimitive[];
 
 /**
  * @param rows   the data to sort
@@ -44,10 +47,8 @@ export function useSort<T, K extends string>(
     return rows
       .map((row, index) => ({ row, index }))
       .sort((a, b) => {
-        const va = normalize(accessor(a.row));
-        const vb = normalize(accessor(b.row));
-        if (va < vb) return -1 * dir;
-        if (va > vb) return 1 * dir;
+        const c = compareKeys(accessor(a.row), accessor(b.row));
+        if (c !== 0) return c * dir;
         return a.index - b.index;
       })
       .map((d) => d.row);
@@ -56,9 +57,26 @@ export function useSort<T, K extends string>(
   return { sorted, sort, toggle };
 }
 
-function normalize(v: string | number | Date | null | undefined): number | string {
+function normalize(v: SortPrimitive): number | string {
   if (v == null) return ""; // nulls sort first ascending
   if (v instanceof Date) return v.getTime();
   if (typeof v === "string") return v.toLowerCase();
   return v;
+}
+
+/** Compare single values or tuples lexicographically (level by level). */
+function compareKeys(
+  a: SortPrimitive | SortPrimitive[],
+  b: SortPrimitive | SortPrimitive[],
+): number {
+  const av = Array.isArray(a) ? a : [a];
+  const bv = Array.isArray(b) ? b : [b];
+  const len = Math.max(av.length, bv.length);
+  for (let i = 0; i < len; i++) {
+    const na = normalize(av[i]);
+    const nb = normalize(bv[i]);
+    if (na < nb) return -1;
+    if (na > nb) return 1;
+  }
+  return 0;
 }

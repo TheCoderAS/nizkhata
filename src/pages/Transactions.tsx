@@ -118,7 +118,8 @@ export function Transactions() {
 
   const accessors: Record<SortKey, SortAccessor<Transaction>> = useMemo(
     () => ({
-      date: (t) => toDate(t.date),
+      // sort by date, then full createdAt timestamp for same-day entries
+      date: (t) => [toDate(t.date), t.createdAt ? toDate(t.createdAt) : new Date(0)],
       account: (t) => accountsById[t.accountId]?.name ?? "",
       contact: (t) => (t.contactId ? contactsById[t.contactId]?.name ?? "" : ""),
       amount: (t) => t.totalAmount,

@@ -176,11 +176,7 @@ export function Contacts() {
                         net < 0 && "text-destructive",
                       )}
                     >
-                      {net === 0
-                        ? "—"
-                        : net > 0
-                          ? `${formatMoney(net, currency)} owes you`
-                          : `${formatMoney(-net, currency)} you owe`}
+                      {net === 0 ? "—" : formatMoney(net, currency)}
                     </TableCell>
                   )}
                   <TableCell>
