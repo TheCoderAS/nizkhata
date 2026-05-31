@@ -999,7 +999,7 @@ function SummaryStat({
       </div>
       <div
         className={cn(
-          "mt-1 truncate text-xl font-semibold tabular-nums sm:text-2xl",
+          "mt-1 truncate font-strong text-xl tabular-nums sm:text-2xl",
           tone === "pos" && "text-emerald-600 dark:text-emerald-400",
           tone === "neg" && "text-destructive",
         )}

@@ -419,7 +419,7 @@ export function TransactionFormDialog({
             <span className="text-sm text-muted-foreground">Net on account</span>
             <span
               className={cn(
-                "text-lg font-semibold tabular-nums",
+                "font-strong text-lg tabular-nums",
                 total < 0 && "text-destructive",
                 total > 0 && "text-green-600",
               )}

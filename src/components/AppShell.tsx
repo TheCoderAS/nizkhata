@@ -1,7 +1,7 @@
 // App shell: responsive top bar (mobile menu + an avatar menu showing the active
 // workspace) + desktop sidebar rail + mobile drawer + routed content (§6).
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { Outlet, useLocation } from "react-router-dom";
 import { LogOut, ArrowLeftRight } from "lucide-react";
 import { useAuth } from "@/auth/AuthProvider";
@@ -92,7 +92,11 @@ export function AppShell() {
             key={location.pathname}
             className="mx-auto max-w-6xl animate-fade-in-up p-4 pb-20 sm:p-6 md:pb-6"
           >
-            <Outlet />
+            {/* Lazy-loaded pages suspend while their chunk downloads; keep the
+                shell/nav visible and show a lightweight loader in the content. */}
+            <Suspense fallback={<LoadingState />}>
+              <Outlet />
+            </Suspense>
           </div>
         </main>
       </div>

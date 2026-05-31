@@ -269,6 +269,7 @@ export function ContactDialog({
     return seed.map((e, i) => ({ ...e, key: `${i}` }));
   });
   const [busy, setBusy] = useState(false);
+  const [emailError, setEmailError] = useState<string | null>(null);
 
   function addEmail() {
     setEmails((prev) => [...prev, { key: `${Date.now()}`, label: EMAIL_LABEL_OPTIONS[0], value: "" }]);
@@ -282,11 +283,18 @@ export function ContactDialog({
 
   async function save() {
     if (!name.trim()) return;
+    const cleanEmails: ContactEmail[] = emails
+      .map((e) => ({ label: e.label.trim() || "Other", value: e.value.trim() }))
+      .filter((e) => e.value);
+    // Reject obviously malformed emails before writing.
+    const bad = cleanEmails.find((e) => !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e.value));
+    if (bad) {
+      setEmailError(`"${bad.value}" is not a valid email address.`);
+      return;
+    }
+    setEmailError(null);
     setBusy(true);
     try {
-      const cleanEmails: ContactEmail[] = emails
-        .map((e) => ({ label: e.label.trim() || "Other", value: e.value.trim() }))
-        .filter((e) => e.value);
       const data = {
         name: name.trim(),
         type,
@@ -405,6 +413,7 @@ export function ContactDialog({
                 ))}
               </div>
             )}
+            {emailError && <p className="text-xs text-destructive">{emailError}</p>}
           </div>
 
           <div className="space-y-1.5">

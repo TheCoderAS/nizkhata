@@ -2,7 +2,7 @@
 // auth gate and a permission gate (§6). Rules are the real guard.
 
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import type { ReactNode } from "react";
+import { lazy, type ReactNode } from "react";
 import { AuthProvider } from "@/auth/AuthProvider";
 import { WorkspaceProvider } from "@/workspace/WorkspaceProvider";
 import { WorkspaceDataProvider } from "@/data/WorkspaceDataProvider";
@@ -13,22 +13,30 @@ import { RequireAuth, RequirePermission } from "@/components/ProtectedRoute";
 import { AppShell } from "@/components/AppShell";
 import { Login } from "@/pages/Login";
 import { Dashboard } from "@/pages/Dashboard";
-import { Accounts } from "@/pages/Accounts";
-import { Categories } from "@/pages/Categories";
-import { Budgets } from "@/pages/Budgets";
-import { Contacts } from "@/pages/Contacts";
-import { ContactDetail } from "@/pages/ContactDetail";
-import { Debts } from "@/pages/Debts";
-import { Transactions } from "@/pages/Transactions";
-import { Dues } from "@/pages/Dues";
-import { Reports } from "@/pages/Reports";
-import { Activity } from "@/pages/Activity";
-import { Shared } from "@/pages/Shared";
-import { Members } from "@/pages/Members";
-import { Roles } from "@/pages/Roles";
-import { WorkspaceSettings } from "@/pages/WorkspaceSettings";
-import { Account } from "@/pages/Account";
 import type { Permission } from "@/types/permissions";
+
+// Code-split the secondary feature screens so the initial bundle stays small —
+// only Login + Dashboard (the entry + index) load eagerly. Pages use named
+// exports, so map each to a default for React.lazy. Routed content is wrapped
+// in a single <Suspense> below.
+const lazyPage = <K extends string>(loader: () => Promise<Record<K, React.ComponentType>>, key: K) =>
+  lazy(() => loader().then((m) => ({ default: m[key] })));
+
+const Accounts = lazyPage(() => import("@/pages/Accounts"), "Accounts");
+const Categories = lazyPage(() => import("@/pages/Categories"), "Categories");
+const Budgets = lazyPage(() => import("@/pages/Budgets"), "Budgets");
+const Contacts = lazyPage(() => import("@/pages/Contacts"), "Contacts");
+const ContactDetail = lazyPage(() => import("@/pages/ContactDetail"), "ContactDetail");
+const Debts = lazyPage(() => import("@/pages/Debts"), "Debts");
+const Transactions = lazyPage(() => import("@/pages/Transactions"), "Transactions");
+const Dues = lazyPage(() => import("@/pages/Dues"), "Dues");
+const Reports = lazyPage(() => import("@/pages/Reports"), "Reports");
+const Activity = lazyPage(() => import("@/pages/Activity"), "Activity");
+const Shared = lazyPage(() => import("@/pages/Shared"), "Shared");
+const Members = lazyPage(() => import("@/pages/Members"), "Members");
+const Roles = lazyPage(() => import("@/pages/Roles"), "Roles");
+const WorkspaceSettings = lazyPage(() => import("@/pages/WorkspaceSettings"), "WorkspaceSettings");
+const Account = lazyPage(() => import("@/pages/Account"), "Account");
 
 function Gated({ perm, children }: { perm: Permission; children: ReactNode }) {
   return <RequirePermission perm={perm}>{children}</RequirePermission>;
