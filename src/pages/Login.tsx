@@ -6,6 +6,7 @@ import { useAuth } from "@/auth/AuthProvider";
 import { ErrorState, LoadingState } from "@/components/states";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { LogoMark } from "@/components/Logo";
 
 function GoogleIcon() {
   return (
@@ -34,7 +35,7 @@ export function Login() {
   const { firebaseUser, loading, error, signIn } = useAuth();
 
   if (loading) return <LoadingState label="Loading…" />;
-  if (firebaseUser) return <Navigate to="/" replace />;
+  if (firebaseUser) return <Navigate to="/dashboard" replace />;
 
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background p-4">
@@ -48,9 +49,7 @@ export function Login() {
 
       <div className="w-full max-w-sm animate-fade-in-up rounded-2xl border bg-card p-8 shadow-xl">
         <div className="mb-6 flex flex-col items-center text-center">
-          <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-2xl font-bold text-primary-foreground shadow-lg">
-            ₹
-          </div>
+          <LogoMark size="xl" className="mb-4 shadow-lg" />
           <h1 className="text-2xl font-semibold tracking-tight">NizKhata</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Every rupee, accounted for.

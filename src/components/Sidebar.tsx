@@ -30,6 +30,7 @@ import { useWorkspace } from "@/workspace/WorkspaceProvider";
 import { useSharedData } from "@/data/SharedDataProvider";
 import type { Permission } from "@/types/permissions";
 import { cn } from "@/lib/utils";
+import { Logo } from "@/components/Logo";
 
 interface NavItem {
   to: string;
@@ -41,7 +42,7 @@ interface NavItem {
 export type { NavItem };
 
 export const MAIN_NAV: NavItem[] = [
-  { to: "/", label: "Dashboard", icon: LayoutDashboard },
+  { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/transactions", label: "Transactions", icon: ArrowLeftRight, perm: "transactions.view" },
   { to: "/dues", label: "Dues", icon: CalendarClock, perm: "dues.view" },
   { to: "/contacts", label: "Contacts", icon: Users, perm: "contacts.view" },
@@ -126,11 +127,8 @@ export function SidebarContent({
   return (
     <div className="flex h-full flex-col gap-4 overflow-hidden p-3">
       {/* brand */}
-      <div className="flex items-center gap-2 px-2 pt-1">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-base font-bold text-primary-foreground">
-          ₹
-        </div>
-        <span className="font-semibold tracking-tight">NizKhata</span>
+      <div className="px-2 pt-1">
+        <Logo size="sm" />
       </div>
 
       {/* sliding views */}

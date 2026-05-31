@@ -7,6 +7,7 @@ import { LogOut, ArrowLeftRight, BarChart3, Bell } from "lucide-react";
 import { useAuth } from "@/auth/AuthProvider";
 import { useWorkspace } from "@/workspace/WorkspaceProvider";
 import { cn } from "@/lib/utils";
+import { Logo } from "@/components/Logo";
 import { Sidebar, SidebarContent } from "./Sidebar";
 import { BottomNav } from "./BottomNav";
 import { WorkspaceSwitcherDialog } from "./WorkspaceSwitcherDialog";
@@ -76,8 +77,8 @@ export function AppShell() {
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex h-14 shrink-0 items-center justify-between gap-2 border-b bg-card/80 px-3 backdrop-blur supports-[backdrop-filter]:bg-card/60 sm:px-4">
-          <div className="flex items-center gap-2">
-            <span className="font-semibold tracking-tight md:hidden">NizKhata</span>
+          <div className="flex items-center gap-2 md:hidden">
+            <Logo size="sm" />
           </div>
 
           <div className="flex items-center gap-1">
