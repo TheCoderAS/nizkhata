@@ -12,8 +12,6 @@ import {
   CalendarClock,
   Users,
   HandCoins,
-  History,
-  BarChart3,
   Wallet,
   Split,
   Tags,
@@ -49,8 +47,7 @@ export const MAIN_NAV: NavItem[] = [
   { to: "/contacts", label: "Contacts", icon: Users, perm: "contacts.view" },
   { to: "/debts", label: "Debts", icon: HandCoins, perm: "debts.view" },
   { to: "/shared", label: "Shared", icon: Split, perm: "shared.view" },
-  { to: "/reports", label: "Reports", icon: BarChart3, perm: "reports.view" },
-  { to: "/activity", label: "Activity", icon: History, perm: "reports.view" },
+  // Reports + Activity are surfaced in the top header (icon + bell), not here.
 ];
 
 const SETTINGS_NAV: NavItem[] = [
@@ -101,14 +98,21 @@ function NavItemLink({
 }
 
 /** Sidebar inner content, shared by the desktop rail and the mobile drawer. */
-export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
+export function SidebarContent({
+  onNavigate,
+  initialView,
+}: {
+  onNavigate?: () => void;
+  /** Open straight into a view (e.g. the mobile "More" button -> settings). */
+  initialView?: "main" | "settings";
+}) {
   const { can, activeWorkspace } = useWorkspace();
   const { firebaseUser } = useAuth();
   const { inboxCount } = useSharedData();
   const location = useLocation();
   const onSettingsRoute = location.pathname.startsWith("/settings");
   const [view, setView] = useState<"main" | "settings">(
-    onSettingsRoute ? "settings" : "main",
+    initialView ?? (onSettingsRoute ? "settings" : "main"),
   );
 
   // keep the view in sync when navigating into/out of settings elsewhere

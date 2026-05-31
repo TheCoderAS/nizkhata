@@ -21,6 +21,7 @@ import { Pencil, Trash2 } from "lucide-react";
 import type { Transaction } from "@/types/models";
 import { toDate } from "@/lib/derive";
 import { lineTypeLabel } from "@/lib/lineTypes";
+import { taxHeadLabel } from "@/lib/taxHeads";
 import { cn, formatDate, formatMoney } from "@/lib/utils";
 
 export function TransactionDetailDialog({
@@ -124,7 +125,7 @@ export function TransactionDetailDialog({
                         )}
                         {l.tax?.taxable && (
                           <Badge variant="outline" className="text-[10px]">
-                            tax: {l.tax.head}
+                            tax: {taxHeadLabel(l.tax.head)}
                           </Badge>
                         )}
                       </div>

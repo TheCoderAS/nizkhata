@@ -15,7 +15,7 @@ export default defineConfig({
         short_name: "NizKhata",
         description:
           "Shared, multi-workspace accounting: multi-line transactions, accounts, contacts, debts, dues and financial-year tax summaries with role-based access.",
-        theme_color: "#4338ca",
+        theme_color: "#7c3aed",
         background_color: "#0b1120",
         display: "standalone",
         orientation: "portrait",
@@ -57,5 +57,22 @@ export default defineConfig({
     alias: {
       "@": path.resolve(__dirname, "src"),
     },
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        // Split big vendor libs into their own long-lived chunks so they cache
+        // independently of app code (which changes far more often). recharts is
+        // only used by Reports/Dashboard, so isolating it keeps it cacheable.
+        manualChunks: {
+          firebase: ["firebase/app", "firebase/auth", "firebase/firestore"],
+          react: ["react", "react-dom", "react-router-dom"],
+          charts: ["recharts"],
+        },
+      },
+    },
+    // App chunks are well under this; the limit only silenced the old warning
+    // for the single monolithic bundle, which no longer exists.
+    chunkSizeWarningLimit: 800,
   },
 });

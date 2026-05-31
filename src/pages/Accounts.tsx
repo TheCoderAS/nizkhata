@@ -239,7 +239,7 @@ export function Accounts() {
                   {cols.isVisible("balance") && (
                     <TableCell
                       className={cn(
-                        "text-right tabular-nums font-medium",
+                        "font-strong text-right tabular-nums",
                         bal < 0 ? "text-destructive" : "",
                       )}
                     >

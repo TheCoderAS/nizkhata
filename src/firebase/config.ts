@@ -11,7 +11,12 @@ import {
   connectAuthEmulator,
   GoogleAuthProvider,
 } from "firebase/auth";
-import { getFirestore, connectFirestoreEmulator } from "firebase/firestore";
+import {
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
+  connectFirestoreEmulator,
+} from "firebase/firestore";
 
 const firebaseConfig: FirebaseOptions = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -35,7 +40,14 @@ export const auth = initializeAuth(app, {
   persistence: [indexedDBLocalPersistence, browserLocalPersistence],
   popupRedirectResolver: browserPopupRedirectResolver,
 });
-export const db = getFirestore(app);
+// Enable IndexedDB-backed offline persistence so the app loads instantly from
+// cache and queues writes while offline (important for a PWA used on flaky
+// mobile networks). The multi-tab manager keeps the cache coherent across the
+// multiple tabs this app explicitly supports. Must use initializeFirestore
+// (not getFirestore) so the cache is configured before any other Firestore use.
+export const db = initializeFirestore(app, {
+  localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
+});
 export const googleProvider = new GoogleAuthProvider();
 
 const useEmulators = import.meta.env.VITE_USE_EMULATORS === "true";

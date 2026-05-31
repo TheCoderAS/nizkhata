@@ -1,15 +1,15 @@
 // Mobile bottom navigation bar (md:hidden). Shows the first few permitted
-// primary destinations plus a "More" button that opens the full nav drawer
-// (which also reaches Settings). Mirrors MAIN_NAV so it stays in sync.
+// primary destinations plus a "Settings" button that opens the nav drawer
+// straight in its settings view. Mirrors MAIN_NAV so it stays in sync.
 
 import { NavLink, useLocation } from "react-router-dom";
-import { MoreHorizontal } from "lucide-react";
+import { Settings } from "lucide-react";
 import { useWorkspace } from "@/workspace/WorkspaceProvider";
 import { MAIN_NAV } from "./Sidebar";
 import { cn } from "@/lib/utils";
 
-// How many primary links to show before the "More" button.
-const MAX_ITEMS = 4;
+// How many primary links to show before the "Settings" button.
+const MAX_ITEMS = 5;
 
 export function BottomNav({ onMore }: { onMore: () => void }) {
   const { can } = useWorkspace();
@@ -17,8 +17,8 @@ export function BottomNav({ onMore }: { onMore: () => void }) {
 
   const items = MAIN_NAV.filter((i) => !i.perm || can(i.perm)).slice(0, MAX_ITEMS);
   const shownPaths = new Set(items.map((i) => i.to));
-  // Highlight "More" when the current route isn't one of the visible tabs
-  // (e.g. Settings, or an overflow destination reachable via the drawer).
+  // Highlight "Settings" when the current route isn't one of the visible tabs
+  // (e.g. a /settings/* route, or an overflow destination via the drawer).
   const moreActive = !shownPaths.has(location.pathname);
 
   return (
@@ -53,8 +53,8 @@ export function BottomNav({ onMore }: { onMore: () => void }) {
           moreActive ? "text-primary" : "text-muted-foreground hover:text-foreground",
         )}
       >
-        <MoreHorizontal className="h-5 w-5" />
-        <span>More</span>
+        <Settings className="h-5 w-5" />
+        <span>Settings</span>
       </button>
     </nav>
   );

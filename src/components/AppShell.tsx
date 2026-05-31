@@ -1,11 +1,12 @@
 // App shell: responsive top bar (mobile menu + an avatar menu showing the active
 // workspace) + desktop sidebar rail + mobile drawer + routed content (§6).
 
-import { useState } from "react";
-import { Outlet, useLocation } from "react-router-dom";
-import { LogOut, ArrowLeftRight } from "lucide-react";
+import { Suspense, useState, type ComponentType } from "react";
+import { NavLink, Outlet, useLocation } from "react-router-dom";
+import { LogOut, ArrowLeftRight, BarChart3, Bell } from "lucide-react";
 import { useAuth } from "@/auth/AuthProvider";
 import { useWorkspace } from "@/workspace/WorkspaceProvider";
+import { cn } from "@/lib/utils";
 import { Sidebar, SidebarContent } from "./Sidebar";
 import { BottomNav } from "./BottomNav";
 import { WorkspaceSwitcherDialog } from "./WorkspaceSwitcherDialog";
@@ -27,9 +28,37 @@ function workspaceInitials(name: string): string {
   return (parts[0][0] + (parts[1]?.[0] ?? "")).toUpperCase();
 }
 
+function HeaderIconLink({
+  to,
+  label,
+  icon: Icon,
+}: {
+  to: string;
+  label: string;
+  icon: ComponentType<{ className?: string }>;
+}) {
+  return (
+    <NavLink
+      to={to}
+      aria-label={label}
+      title={label}
+      className={({ isActive }) =>
+        cn(
+          "flex h-10 w-10 items-center justify-center rounded-full transition-colors",
+          isActive
+            ? "bg-primary/10 text-primary"
+            : "text-muted-foreground hover:bg-accent hover:text-foreground",
+        )
+      }
+    >
+      <Icon className="h-5 w-5" />
+    </NavLink>
+  );
+}
+
 export function AppShell() {
   const { firebaseUser, signOut } = useAuth();
-  const { loading, error, memberships, activeWorkspace } = useWorkspace();
+  const { loading, error, memberships, activeWorkspace, can } = useWorkspace();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const location = useLocation();
@@ -51,7 +80,15 @@ export function AppShell() {
             <span className="font-semibold tracking-tight md:hidden">NizKhata</span>
           </div>
 
-          <DropdownMenu>
+          <div className="flex items-center gap-1">
+            {can("reports.view") && (
+              <HeaderIconLink to="/reports" label="Reports" icon={BarChart3} />
+            )}
+            {can("reports.view") && (
+              <HeaderIconLink to="/activity" label="Activity" icon={Bell} />
+            )}
+
+            <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="h-11 gap-2 px-2" aria-label="Workspace menu">
                 <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
@@ -84,6 +121,7 @@ export function AppShell() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+          </div>
         </header>
 
         <main className="min-h-0 flex-1 overflow-auto">
@@ -92,7 +130,11 @@ export function AppShell() {
             key={location.pathname}
             className="mx-auto max-w-6xl animate-fade-in-up p-4 pb-20 sm:p-6 md:pb-6"
           >
-            <Outlet />
+            {/* Lazy-loaded pages suspend while their chunk downloads; keep the
+                shell/nav visible and show a lightweight loader in the content. */}
+            <Suspense fallback={<LoadingState />}>
+              <Outlet />
+            </Suspense>
           </div>
         </main>
       </div>
@@ -106,7 +148,7 @@ export function AppShell() {
           className="left-0 top-0 h-full max-w-[17rem] translate-x-0 translate-y-0 gap-0 rounded-none border-y-0 border-l-0 p-0 data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left sm:rounded-none"
         >
           <DialogTitle className="sr-only">Navigation</DialogTitle>
-          <SidebarContent onNavigate={() => setDrawerOpen(false)} />
+          <SidebarContent initialView="settings" onNavigate={() => setDrawerOpen(false)} />
         </DialogContent>
       </Dialog>
 

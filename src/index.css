@@ -159,3 +159,9 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
 h1, h2, h3, h4, h5, h6, th {
   font-weight: 600 !important;
 }
+
+/* Opt-in for key figures (account balances, transaction totals) that should
+   stay visually heavy despite the normal-weight default above. */
+.font-strong {
+  font-weight: 600 !important;
+}
