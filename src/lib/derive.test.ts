@@ -1,45 +1,83 @@
 import { describe, it, expect } from "vitest";
-import { compareTxnChrono, budgetProgress, memberBalances, simplifyDebts } from "./derive";
+import {
+  compareTxnChrono,
+  budgetProgress,
+  sharedBalances,
+  settleUpTransfers,
+  type SharedEntryLike,
+} from "./derive";
 import type { Transaction } from "@/types/models";
 
-function exp(paidBy: string, amount: number, shares: [string, number][]) {
+// Build a bilateral shared entry from A's helper perspective.
+function entry(
+  partial: Partial<SharedEntryLike> & {
+    creatorUid: string;
+    counterpartyUid: string;
+    amount: number;
+  },
+): SharedEntryLike {
   return {
-    amount,
-    paidBy,
-    paidByName: paidBy,
-    splits: shares.map(([uid, share]) => ({ uid, name: uid, share })),
+    kind: "expense",
+    payerUid: partial.creatorUid,
+    status: "accepted",
+    names: { [partial.creatorUid]: partial.creatorUid, [partial.counterpartyUid]: partial.counterpartyUid },
+    ...partial,
   };
 }
 
-describe("memberBalances + simplifyDebts", () => {
-  it("computes net positions for an equal 3-way split", () => {
-    // A pays 300, split equally among A, B, C (100 each)
-    const balances = memberBalances([exp("A", 300, [["A", 100], ["B", 100], ["C", 100]])]);
-    const net = Object.fromEntries(balances.map((b) => [b.uid, b.net]));
-    expect(net.A).toBe(200); // paid 300, owes 100 -> +200
-    expect(net.B).toBe(-100);
-    expect(net.C).toBe(-100);
+describe("sharedBalances + settleUpTransfers", () => {
+  it("an accepted expense I paid means they owe me", () => {
+    const balances = sharedBalances("A", [
+      entry({ creatorUid: "A", counterpartyUid: "B", amount: 100, payerUid: "A" }),
+    ]);
+    expect(balances).toEqual([{ uid: "B", name: "B", net: 100 }]);
+    const [t] = settleUpTransfers("A", balances);
+    expect(t.fromUid).toBe("B");
+    expect(t.toUid).toBe("A");
+    expect(t.amount).toBe(100);
   });
 
-  it("simplifies to minimal transfers", () => {
-    const balances = memberBalances([exp("A", 300, [["A", 100], ["B", 100], ["C", 100]])]);
-    const transfers = simplifyDebts(balances);
-    expect(transfers).toHaveLength(2);
-    for (const t of transfers) {
-      expect(t.toUid).toBe("A");
-      expect(t.amount).toBe(100);
-    }
+  it("my own still-pending expense claim counts (I already paid)", () => {
+    const balances = sharedBalances("A", [
+      entry({ creatorUid: "A", counterpartyUid: "B", amount: 50, payerUid: "A", status: "pending" }),
+    ]);
+    expect(balances[0].net).toBe(50);
   });
 
-  it("a settlement cancels the matching debt", () => {
-    const expense = exp("A", 200, [["A", 100], ["B", 100]]); // B owes A 100
-    const settlement = exp("B", 100, [["A", 100]]); // B pays A 100
-    const transfers = simplifyDebts(memberBalances([expense, settlement]));
-    expect(transfers).toHaveLength(0); // fully settled
+  it("a pending claim against me does NOT count until I accept", () => {
+    const balances = sharedBalances("B", [
+      entry({ creatorUid: "A", counterpartyUid: "B", amount: 50, payerUid: "A", status: "pending" }),
+    ]);
+    expect(balances).toHaveLength(0);
   });
 
-  it("ignores members with a zero net", () => {
-    const balances = memberBalances([exp("A", 100, [["A", 100]])]); // A paid own share
+  it("from the counterparty's view an accepted expense means they owe", () => {
+    const balances = sharedBalances("B", [
+      entry({ creatorUid: "A", counterpartyUid: "B", amount: 80, payerUid: "A" }),
+    ]);
+    expect(balances).toEqual([{ uid: "A", name: "A", net: -80 }]);
+  });
+
+  it("a settlement nets against the expense to zero", () => {
+    const balances = sharedBalances("A", [
+      entry({ creatorUid: "A", counterpartyUid: "B", amount: 100, payerUid: "A" }),
+      // B pays A back 100: a settlement where B is creator+payer.
+      entry({
+        kind: "settlement",
+        creatorUid: "B",
+        counterpartyUid: "A",
+        amount: 100,
+        payerUid: "B",
+      }),
+    ]);
+    expect(balances).toHaveLength(0);
+    expect(settleUpTransfers("A", balances)).toHaveLength(0);
+  });
+
+  it("rejected entries contribute nothing", () => {
+    const balances = sharedBalances("A", [
+      entry({ creatorUid: "A", counterpartyUid: "B", amount: 100, payerUid: "A", status: "rejected" }),
+    ]);
     expect(balances).toHaveLength(0);
   });
 });

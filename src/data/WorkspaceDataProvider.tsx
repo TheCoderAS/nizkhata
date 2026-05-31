@@ -23,7 +23,6 @@ import type {
   Debt,
   Due,
   Membership,
-  SharedExpense,
   Transaction,
 } from "@/types/models";
 import {
@@ -43,7 +42,6 @@ interface WorkspaceData {
   debts: Debt[];
   dues: Due[];
   budgets: Budget[];
-  sharedExpenses: SharedExpense[];
   members: Membership[];
   transactions: Transaction[];
   // lookup maps
@@ -109,10 +107,6 @@ export function WorkspaceDataProvider({ children }: { children: ReactNode }) {
   const contacts = useLiveCollection<Contact>("contacts", ws);
   const debts = useLiveCollection<Debt>("debts", ws);
   const budgets = useLiveCollection<Budget>("budgets", ws);
-  const sharedExpenses = useLiveCollection<SharedExpense>("sharedExpenses", ws, {
-    orderByField: "date",
-    desc: true,
-  });
   const members = useLiveCollection<Membership>("memberships", ws);
   const dues = useLiveCollection<Due>("dues", ws, { orderByField: "dueDate" });
   const transactions = useLiveCollection<Transaction>("transactions", ws, {
@@ -135,7 +129,6 @@ export function WorkspaceDataProvider({ children }: { children: ReactNode }) {
         contacts.loading ||
         debts.loading ||
         budgets.loading ||
-        sharedExpenses.loading ||
         members.loading ||
         dues.loading ||
         transactions.loading,
@@ -145,7 +138,6 @@ export function WorkspaceDataProvider({ children }: { children: ReactNode }) {
         contacts.error ||
         debts.error ||
         budgets.error ||
-        sharedExpenses.error ||
         members.error ||
         dues.error ||
         transactions.error,
@@ -155,7 +147,6 @@ export function WorkspaceDataProvider({ children }: { children: ReactNode }) {
       debts: debts.data,
       dues: dues.data,
       budgets: budgets.data,
-      sharedExpenses: sharedExpenses.data,
       members: members.data,
       transactions: transactions.data,
       accountsById,
@@ -177,7 +168,6 @@ export function WorkspaceDataProvider({ children }: { children: ReactNode }) {
     contacts,
     debts,
     budgets,
-    sharedExpenses,
     members,
     dues,
     transactions,

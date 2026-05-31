@@ -63,6 +63,7 @@ const PURPOSE_LABELS: Record<DebtPurpose, string> = {
   lending: "Lending",
   reimbursable: "Reimbursable",
   informal: "Informal",
+  shared: "Shared",
 };
 
 type SortKey = "label" | "contact" | "purpose" | "status" | "outstanding";
@@ -103,8 +104,10 @@ export function Debts() {
     }`.toLowerCase();
     return hay.includes(search.toLowerCase());
   };
-  const owed = debts.filter((d) => d.direction === "owed" && matches(d));
-  const owe = debts.filter((d) => d.direction === "owe" && matches(d));
+  // Shared-ledger reflections are managed in the Shared section, not here.
+  const visible = debts.filter((d) => d.purpose !== "shared");
+  const owed = visible.filter((d) => d.direction === "owed" && matches(d));
+  const owe = visible.filter((d) => d.direction === "owe" && matches(d));
 
   function rowActions(d: Debt): RowAction[] {
     const outstanding = outstandingOf(d.id);
@@ -149,13 +152,13 @@ export function Debts() {
         }}
       />
 
-      {debts.length > 0 && (
+      {visible.length > 0 && (
         <Toolbar search={search} onSearch={setSearch} placeholder="Search debts…">
           <ColumnsMenu columns={cols.columns} isVisible={cols.isVisible} toggle={cols.toggle} reset={cols.reset} />
         </Toolbar>
       )}
 
-      {debts.length === 0 ? (
+      {visible.length === 0 ? (
         <EmptyState
           title="No debts yet"
           hint="Track money you owe or money owed to you."

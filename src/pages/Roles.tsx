@@ -166,6 +166,7 @@ const PERMISSION_GROUPS: { label: string; prefix: string }[] = [
   { label: "Contacts", prefix: "contacts." },
   { label: "Debts", prefix: "debts." },
   { label: "Dues", prefix: "dues." },
+  { label: "Shared", prefix: "shared." },
   { label: "Reports", prefix: "reports." },
   { label: "Members", prefix: "members." },
   { label: "Roles", prefix: "roles." },

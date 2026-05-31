@@ -106,6 +106,89 @@ async function claimInvites(
   return claimed;
 }
 
+/**
+ * Claim pending cross-user share invites addressed to this user's email:
+ * establish the `sharedConnection` and mark each invite accepted. Establishes
+ * NO workspace access — share partners only ever appear in the Shared section.
+ */
+async function claimShareInvites(fdb: Firestore, user: FirebaseUser): Promise<void> {
+  const email = (user.email ?? "").toLowerCase();
+  if (!email) return;
+
+  const q = query(
+    collection(fdb, "shareInvites"),
+    where("toEmail", "==", email),
+    where("status", "==", "pending"),
+  );
+  const snap = await getDocs(q);
+
+  for (const inviteSnap of snap.docs) {
+    const invite = inviteSnap.data() as {
+      fromUid: string;
+      fromName: string;
+      fromEmail: string;
+      expiresAt?: { toMillis(): number };
+    };
+    if (invite.expiresAt && invite.expiresAt.toMillis() < Date.now()) continue;
+
+    const connId = [invite.fromUid, user.uid].sort().join("_");
+    const meName =
+      user.displayName?.trim() || email || `${user.uid.slice(0, 8)}…`;
+    const batch = writeBatch(fdb);
+    batch.set(doc(fdb, "sharedConnections", connId), {
+      id: connId,
+      uids: [invite.fromUid, user.uid].sort(),
+      names: { [invite.fromUid]: invite.fromName, [user.uid]: meName },
+      emails: { [invite.fromUid]: invite.fromEmail, [user.uid]: email },
+      status: "active",
+      createdAt: serverTimestamp(),
+    });
+    batch.set(doc(fdb, "shareInvites", inviteSnap.id), { status: "accepted" }, { merge: true });
+    await batch.commit();
+  }
+}
+
+/**
+ * Keep the seeded system roles in step with the current permission catalog.
+ * As new permissions are added (e.g. `shared.*`), existing workspaces' system
+ * roles would otherwise be missing them and silently lock owners/editors out of
+ * new sections. For every workspace this user OWNS (owner holds `roles.manage`
+ * + the rules owner-bypass), re-apply the template permissions to any system
+ * role whose stored map differs. Idempotent and cheap (writes only on drift).
+ */
+async function syncSystemRoles(fdb: Firestore, user: FirebaseUser): Promise<void> {
+  const ownedQ = query(collection(fdb, "workspaces"), where("ownerId", "==", user.uid));
+  const owned = await getDocs(ownedQ);
+  if (owned.empty) return;
+
+  const templateByName = Object.fromEntries(
+    systemRoleSpecs().map((s) => [s.name, s.permissions]),
+  );
+
+  for (const wsSnap of owned.docs) {
+    const workspaceId = wsSnap.id;
+    const rolesSnap = await getDocs(
+      query(
+        collection(fdb, "roles"),
+        where("workspaceId", "==", workspaceId),
+        where("isSystem", "==", true),
+      ),
+    );
+    const batch = writeBatch(fdb);
+    let dirty = false;
+    for (const roleSnap of rolesSnap.docs) {
+      const role = roleSnap.data() as { name: string; permissions: Record<string, boolean> };
+      const template = templateByName[role.name];
+      if (!template) continue;
+      if (JSON.stringify(role.permissions) !== JSON.stringify(template)) {
+        batch.set(doc(fdb, "roles", roleSnap.id), { permissions: template }, { merge: true });
+        dirty = true;
+      }
+    }
+    if (dirty) await batch.commit();
+  }
+}
+
 /** List workspaceIds the user is a member of. */
 async function listMembershipWorkspaceIds(
   fdb: Firestore,
@@ -199,6 +282,8 @@ export async function ensureUserAndOnboarding(
 ): Promise<void> {
   await upsertUser(fdb, user);
   await claimInvites(fdb, user);
+  await claimShareInvites(fdb, user);
+  await syncSystemRoles(fdb, user);
 
   let workspaceIds = await listMembershipWorkspaceIds(fdb, user.uid);
   if (workspaceIds.length === 0) {

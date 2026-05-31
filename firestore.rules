@@ -223,13 +223,81 @@ service cloud.firestore {
       allow delete:         if can(exWs(), 'categories.manage');
     }
 
-    // Shared expenses / member settlement: gated by transaction permissions
-    // (no new permission key). Balances are derived client-side from these.
-    match /sharedExpenses/{id} {
-      allow read:           if can(exWs(), 'transactions.view');
-      allow create:         if can(inWs(), 'transactions.create');
-      allow update:         if can(exWs(), 'transactions.edit') && wsImmutable();
-      allow delete:         if can(exWs(), 'transactions.delete');
+    // ---- shared ledger (cross-user, NOT workspace-scoped) ------------------
+    // Splitwise-style sharing between two real app users across their separate
+    // workspaces. These docs are gated purely by "are you one of the two
+    // parties" — never by workspace membership/permissions — and carry only
+    // denormalized display data, so no book internals leak between users.
+
+    function isParty() { return isSignedIn() && request.auth.uid in resource.data.uids; }
+    function willBeParty() { return isSignedIn() && request.auth.uid in request.resource.data.uids; }
+
+    // A standing relationship between two users. doc id = sorted uid pair.
+    match /sharedConnections/{id} {
+      allow read:   if isParty();
+      allow create: if willBeParty()
+        && request.resource.data.id == id
+        && request.resource.data.uids.size() == 2;
+      // Either party may refresh denormalized names/emails, but never change
+      // the membership of the pair.
+      allow update: if isParty() && willBeParty()
+        && request.resource.data.uids == resource.data.uids;
+      allow delete: if isParty();
+    }
+
+    // A one-sided "let's share" request addressed by email. doc id is
+    // deterministic (`${fromUid}_${lowercased-email}`) so the invitee — who may
+    // not exist as a uid yet — can be matched, mirroring workspace invites.
+    match /shareInvites/{id} {
+      allow read: if isSignedIn() && (
+        resource.data.fromUid == request.auth.uid ||
+        resource.data.toEmail == authEmail()
+      );
+      allow create: if isSignedIn()
+        && request.resource.data.fromUid == request.auth.uid
+        && request.resource.data.id == id
+        && id == request.resource.data.fromUid + '_' + request.resource.data.toEmail;
+      // The inviter can revoke; the invitee may flip only the status to accepted.
+      allow update: if isSignedIn() && (
+        (resource.data.fromUid == request.auth.uid
+          && request.resource.data.fromUid == resource.data.fromUid)
+        || (
+          resource.data.toEmail == authEmail()
+          && request.resource.data.status == 'accepted'
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+        )
+      );
+      allow delete: if isSignedIn() && resource.data.fromUid == request.auth.uid;
+    }
+
+    // A single bilateral shared item (expense or settlement). The creator owns
+    // the immutable facts; the counterparty owns only their consent.
+    match /sharedEntries/{id} {
+      allow read: if isParty();
+      allow create: if willBeParty()
+        && request.resource.data.id == id
+        && request.resource.data.creatorUid == request.auth.uid
+        && request.resource.data.uids.size() == 2
+        && request.resource.data.counterpartyUid in request.resource.data.uids
+        && createdUid(request.resource.data) == request.auth.uid;
+      // Update is tightly scoped by WHO you are:
+      //   - the counterparty may change ONLY their consent (status + the
+      //     mirrored pendingForUids), never amount/shares/parties;
+      //   - the creator may change ONLY `resolved` (clearing a conflict).
+      // Everything else is immutable post-create.
+      allow update: if isSignedIn() && (
+        (
+          resource.data.counterpartyUid == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(['status', 'pendingForUids', 'updatedBy', 'updatedAt'])
+        ) || (
+          resource.data.creatorUid == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(['resolved', 'updatedBy', 'updatedAt'])
+        )
+      );
+      // Only the creator can withdraw the claim entirely.
+      allow delete: if isSignedIn() && resource.data.creatorUid == request.auth.uid;
     }
 
     match /debts/{id} {

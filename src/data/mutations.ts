@@ -23,7 +23,6 @@ import type {
   Contact,
   Debt,
   Due,
-  SharedExpense,
   Transaction,
   TransactionLine,
 } from "@/types/models";
@@ -32,7 +31,7 @@ import type {
 // (e.g. an opening balance booked against "External / none").
 export const EXTERNAL_ACCOUNT = "__external__";
 
-function newId(name: string): string {
+export function newId(name: string): string {
   return doc(collection(db, name)).id;
 }
 
@@ -187,33 +186,11 @@ export async function deleteBudget(id: string) {
   await auditedDelete("budgets", id);
 }
 
-// ---- shared expenses (member settlement) -----------------------------------
-export interface SharedExpenseInput {
-  kind: SharedExpense["kind"];
-  description: string;
-  amount: number;
-  date: Date;
-  paidBy: string;
-  paidByName: string;
-  splits: SharedExpense["splits"];
-}
-export async function createSharedExpense(
-  workspaceId: string,
-  input: SharedExpenseInput,
-): Promise<string> {
-  const { date, ...rest } = input;
-  return auditedCreate("sharedExpenses", workspaceId, {
-    ...rest,
-    date: Timestamp.fromDate(date),
-  });
-}
-export async function updateSharedExpense(id: string, input: SharedExpenseInput) {
-  const { date, ...rest } = input;
-  await auditedUpdate("sharedExpenses", id, { ...rest, date: Timestamp.fromDate(date) });
-}
-export async function deleteSharedExpense(id: string) {
-  await auditedDelete("sharedExpenses", id);
-}
+// The cross-user shared ledger (Splitwise-style) lives in `sharedMutations.ts`,
+// not here: those collections are keyed by user uid, not workspaceId, and so
+// don't fit the workspace-scoped audited helpers above. Each side's local
+// reflection of an agreed shared item IS a normal workspace debt/transaction
+// and is built there by reusing these primitives.
 
 // ---- debts -----------------------------------------------------------------
 export async function createDebt(
@@ -475,7 +452,7 @@ export async function deleteWorkspace(id: string) {
 }
 
 // Firestore rejects `undefined`; drop those keys.
-function stripUndefined<T extends object>(obj: T): T {
+export function stripUndefined<T extends object>(obj: T): T {
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(obj)) if (v !== undefined) out[k] = v;
   return out as T;

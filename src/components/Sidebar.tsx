@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/auth/AuthProvider";
 import { useWorkspace } from "@/workspace/WorkspaceProvider";
+import { useSharedData } from "@/data/SharedDataProvider";
 import type { Permission } from "@/types/permissions";
 import { cn } from "@/lib/utils";
 
@@ -47,7 +48,7 @@ export const MAIN_NAV: NavItem[] = [
   { to: "/dues", label: "Dues", icon: CalendarClock, perm: "dues.view" },
   { to: "/contacts", label: "Contacts", icon: Users, perm: "contacts.view" },
   { to: "/debts", label: "Debts", icon: HandCoins, perm: "debts.view" },
-  { to: "/shared", label: "Shared", icon: Split, perm: "transactions.view" },
+  { to: "/shared", label: "Shared", icon: Split, perm: "shared.view" },
   { to: "/reports", label: "Reports", icon: BarChart3, perm: "reports.view" },
   { to: "/activity", label: "Activity", icon: History, perm: "reports.view" },
 ];
@@ -71,7 +72,15 @@ function itemClass(isActive: boolean) {
   );
 }
 
-function NavItemLink({ item, onNavigate }: { item: NavItem; onNavigate?: () => void }) {
+function NavItemLink({
+  item,
+  onNavigate,
+  badge,
+}: {
+  item: NavItem;
+  onNavigate?: () => void;
+  badge?: number;
+}) {
   const Icon = item.icon;
   return (
     <NavLink
@@ -82,6 +91,11 @@ function NavItemLink({ item, onNavigate }: { item: NavItem; onNavigate?: () => v
     >
       <Icon className="h-4 w-4 shrink-0 transition-transform duration-150 group-hover:scale-110" />
       {item.label}
+      {badge !== undefined && badge > 0 && (
+        <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[11px] font-semibold text-primary-foreground">
+          {badge}
+        </span>
+      )}
     </NavLink>
   );
 }
@@ -90,6 +104,7 @@ function NavItemLink({ item, onNavigate }: { item: NavItem; onNavigate?: () => v
 export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const { can, activeWorkspace } = useWorkspace();
   const { firebaseUser } = useAuth();
+  const { inboxCount } = useSharedData();
   const location = useLocation();
   const onSettingsRoute = location.pathname.startsWith("/settings");
   const [view, setView] = useState<"main" | "settings">(
@@ -119,7 +134,12 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
         {view === "main" ? (
           <nav className="flex animate-fade-in flex-col gap-1">
             {mainItems.map((item) => (
-              <NavItemLink key={item.to} item={item} onNavigate={onNavigate} />
+              <NavItemLink
+                key={item.to}
+                item={item}
+                onNavigate={onNavigate}
+                badge={item.to === "/shared" ? inboxCount : undefined}
+              />
             ))}
             {settingsItems.length > 0 && (
               <button

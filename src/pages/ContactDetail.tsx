@@ -28,6 +28,7 @@ const PURPOSE_LABELS: Record<DebtPurpose, string> = {
   lending: "Lendings",
   reimbursable: "Reimbursable",
   informal: "Informal",
+  shared: "Shared",
 };
 
 export function ContactDetail() {

@@ -113,26 +113,75 @@ export interface Budget {
 }
 
 // ---- shared expenses (member settlement) -----------------------------------
-// A cost shared among workspace members ("split the dinner"), or a direct
-// settlement payment between two members. Member balances are DERIVED from
-// these docs; nothing here touches account ledgers. Member names are
-// denormalized at write time so the reader needs no membership lookups.
-export type SharedExpenseKind = "expense" | "settlement";
-export interface SharedSplit {
-  uid: Id;
-  name: string; // denormalized member display name
-  share: number; // positive amount this member is responsible for
+// ---- shared ledger (cross-user, consent-based) -----------------------------
+// A Splitwise-style ledger that crosses WORKSPACE boundaries between two real
+// app users. Unlike every other collection here, shared docs are NOT
+// workspace-scoped — they are keyed by user uid and readable by exactly the two
+// parties. They carry ONLY denormalized display data (names, amounts) — never
+// account/category/workspace internals — so neither side leaks book data to the
+// other. Each side independently reflects an AGREED shared item into its own
+// workspace ledger via the normal debt/transaction engine (see mutations).
+
+// A standing relationship between two users. The pair can tag each other in
+// shared entries; it grants NO workspace access (not a membership). doc id is
+// the sorted uid pair so it is deterministic and idempotent.
+export interface SharedConnection {
+  id: Id; // `${minUid}_${maxUid}`
+  uids: [Id, Id]; // sorted; used for `array-contains` reads
+  names: Record<Id, string>; // uid -> denormalized display name
+  emails: Record<Id, string>; // uid -> lowercased email
+  status: "active";
+  createdAt: Ts;
 }
-export interface SharedExpense {
+
+// A one-sided request to start sharing, addressed by email (the invitee may not
+// have signed in yet). doc id = `${fromUid}_${lowercased-email}` (deterministic,
+// mirrors workspace invites — see rules).
+export type ShareInviteStatus = "pending" | "accepted" | "revoked";
+export interface ShareInvite {
   id: Id;
-  workspaceId: Id;
-  kind: SharedExpenseKind;
+  fromUid: Id;
+  fromName: string; // denormalized
+  fromEmail: string; // lowercased
+  toEmail: string; // lowercased
+  status: ShareInviteStatus;
+  createdAt: Ts;
+  expiresAt: Ts;
+}
+
+// A single shared item between exactly two users (bilateral). A multi-person
+// split is recorded as several bilateral entries created together, so each
+// counterparty accepts/rejects their own claim independently and each side's
+// reflection stays single-contact (the transaction engine is unchanged).
+export type SharedEntryKind = "expense" | "settlement";
+// Per the agreed model: an expense the creator paid is recorded immediately on
+// the creator's side (status starts "pending" awaiting the counterparty). The
+// counterparty can accept (records a balance-only debt) or reject (-> conflict).
+export type SharedEntryStatus = "pending" | "accepted" | "rejected";
+export interface SharedEntry {
+  id: Id;
+  connectionId: Id;
+  kind: SharedEntryKind;
+  // The two parties. `creatorUid` authored the entry; `counterpartyUid` must
+  // respond. Both are listed in `uids` for `array-contains` reads.
+  uids: [Id, Id];
+  creatorUid: Id;
+  counterpartyUid: Id;
+  names: Record<Id, string>; // uid -> denormalized name
+  // Who actually paid the money (a uid). For an expense this is usually the
+  // creator; for a settlement it is the party making the payment.
+  payerUid: Id;
   description: string;
-  amount: number; // total == sum(splits[].share)
+  amount: number; // the counterparty's share (bilateral, always positive)
   date: Ts;
-  paidBy: Id; // uid who fronted the money
-  paidByName: string; // denormalized
-  splits: SharedSplit[];
+  // Consent. Only `counterpartyUid` may change this; the creator's side is
+  // implicitly agreed at creation. `pendingForUids` mirrors status so the
+  // inbox can be queried with a single `array-contains`.
+  status: SharedEntryStatus;
+  pendingForUids: Id[]; // [counterpartyUid] while pending, else []
+  // Set true once the creator has resolved a rejection (absorbed/removed) so
+  // the conflict banner clears. Only the creator may flip this.
+  resolved?: boolean;
   createdAt: Ts;
   createdBy?: Actor;
   updatedBy?: Actor;
@@ -149,6 +198,10 @@ export interface Contact {
   phone?: string;
   email?: string;
   notes?: string;
+  // Set when this contact is the local handle for a shared-ledger counterparty
+  // (their uid). Auto-created when a shared entry is reflected into this book;
+  // hidden from the normal Contacts list.
+  connectionUid?: Id;
   createdAt: Ts;
   createdBy?: Actor;
   updatedBy?: Actor;
@@ -163,7 +216,8 @@ export type DebtPurpose =
   | "custodial_savings"
   | "lending"
   | "reimbursable"
-  | "informal";
+  | "informal"
+  | "shared"; // local reflection of a cross-user shared-ledger entry
 export type DebtStatus = "open" | "settled";
 export interface Debt {
   id: Id;
@@ -175,6 +229,9 @@ export interface Debt {
   note?: string;
   principal: number;
   status: DebtStatus;
+  // Set when this debt is the local reflection of a shared-ledger entry
+  // (purpose "shared"); links back to the cross-user `sharedEntries` doc.
+  sharedEntryId?: Id;
   createdAt: Ts;
   createdBy?: Actor;
   updatedBy?: Actor;
@@ -233,6 +290,7 @@ export interface Transaction {
   totalAmount: number; // = signed sum of lines; validated on write
   hasSplit: boolean; // lines.length > 1
   dueId?: Id; // set if this txn settles a due
+  sharedEntryId?: Id; // set if this txn reflects a cross-user shared entry
   financialYear: string; // e.g. "2025-26"
   createdBy: Actor;
   createdAt: Ts;

@@ -245,35 +245,59 @@ export function budgetProgress(
     .sort((a, b) => b.ratio - a.ratio);
 }
 
-// ---- shared expenses / member settlement -----------------------------------
-// For each shared expense (or settlement), the payer fronts `amount` and each
-// participant is responsible for their `share`. A member's net position is:
-//   net = (total they paid) - (total of their shares)
-// net > 0  => the group owes them; net < 0 => they owe the group.
-export interface MemberBalance {
-  uid: string;
-  name: string;
-  net: number;
+// ---- shared ledger (cross-user) --------------------------------------------
+// Balances are derived from AGREED shared entries (status "accepted"), plus the
+// creator's side of still-pending EXPENSES (the creator already paid, so the
+// claim stands until rejected). A rejected entry contributes nothing.
+//
+// Each entry is bilateral: `payerUid` fronted `amount` for `counterpartyUid`
+// (an expense), or paid `counterpartyUid`/was the creator of a settlement.
+// We compute, from MY perspective, a net per counterparty:
+//   net > 0  => they owe me; net < 0 => I owe them.
+// "settlement" entries move money the opposite way to an expense.
+
+export interface SharedEntryLike {
+  kind: "expense" | "settlement";
+  creatorUid: string;
+  counterpartyUid: string;
+  payerUid: string;
+  amount: number;
+  status: "pending" | "accepted" | "rejected";
+  names: Record<string, string>;
 }
 
-export function memberBalances(
-  expenses: {
-    amount: number;
-    paidBy: string;
-    paidByName: string;
-    splits: { uid: string; name: string; share: number }[];
-  }[],
-): MemberBalance[] {
+export interface SharedBalance {
+  uid: string; // the counterparty (from my perspective)
+  name: string;
+  net: number; // > 0 they owe me; < 0 I owe them
+}
+
+/**
+ * Net shared balance per counterparty, from `myUid`'s perspective. An entry
+ * counts when accepted, or when it's my own still-pending expense claim
+ * (I paid; awaiting their response — but my money already moved).
+ */
+export function sharedBalances(myUid: string, entries: SharedEntryLike[]): SharedBalance[] {
   const net = new Map<string, number>();
   const name = new Map<string, string>();
-  for (const e of expenses) {
-    net.set(e.paidBy, (net.get(e.paidBy) ?? 0) + e.amount);
-    if (e.paidByName) name.set(e.paidBy, e.paidByName);
-    for (const s of e.splits) {
-      net.set(s.uid, (net.get(s.uid) ?? 0) - s.share);
-      if (s.name) name.set(s.uid, s.name);
-    }
+
+  for (const e of entries) {
+    if (e.status === "rejected") continue;
+    // Pending entries only count on the side that already moved money: the
+    // creator of an expense, or the payer of a settlement (also the creator).
+    if (e.status === "pending" && e.creatorUid !== myUid) continue;
+
+    const other = e.creatorUid === myUid ? e.counterpartyUid : e.creatorUid;
+    name.set(other, e.names[other] ?? other);
+
+    // Signed amount in MY favour (+ = they owe me more). In both an expense
+    // (payer fronts money the other owes back) and a settlement (payer pays
+    // down what they owe), the party who paid moves the balance in their own
+    // favour, so the sign is the same: + if I paid, − if I received.
+    const delta = e.payerUid === myUid ? e.amount : -e.amount;
+    net.set(other, (net.get(other) ?? 0) + delta);
   }
+
   return [...net.entries()]
     .map(([uid, n]) => ({ uid, name: name.get(uid) ?? uid, net: roundMoney(n) }))
     .filter((b) => Math.abs(b.net) > 0.005)
@@ -289,37 +313,19 @@ export interface DebtTransfer {
 }
 
 /**
- * Minimal set of "X pays Y ₹Z" transfers that settles all balances. Greedy:
- * repeatedly match the largest debtor against the largest creditor.
+ * Bilateral "who pays whom" list from my perspective. Because the ledger is
+ * pairwise (no multi-party netting needed), each non-zero balance is one
+ * transfer: I owe them, or they owe me.
  */
-export function simplifyDebts(balances: MemberBalance[]): DebtTransfer[] {
-  const creditors = balances.filter((b) => b.net > 0.005).map((b) => ({ ...b }));
-  const debtors = balances.filter((b) => b.net < -0.005).map((b) => ({ ...b, net: -b.net }));
-  creditors.sort((a, b) => b.net - a.net);
-  debtors.sort((a, b) => b.net - a.net);
-
-  const transfers: DebtTransfer[] = [];
-  let ci = 0;
-  let di = 0;
-  while (ci < creditors.length && di < debtors.length) {
-    const c = creditors[ci];
-    const d = debtors[di];
-    const amount = roundMoney(Math.min(c.net, d.net));
-    if (amount > 0.005) {
-      transfers.push({
-        fromUid: d.uid,
-        fromName: d.name,
-        toUid: c.uid,
-        toName: c.name,
-        amount,
-      });
-    }
-    c.net = roundMoney(c.net - amount);
-    d.net = roundMoney(d.net - amount);
-    if (c.net <= 0.005) ci++;
-    if (d.net <= 0.005) di++;
-  }
-  return transfers;
+export function settleUpTransfers(myUid: string, balances: SharedBalance[]): DebtTransfer[] {
+  const meName = "You";
+  return balances
+    .filter((b) => Math.abs(b.net) > 0.005)
+    .map((b) =>
+      b.net > 0
+        ? { fromUid: b.uid, fromName: b.name, toUid: myUid, toName: meName, amount: b.net }
+        : { fromUid: myUid, fromName: meName, toUid: b.uid, toName: b.name, amount: -b.net },
+    );
 }
 
 export function spendByCategory(
