@@ -10,7 +10,7 @@ import type {
   TransactionLine,
 } from "@/types/models";
 import { accountDeltas, roundMoney } from "./txn";
-import { financialYearOf } from "./financialYear";
+import { financialYearOf, financialYearRange } from "./financialYear";
 
 export function toDate(ts: { toDate?: () => Date } | Date | undefined): Date {
   if (!ts) return new Date(0);
@@ -169,10 +169,14 @@ export function categorySpendInRange(
   return totals;
 }
 
+export type BudgetPeriod = "monthly" | "yearly";
+
 export interface BudgetProgress {
   budgetId: string;
   categoryId: string;
   categoryName: string;
+  period: BudgetPeriod;
+  periodLabel: string; // e.g. "May 2026" or "FY 2026-27"
   limit: number;
   spent: number;
   remaining: number;
@@ -180,28 +184,57 @@ export interface BudgetProgress {
   over: boolean;
 }
 
+const MONTH_FMT = new Intl.DateTimeFormat("en-IN", { month: "long", year: "numeric" });
+
+/** The active [start, end) window + a human label for a budget period. */
+export function budgetWindow(
+  period: BudgetPeriod,
+  fyStartMonth: number,
+  now: Date = new Date(),
+): { start: Date; end: Date; label: string } {
+  if (period === "yearly") {
+    const { start, end } = financialYearRange(now, fyStartMonth);
+    const fy = financialYearOf(now, fyStartMonth);
+    return { start, end, label: fyStartMonth === 1 ? fy : `FY ${fy}` };
+  }
+  const start = new Date(now.getFullYear(), now.getMonth(), 1);
+  const end = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  return { start, end, label: MONTH_FMT.format(now) };
+}
+
 /**
- * Budget vs actual for a given calendar month (defaults to current). Spend is
- * derived from expense lines dated within that month.
+ * Budget vs actual for the active period of each budget. Spend is derived from
+ * expense lines dated within that budget's window (calendar month for monthly,
+ * financial year for yearly).
  */
 export function budgetProgress(
-  budgets: { id: string; categoryId: string; amount: number }[],
+  budgets: { id: string; categoryId: string; amount: number; period?: BudgetPeriod }[],
   txns: Transaction[],
   categoriesById: Record<string, { name: string }>,
-  month: Date = new Date(),
+  fyStartMonth = 4,
+  now: Date = new Date(),
 ): BudgetProgress[] {
-  const start = new Date(month.getFullYear(), month.getMonth(), 1);
-  const end = new Date(month.getFullYear(), month.getMonth() + 1, 1);
-  const spendByCat = categorySpendInRange(txns, start, end);
+  // Window depends only on period — compute once per distinct period.
+  const windows: Record<BudgetPeriod, ReturnType<typeof budgetWindow>> = {
+    monthly: budgetWindow("monthly", fyStartMonth, now),
+    yearly: budgetWindow("yearly", fyStartMonth, now),
+  };
+  const spendByCat: Record<BudgetPeriod, Record<string, number>> = {
+    monthly: categorySpendInRange(txns, windows.monthly.start, windows.monthly.end),
+    yearly: categorySpendInRange(txns, windows.yearly.start, windows.yearly.end),
+  };
 
   return budgets
     .map((b) => {
-      const spent = spendByCat[b.categoryId] ?? 0;
+      const period: BudgetPeriod = b.period ?? "monthly";
+      const spent = spendByCat[period][b.categoryId] ?? 0;
       const limit = b.amount;
       return {
         budgetId: b.id,
         categoryId: b.categoryId,
         categoryName: categoriesById[b.categoryId]?.name ?? "Uncategorized",
+        period,
+        periodLabel: windows[period].label,
         limit,
         spent: roundMoney(spent),
         remaining: roundMoney(limit - spent),
@@ -210,6 +243,83 @@ export function budgetProgress(
       };
     })
     .sort((a, b) => b.ratio - a.ratio);
+}
+
+// ---- shared expenses / member settlement -----------------------------------
+// For each shared expense (or settlement), the payer fronts `amount` and each
+// participant is responsible for their `share`. A member's net position is:
+//   net = (total they paid) - (total of their shares)
+// net > 0  => the group owes them; net < 0 => they owe the group.
+export interface MemberBalance {
+  uid: string;
+  name: string;
+  net: number;
+}
+
+export function memberBalances(
+  expenses: {
+    amount: number;
+    paidBy: string;
+    paidByName: string;
+    splits: { uid: string; name: string; share: number }[];
+  }[],
+): MemberBalance[] {
+  const net = new Map<string, number>();
+  const name = new Map<string, string>();
+  for (const e of expenses) {
+    net.set(e.paidBy, (net.get(e.paidBy) ?? 0) + e.amount);
+    if (e.paidByName) name.set(e.paidBy, e.paidByName);
+    for (const s of e.splits) {
+      net.set(s.uid, (net.get(s.uid) ?? 0) - s.share);
+      if (s.name) name.set(s.uid, s.name);
+    }
+  }
+  return [...net.entries()]
+    .map(([uid, n]) => ({ uid, name: name.get(uid) ?? uid, net: roundMoney(n) }))
+    .filter((b) => Math.abs(b.net) > 0.005)
+    .sort((a, b) => b.net - a.net);
+}
+
+export interface DebtTransfer {
+  fromUid: string;
+  fromName: string;
+  toUid: string;
+  toName: string;
+  amount: number;
+}
+
+/**
+ * Minimal set of "X pays Y ₹Z" transfers that settles all balances. Greedy:
+ * repeatedly match the largest debtor against the largest creditor.
+ */
+export function simplifyDebts(balances: MemberBalance[]): DebtTransfer[] {
+  const creditors = balances.filter((b) => b.net > 0.005).map((b) => ({ ...b }));
+  const debtors = balances.filter((b) => b.net < -0.005).map((b) => ({ ...b, net: -b.net }));
+  creditors.sort((a, b) => b.net - a.net);
+  debtors.sort((a, b) => b.net - a.net);
+
+  const transfers: DebtTransfer[] = [];
+  let ci = 0;
+  let di = 0;
+  while (ci < creditors.length && di < debtors.length) {
+    const c = creditors[ci];
+    const d = debtors[di];
+    const amount = roundMoney(Math.min(c.net, d.net));
+    if (amount > 0.005) {
+      transfers.push({
+        fromUid: d.uid,
+        fromName: d.name,
+        toUid: c.uid,
+        toName: c.name,
+        amount,
+      });
+    }
+    c.net = roundMoney(c.net - amount);
+    d.net = roundMoney(d.net - amount);
+    if (c.net <= 0.005) ci++;
+    if (d.net <= 0.005) di++;
+  }
+  return transfers;
 }
 
 export function spendByCategory(

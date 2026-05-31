@@ -21,6 +21,8 @@ import { Debts } from "@/pages/Debts";
 import { Transactions } from "@/pages/Transactions";
 import { Dues } from "@/pages/Dues";
 import { Reports } from "@/pages/Reports";
+import { Activity } from "@/pages/Activity";
+import { Shared } from "@/pages/Shared";
 import { Members } from "@/pages/Members";
 import { Roles } from "@/pages/Roles";
 import { WorkspaceSettings } from "@/pages/WorkspaceSettings";
@@ -96,6 +98,22 @@ export default function App() {
                 element={
                   <Gated perm="reports.view">
                     <Reports />
+                  </Gated>
+                }
+              />
+              <Route
+                path="activity"
+                element={
+                  <Gated perm="reports.view">
+                    <Activity />
+                  </Gated>
+                }
+              />
+              <Route
+                path="shared"
+                element={
+                  <Gated perm="transactions.view">
+                    <Shared />
                   </Gated>
                 }
               />
