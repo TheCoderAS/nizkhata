@@ -23,6 +23,7 @@ import type {
   Contact,
   Debt,
   Due,
+  SharedExpense,
   Transaction,
   TransactionLine,
 } from "@/types/models";
@@ -172,18 +173,46 @@ export async function deleteContact(id: string) {
 // ---- budgets ---------------------------------------------------------------
 export async function createBudget(
   workspaceId: string,
-  data: Pick<Budget, "categoryId" | "amount">,
+  data: Pick<Budget, "categoryId" | "amount" | "period">,
 ): Promise<string> {
-  return auditedCreate("budgets", workspaceId, { ...data, period: "monthly" });
+  return auditedCreate("budgets", workspaceId, data);
 }
 export async function updateBudget(
   id: string,
-  data: Partial<Pick<Budget, "amount" | "categoryId">>,
+  data: Partial<Pick<Budget, "amount" | "categoryId" | "period">>,
 ) {
   await auditedUpdate("budgets", id, data);
 }
 export async function deleteBudget(id: string) {
   await auditedDelete("budgets", id);
+}
+
+// ---- shared expenses (member settlement) -----------------------------------
+export interface SharedExpenseInput {
+  kind: SharedExpense["kind"];
+  description: string;
+  amount: number;
+  date: Date;
+  paidBy: string;
+  paidByName: string;
+  splits: SharedExpense["splits"];
+}
+export async function createSharedExpense(
+  workspaceId: string,
+  input: SharedExpenseInput,
+): Promise<string> {
+  const { date, ...rest } = input;
+  return auditedCreate("sharedExpenses", workspaceId, {
+    ...rest,
+    date: Timestamp.fromDate(date),
+  });
+}
+export async function updateSharedExpense(id: string, input: SharedExpenseInput) {
+  const { date, ...rest } = input;
+  await auditedUpdate("sharedExpenses", id, { ...rest, date: Timestamp.fromDate(date) });
+}
+export async function deleteSharedExpense(id: string) {
+  await auditedDelete("sharedExpenses", id);
 }
 
 // ---- debts -----------------------------------------------------------------

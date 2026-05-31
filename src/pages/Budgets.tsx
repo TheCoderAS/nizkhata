@@ -7,7 +7,7 @@ import { useWorkspace } from "@/workspace/WorkspaceProvider";
 import { useData } from "@/data/WorkspaceDataProvider";
 import { createBudget, deleteBudget, updateBudget } from "@/data/mutations";
 import { budgetProgress } from "@/lib/derive";
-import type { Budget } from "@/types/models";
+import type { Budget, BudgetPeriod } from "@/types/models";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,27 +32,34 @@ import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { useToast } from "@/components/ui/toast";
 import { cn, formatMoney } from "@/lib/utils";
 
-const MONTH_LABEL = new Intl.DateTimeFormat("en-IN", { month: "long", year: "numeric" });
-
 export function Budgets() {
   const { activeWorkspaceId, activeWorkspace, can } = useWorkspace();
   const { budgets, categories, categoriesById, transactions, loading, error } = useData();
   const { toast } = useToast();
   const currency = activeWorkspace?.baseCurrency ?? "INR";
+  const fyStartMonth = activeWorkspace?.fyStartMonth ?? 4;
   const manage = can("categories.manage");
 
   const [editing, setEditing] = useState<Budget | "new" | null>(null);
   const [toDelete, setToDelete] = useState<Budget | null>(null);
 
   const progress = useMemo(
-    () => budgetProgress(budgets, transactions, categoriesById),
-    [budgets, transactions, categoriesById],
+    () => budgetProgress(budgets, transactions, categoriesById, fyStartMonth),
+    [budgets, transactions, categoriesById, fyStartMonth],
   );
 
-  const totals = useMemo(() => {
-    const limit = progress.reduce((s, p) => s + p.limit, 0);
-    const spent = progress.reduce((s, p) => s + p.spent, 0);
-    return { limit, spent, remaining: limit - spent };
+  // Group by period — monthly and yearly limits aren't comparable, so totals
+  // and lists are kept separate.
+  const groups = useMemo(() => {
+    const order: BudgetPeriod[] = ["monthly", "yearly"];
+    return order
+      .map((period) => {
+        const rows = progress.filter((p) => p.period === period);
+        const limit = rows.reduce((s, p) => s + p.limit, 0);
+        const spent = rows.reduce((s, p) => s + p.spent, 0);
+        return { period, rows, limit, spent, remaining: limit - spent };
+      })
+      .filter((g) => g.rows.length > 0);
   }, [progress]);
 
   if (loading) return <LoadingState />;
@@ -70,83 +77,105 @@ export function Budgets() {
         }}
       />
 
-      <p className="mb-4 text-sm text-muted-foreground">{MONTH_LABEL.format(new Date())}</p>
+      <p className="mb-4 text-sm text-muted-foreground">
+        Spending limits per expense category, tracked over the current month or financial year.
+      </p>
 
       {budgets.length === 0 ? (
         <EmptyState
           title="No budgets yet"
-          hint="Set a monthly limit on an expense category to track spending against it."
+          hint="Set a monthly or yearly limit on an expense category to track spending against it."
           action={manage && <Button onClick={() => setEditing("new")}>New budget</Button>}
         />
       ) : (
-        <>
-          <Card className="mb-4">
-            <CardContent className="flex flex-wrap items-center justify-between gap-4 pt-6">
-              <Stat label="Total budget" value={formatMoney(totals.limit, currency)} />
-              <Stat label="Spent" value={formatMoney(totals.spent, currency)} />
-              <Stat
-                label="Remaining"
-                value={formatMoney(totals.remaining, currency)}
-                tone={totals.remaining < 0 ? "over" : "ok"}
-              />
-            </CardContent>
-          </Card>
-
-          <div className="space-y-3">
-            {progress.map((p) => {
-              const budget = budgets.find((b) => b.id === p.budgetId)!;
-              const pct = Math.min(100, Math.round(p.ratio * 100));
-              return (
-                <Card key={p.budgetId}>
-                  <CardContent className="pt-5">
-                    <div className="mb-2 flex items-center justify-between gap-2">
-                      <span className="font-medium">{p.categoryName}</span>
-                      <div className="flex items-center gap-2">
-                        <span
+        <div className="space-y-6">
+          {groups.map((g) => (
+            <section key={g.period}>
+              <div className="mb-2 flex items-end justify-between gap-2">
+                <h2 className="text-sm font-semibold capitalize">{g.period} budgets</h2>
+                <span className="text-xs text-muted-foreground tabular-nums">
+                  {formatMoney(g.spent, currency)} / {formatMoney(g.limit, currency)}
+                  <span className={cn("ml-2", g.remaining < 0 && "text-destructive")}>
+                    ({g.remaining < 0 ? "over by " : ""}
+                    {formatMoney(Math.abs(g.remaining), currency)}
+                    {g.remaining < 0 ? "" : " left"})
+                  </span>
+                </span>
+              </div>
+              <div className="space-y-3">
+                {g.rows.map((p) => {
+                  const budget = budgets.find((b) => b.id === p.budgetId)!;
+                  const pct = Math.min(100, Math.round(p.ratio * 100));
+                  return (
+                    <Card key={p.budgetId}>
+                      <CardContent className="pt-5">
+                        <div className="mb-2 flex items-center justify-between gap-2">
+                          <div className="flex min-w-0 items-center gap-2">
+                            <span className="truncate font-medium">{p.categoryName}</span>
+                            <span className="shrink-0 text-xs text-muted-foreground">
+                              {p.periodLabel}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={cn(
+                                "text-sm tabular-nums",
+                                p.over ? "text-destructive" : "text-muted-foreground",
+                              )}
+                            >
+                              {formatMoney(p.spent, currency)} / {formatMoney(p.limit, currency)}
+                            </span>
+                            {manage && (
+                              <>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  onClick={() => setEditing(budget)}
+                                >
+                                  <Pencil />
+                                </Button>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  onClick={() => setToDelete(budget)}
+                                >
+                                  <Trash2 />
+                                </Button>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                        <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+                          <div
+                            className={cn(
+                              "h-2 rounded-full transition-all",
+                              p.over
+                                ? "bg-destructive"
+                                : p.ratio > 0.8
+                                  ? "bg-warning"
+                                  : "bg-primary",
+                            )}
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                        <p
                           className={cn(
-                            "text-sm tabular-nums",
+                            "mt-1 text-xs",
                             p.over ? "text-destructive" : "text-muted-foreground",
                           )}
                         >
-                          {formatMoney(p.spent, currency)} / {formatMoney(p.limit, currency)}
-                        </span>
-                        {manage && (
-                          <>
-                            <Button size="icon" variant="ghost" onClick={() => setEditing(budget)}>
-                              <Pencil />
-                            </Button>
-                            <Button size="icon" variant="ghost" onClick={() => setToDelete(budget)}>
-                              <Trash2 />
-                            </Button>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                    <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
-                      <div
-                        className={cn(
-                          "h-2 rounded-full transition-all",
-                          p.over ? "bg-destructive" : p.ratio > 0.8 ? "bg-warning" : "bg-primary",
-                        )}
-                        style={{ width: `${pct}%` }}
-                      />
-                    </div>
-                    <p
-                      className={cn(
-                        "mt-1 text-xs",
-                        p.over ? "text-destructive" : "text-muted-foreground",
-                      )}
-                    >
-                      {p.over
-                        ? `Over by ${formatMoney(-p.remaining, currency)}`
-                        : `${formatMoney(p.remaining, currency)} left`}
-                    </p>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
-        </>
+                          {p.over
+                            ? `Over by ${formatMoney(-p.remaining, currency)}`
+                            : `${formatMoney(p.remaining, currency)} left`}
+                        </p>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            </section>
+          ))}
+        </div>
       )}
 
       {editing && activeWorkspaceId && (
@@ -176,30 +205,6 @@ export function Budgets() {
   );
 }
 
-function Stat({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: string;
-  tone?: "ok" | "over";
-}) {
-  return (
-    <div>
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p
-        className={cn(
-          "text-lg font-semibold tabular-nums",
-          tone === "over" && "text-destructive",
-        )}
-      >
-        {value}
-      </p>
-    </div>
-  );
-}
-
 function BudgetDialog({
   budget,
   expenseCategories,
@@ -216,6 +221,7 @@ function BudgetDialog({
   const { activeWorkspaceId } = useWorkspace();
   const [categoryId, setCategoryId] = useState(budget?.categoryId ?? "");
   const [amount, setAmount] = useState(String(budget?.amount ?? 0));
+  const [period, setPeriod] = useState<BudgetPeriod>(budget?.period ?? "monthly");
   const [busy, setBusy] = useState(false);
 
   // when creating, only offer categories that don't already have a budget
@@ -227,8 +233,9 @@ function BudgetDialog({
     if (!categoryId || !activeWorkspaceId) return;
     setBusy(true);
     try {
-      if (budget) await updateBudget(budget.id, { amount: Number(amount) || 0 });
-      else await createBudget(activeWorkspaceId, { categoryId, amount: Number(amount) || 0 });
+      if (budget) await updateBudget(budget.id, { amount: Number(amount) || 0, period });
+      else
+        await createBudget(activeWorkspaceId, { categoryId, amount: Number(amount) || 0, period });
       onSaved();
       onClose();
     } finally {
@@ -259,7 +266,19 @@ function BudgetDialog({
             </Select>
           </div>
           <div className="space-y-1.5">
-            <Label>Monthly limit</Label>
+            <Label>Period</Label>
+            <Select value={period} onValueChange={(v) => setPeriod(v as BudgetPeriod)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="monthly">Monthly</SelectItem>
+                <SelectItem value="yearly">Yearly (financial year)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label>{period === "yearly" ? "Yearly limit" : "Monthly limit"}</Label>
             <Input
               type="number"
               min="0"

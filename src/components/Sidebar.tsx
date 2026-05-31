@@ -12,8 +12,10 @@ import {
   CalendarClock,
   Users,
   HandCoins,
+  History,
   BarChart3,
   Wallet,
+  Split,
   Tags,
   Target,
   UserCog,
@@ -37,13 +39,17 @@ interface NavItem {
   perm?: Permission; // undefined = always visible
 }
 
-const MAIN_NAV: NavItem[] = [
+export type { NavItem };
+
+export const MAIN_NAV: NavItem[] = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
   { to: "/transactions", label: "Transactions", icon: ArrowLeftRight, perm: "transactions.view" },
   { to: "/dues", label: "Dues", icon: CalendarClock, perm: "dues.view" },
   { to: "/contacts", label: "Contacts", icon: Users, perm: "contacts.view" },
   { to: "/debts", label: "Debts", icon: HandCoins, perm: "debts.view" },
+  { to: "/shared", label: "Shared", icon: Split, perm: "transactions.view" },
   { to: "/reports", label: "Reports", icon: BarChart3, perm: "reports.view" },
+  { to: "/activity", label: "Activity", icon: History, perm: "reports.view" },
 ];
 
 const SETTINGS_NAV: NavItem[] = [

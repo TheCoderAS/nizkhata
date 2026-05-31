@@ -92,8 +92,8 @@ export function Dashboard() {
   );
 
   const budgetRows = useMemo(
-    () => budgetProgress(budgets, transactions, categoriesById).slice(0, 4),
-    [budgets, transactions, categoriesById],
+    () => budgetProgress(budgets, transactions, categoriesById, fyStartMonth).slice(0, 4),
+    [budgets, transactions, categoriesById, fyStartMonth],
   );
 
   const upcoming = useMemo(
@@ -262,7 +262,7 @@ export function Dashboard() {
       {budgetRows.length > 0 && (
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">Budgets · this month</CardTitle>
+            <CardTitle className="text-base">Budgets</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
@@ -270,11 +270,16 @@ export function Dashboard() {
                 const pct = Math.min(100, Math.round(p.ratio * 100));
                 return (
                   <div key={p.budgetId}>
-                    <div className="flex justify-between text-sm">
-                      <span className="truncate pr-2">{p.categoryName}</span>
+                    <div className="flex justify-between gap-2 text-sm">
+                      <span className="flex min-w-0 items-center gap-2">
+                        <span className="truncate">{p.categoryName}</span>
+                        <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+                          {p.periodLabel}
+                        </span>
+                      </span>
                       <span
                         className={cn(
-                          "tabular-nums",
+                          "shrink-0 tabular-nums",
                           p.over ? "text-destructive" : "text-muted-foreground",
                         )}
                       >

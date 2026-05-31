@@ -97,14 +97,42 @@ export interface Category {
 }
 
 // ---- budgets ---------------------------------------------------------------
-// A monthly spending limit for an expense category. Actual spend is DERIVED
-// from transaction lines; only the limit is stored.
+// A spending limit for an expense category over a recurring period. Actual
+// spend is DERIVED from transaction lines; only the limit + period are stored.
+export type BudgetPeriod = "monthly" | "yearly";
 export interface Budget {
   id: Id;
   workspaceId: Id;
   categoryId: Id;
   amount: number; // limit per period
-  period: "monthly";
+  period: BudgetPeriod;
+  createdAt: Ts;
+  createdBy?: Actor;
+  updatedBy?: Actor;
+  updatedAt?: Ts;
+}
+
+// ---- shared expenses (member settlement) -----------------------------------
+// A cost shared among workspace members ("split the dinner"), or a direct
+// settlement payment between two members. Member balances are DERIVED from
+// these docs; nothing here touches account ledgers. Member names are
+// denormalized at write time so the reader needs no membership lookups.
+export type SharedExpenseKind = "expense" | "settlement";
+export interface SharedSplit {
+  uid: Id;
+  name: string; // denormalized member display name
+  share: number; // positive amount this member is responsible for
+}
+export interface SharedExpense {
+  id: Id;
+  workspaceId: Id;
+  kind: SharedExpenseKind;
+  description: string;
+  amount: number; // total == sum(splits[].share)
+  date: Ts;
+  paidBy: Id; // uid who fronted the money
+  paidByName: string; // denormalized
+  splits: SharedSplit[];
   createdAt: Ts;
   createdBy?: Actor;
   updatedBy?: Actor;

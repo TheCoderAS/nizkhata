@@ -124,8 +124,11 @@ service cloud.firestore {
 
     // ---- memberships -------------------------------------------------------
     match /memberships/{id} {
+      // Any member of the workspace may list its members (needed for member
+      // pickers, e.g. shared-expense splits); admins keep the same access.
       allow read: if isSignedIn() && (
         resource.data.uid == request.auth.uid ||
+        isMember(resource.data.workspaceId) ||
         can(resource.data.workspaceId, 'members.view')
       );
 
@@ -218,6 +221,15 @@ service cloud.firestore {
       allow create:         if can(inWs(), 'categories.manage');
       allow update:         if can(exWs(), 'categories.manage') && wsImmutable();
       allow delete:         if can(exWs(), 'categories.manage');
+    }
+
+    // Shared expenses / member settlement: gated by transaction permissions
+    // (no new permission key). Balances are derived client-side from these.
+    match /sharedExpenses/{id} {
+      allow read:           if can(exWs(), 'transactions.view');
+      allow create:         if can(inWs(), 'transactions.create');
+      allow update:         if can(exWs(), 'transactions.edit') && wsImmutable();
+      allow delete:         if can(exWs(), 'transactions.delete');
     }
 
     match /debts/{id} {
