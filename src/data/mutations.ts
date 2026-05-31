@@ -8,14 +8,16 @@ import {
   deleteDoc,
   doc,
   serverTimestamp,
-  setDoc,
   updateDoc,
   writeBatch,
 } from "firebase/firestore";
 import { db } from "@/firebase/config";
 import { financialYearOf } from "@/lib/financialYear";
+import { getCurrentActor, getCurrentWorkspaceId } from "./actor";
+import { appendRevision } from "./revisions";
 import type {
   Account,
+  Actor,
   Category,
   Contact,
   Debt,
@@ -32,28 +34,104 @@ function newId(name: string): string {
   return doc(collection(db, name)).id;
 }
 
+// ---- audited write helpers -------------------------------------------------
+// Every entity create/update/delete also stamps audit fields (createdBy/
+// updatedBy as denormalized Actors) and appends an append-only revision in the
+// same batch. The current actor comes from the module-level holder (set by
+// AuthProvider), so call sites don't need to thread it through.
+
+/** Create a workspace-scoped doc with audit fields + a "create" revision. */
+async function auditedCreate(
+  collectionName: string,
+  workspaceId: string,
+  data: Record<string, unknown>,
+  id = newId(collectionName),
+): Promise<string> {
+  const by = getCurrentActor();
+  const docData = {
+    id,
+    workspaceId,
+    ...stripUndefined(data),
+    createdBy: by,
+    createdAt: serverTimestamp(),
+    updatedBy: by,
+    updatedAt: serverTimestamp(),
+  };
+  const batch = writeBatch(db);
+  batch.set(doc(db, collectionName, id), docData);
+  appendRevision(batch, {
+    workspaceId,
+    entityType: collectionName,
+    entityId: id,
+    action: "create",
+    by,
+    snapshot: stripUndefined(data),
+  });
+  await batch.commit();
+  return id;
+}
+
+/** Update a doc: refresh updatedBy/updatedAt + append an "update" revision. */
+async function auditedUpdate(
+  collectionName: string,
+  id: string,
+  data: Record<string, unknown>,
+): Promise<void> {
+  const by = getCurrentActor();
+  const workspaceId = getCurrentWorkspaceId();
+  const clean = stripUndefined(data);
+  const batch = writeBatch(db);
+  batch.update(doc(db, collectionName, id), {
+    ...clean,
+    updatedBy: by,
+    updatedAt: serverTimestamp(),
+  });
+  appendRevision(batch, {
+    workspaceId,
+    entityType: collectionName,
+    entityId: id,
+    action: "update",
+    by,
+    snapshot: clean,
+    changedFields: Object.keys(clean),
+  });
+  await batch.commit();
+}
+
+/** Delete a doc + append a "delete" revision. */
+async function auditedDelete(
+  collectionName: string,
+  id: string,
+): Promise<void> {
+  const by = getCurrentActor();
+  const workspaceId = getCurrentWorkspaceId();
+  const batch = writeBatch(db);
+  batch.delete(doc(db, collectionName, id));
+  appendRevision(batch, {
+    workspaceId,
+    entityType: collectionName,
+    entityId: id,
+    action: "delete",
+    by,
+  });
+  await batch.commit();
+}
+
 // ---- accounts --------------------------------------------------------------
 export async function createAccount(
   workspaceId: string,
   data: Pick<Account, "name" | "type" | "openingBalance">,
 ): Promise<string> {
-  const id = newId("accounts");
-  await setDoc(doc(db, "accounts", id), {
-    id,
-    workspaceId,
-    ...data,
-    createdAt: serverTimestamp(),
-  });
-  return id;
+  return auditedCreate("accounts", workspaceId, data);
 }
 export async function updateAccount(
   id: string,
   data: Partial<Pick<Account, "name" | "type" | "openingBalance">>,
 ) {
-  await updateDoc(doc(db, "accounts", id), data);
+  await auditedUpdate("accounts", id, data);
 }
 export async function deleteAccount(id: string) {
-  await deleteDoc(doc(db, "accounts", id));
+  await auditedDelete("accounts", id);
 }
 
 // ---- categories ------------------------------------------------------------
@@ -61,24 +139,16 @@ export async function createCategory(
   workspaceId: string,
   data: Pick<Category, "name" | "kind">,
 ): Promise<string> {
-  const id = newId("categories");
-  await setDoc(doc(db, "categories", id), {
-    id,
-    workspaceId,
-    ...data,
-    isSystem: false,
-    createdAt: serverTimestamp(),
-  });
-  return id;
+  return auditedCreate("categories", workspaceId, { ...data, isSystem: false });
 }
 export async function updateCategory(
   id: string,
   data: Partial<Pick<Category, "name" | "kind">>,
 ) {
-  await updateDoc(doc(db, "categories", id), data);
+  await auditedUpdate("categories", id, data);
 }
 export async function deleteCategory(id: string) {
-  await deleteDoc(doc(db, "categories", id));
+  await auditedDelete("categories", id);
 }
 
 // ---- contacts --------------------------------------------------------------
@@ -86,23 +156,16 @@ export async function createContact(
   workspaceId: string,
   data: Pick<Contact, "name" | "type"> & Partial<Pick<Contact, "phone" | "email" | "notes">>,
 ): Promise<string> {
-  const id = newId("contacts");
-  await setDoc(doc(db, "contacts", id), {
-    id,
-    workspaceId,
-    ...stripUndefined(data),
-    createdAt: serverTimestamp(),
-  });
-  return id;
+  return auditedCreate("contacts", workspaceId, data);
 }
 export async function updateContact(
   id: string,
   data: Partial<Pick<Contact, "name" | "type" | "phone" | "email" | "notes">>,
 ) {
-  await updateDoc(doc(db, "contacts", id), stripUndefined(data));
+  await auditedUpdate("contacts", id, data);
 }
 export async function deleteContact(id: string) {
-  await deleteDoc(doc(db, "contacts", id));
+  await auditedDelete("contacts", id);
 }
 
 // ---- debts -----------------------------------------------------------------
@@ -111,24 +174,16 @@ export async function createDebt(
   data: Pick<Debt, "contactId" | "direction" | "purpose" | "principal"> &
     Partial<Pick<Debt, "label">>,
 ): Promise<string> {
-  const id = newId("debts");
-  await setDoc(doc(db, "debts", id), {
-    id,
-    workspaceId,
-    ...stripUndefined(data),
-    status: "open",
-    createdAt: serverTimestamp(),
-  });
-  return id;
+  return auditedCreate("debts", workspaceId, { ...data, status: "open" });
 }
 export async function updateDebt(
   id: string,
   data: Partial<Pick<Debt, "label" | "principal" | "status">>,
 ) {
-  await updateDoc(doc(db, "debts", id), stripUndefined(data));
+  await auditedUpdate("debts", id, data);
 }
 export async function deleteDebt(id: string) {
-  await deleteDoc(doc(db, "debts", id));
+  await auditedDelete("debts", id);
 }
 
 /**
@@ -144,21 +199,33 @@ export async function deleteDebt(id: string) {
  */
 export async function createDebtWithOpening(
   workspaceId: string,
-  createdBy: string,
+  _createdByUid: string, // retained for call-site compat; actor comes from holder
   fyStartMonth: number,
   debtData: Pick<Debt, "contactId" | "direction" | "purpose" | "principal"> &
     Partial<Pick<Debt, "label">>,
   opening: { amount: number; accountId?: string },
 ): Promise<string> {
+  const by = getCurrentActor();
   const debtId = newId("debts");
   const batch = writeBatch(db);
 
+  const debtDoc = { ...stripUndefined(debtData), status: "open" as const };
   batch.set(doc(db, "debts", debtId), {
     id: debtId,
     workspaceId,
-    ...stripUndefined(debtData),
-    status: "open",
+    ...debtDoc,
+    createdBy: by,
     createdAt: serverTimestamp(),
+    updatedBy: by,
+    updatedAt: serverTimestamp(),
+  });
+  appendRevision(batch, {
+    workspaceId,
+    entityType: "debts",
+    entityId: debtId,
+    action: "create",
+    by,
+    snapshot: debtDoc,
   });
 
   if (opening.amount > 0) {
@@ -187,9 +254,18 @@ export async function createDebtWithOpening(
       hasSplit: false,
       financialYear: financialYearOf(now, fyStartMonth),
       note: "Opening balance",
-      createdBy,
+      createdBy: by,
       createdAt: serverTimestamp(),
+      updatedBy: by,
+      updatedAt: serverTimestamp(),
       lines: [stripUndefined(line)],
+    });
+    appendRevision(batch, {
+      workspaceId,
+      entityType: "transactions",
+      entityId: txnId,
+      action: "create",
+      by,
     });
   }
 
@@ -203,15 +279,7 @@ export async function createDue(
   data: Pick<Due, "direction" | "title" | "amount" | "dueDate"> &
     Partial<Pick<Due, "contactId" | "accountId">>,
 ): Promise<string> {
-  const id = newId("dues");
-  await setDoc(doc(db, "dues", id), {
-    id,
-    workspaceId,
-    ...stripUndefined(data),
-    status: "open",
-    createdAt: serverTimestamp(),
-  });
-  return id;
+  return auditedCreate("dues", workspaceId, { ...data, status: "open" });
 }
 export async function updateDue(
   id: string,
@@ -219,10 +287,10 @@ export async function updateDue(
     Pick<Due, "direction" | "title" | "amount" | "dueDate" | "status" | "contactId" | "accountId">
   >,
 ) {
-  await updateDoc(doc(db, "dues", id), stripUndefined(data));
+  await auditedUpdate("dues", id, data);
 }
 export async function deleteDue(id: string) {
-  await deleteDoc(doc(db, "dues", id));
+  await auditedDelete("dues", id);
 }
 
 // ---- transactions ----------------------------------------------------------
@@ -239,34 +307,54 @@ export interface TransactionInput {
 
 export async function createTransaction(
   workspaceId: string,
-  createdBy: string,
+  _createdByUid: string, // retained for call-site compat; actor from holder
   input: TransactionInput,
 ): Promise<string> {
+  const by = getCurrentActor();
   const id = newId("transactions");
-  await setDoc(doc(db, "transactions", id), buildTxnDoc(id, workspaceId, createdBy, input));
+  const batch = writeBatch(db);
+  batch.set(doc(db, "transactions", id), buildTxnDoc(id, workspaceId, by, input));
+  appendRevision(batch, {
+    workspaceId,
+    entityType: "transactions",
+    entityId: id,
+    action: "create",
+    by,
+  });
+  await batch.commit();
   return id;
 }
 
 export async function updateTransaction(
   id: string,
   workspaceId: string,
-  createdBy: string,
+  createdBy: Actor,
   input: TransactionInput,
 ) {
-  // createdBy must be preserved (rules enforce this); pass the original.
-  const data = buildTxnDoc(id, workspaceId, createdBy, input);
-  await setDoc(doc(db, "transactions", id), data);
+  // createdBy must be preserved (rules enforce immutability); pass the original.
+  const by = getCurrentActor();
+  const batch = writeBatch(db);
+  batch.set(doc(db, "transactions", id), buildTxnDoc(id, workspaceId, createdBy, input, by));
+  appendRevision(batch, {
+    workspaceId,
+    entityType: "transactions",
+    entityId: id,
+    action: "update",
+    by,
+  });
+  await batch.commit();
 }
 
 export async function deleteTransaction(id: string) {
-  await deleteDoc(doc(db, "transactions", id));
+  await auditedDelete("transactions", id);
 }
 
 function buildTxnDoc(
   id: string,
   workspaceId: string,
-  createdBy: string,
+  createdBy: Actor,
   input: TransactionInput,
+  updatedBy: Actor = createdBy,
 ): Transaction {
   return {
     id,
@@ -278,6 +366,8 @@ function buildTxnDoc(
     financialYear: input.financialYear,
     createdBy,
     createdAt: serverTimestamp() as never,
+    updatedBy,
+    updatedAt: serverTimestamp() as never,
     lines: input.lines.map(stripUndefined),
     ...stripUndefined({
       note: input.note,
@@ -290,18 +380,38 @@ function buildTxnDoc(
 /** Settling a due: create the txn and flip the due status in one batch. */
 export async function settleDue(
   workspaceId: string,
-  createdBy: string,
+  _createdByUid: string,
   due: Due,
   input: TransactionInput,
   newStatus: Due["status"],
 ): Promise<void> {
+  const by = getCurrentActor();
   const batch = writeBatch(db);
   const txnId = newId("transactions");
   batch.set(
     doc(db, "transactions", txnId),
-    buildTxnDoc(txnId, workspaceId, createdBy, { ...input, dueId: due.id }),
+    buildTxnDoc(txnId, workspaceId, by, { ...input, dueId: due.id }),
   );
-  batch.update(doc(db, "dues", due.id), { status: newStatus });
+  appendRevision(batch, {
+    workspaceId,
+    entityType: "transactions",
+    entityId: txnId,
+    action: "create",
+    by,
+  });
+  batch.update(doc(db, "dues", due.id), {
+    status: newStatus,
+    updatedBy: by,
+    updatedAt: serverTimestamp(),
+  });
+  appendRevision(batch, {
+    workspaceId,
+    entityType: "dues",
+    entityId: due.id,
+    action: "update",
+    by,
+    changedFields: ["status"],
+  });
   await batch.commit();
 }
 

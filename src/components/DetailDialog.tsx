@@ -15,6 +15,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { RowActions, type RowAction } from "@/components/RowActions";
+import { AuditFooter, RevisionHistory } from "@/components/RevisionHistory";
+import type { Actor, Ts } from "@/types/models";
 import { cn } from "@/lib/utils";
 
 export interface DetailField {
@@ -33,6 +35,8 @@ export function DetailDialog({
   fields,
   actions = [],
   children,
+  entityId,
+  audit,
 }: {
   open: boolean;
   onClose: () => void;
@@ -41,10 +45,19 @@ export function DetailDialog({
   fields: DetailField[];
   actions?: RowAction[];
   children?: ReactNode;
+  /** when set, shows an audit footer + collapsible revision history */
+  entityId?: string;
+  audit?: {
+    createdBy?: Actor;
+    createdAt?: Ts;
+    updatedBy?: Actor;
+    updatedAt?: Ts;
+  };
 }) {
   // Mirror `open` into local state so we can run the close animation before the
   // parent unmounts us.
   const [show, setShow] = useState(open);
+  const [showHistory, setShowHistory] = useState(false);
   useEffect(() => setShow(open), [open]);
 
   function handleOpenChange(next: boolean) {
@@ -92,6 +105,25 @@ export function DetailDialog({
         </dl>
 
         {children}
+
+        {audit && <AuditFooter {...audit} />}
+
+        {entityId && (
+          <div className="border-t pt-2">
+            <button
+              type="button"
+              onClick={() => setShowHistory((s) => !s)}
+              className="text-xs font-medium text-muted-foreground hover:text-foreground"
+            >
+              {showHistory ? "Hide history" : "View history"}
+            </button>
+            {showHistory && (
+              <div className="mt-2">
+                <RevisionHistory entityId={entityId} />
+              </div>
+            )}
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );

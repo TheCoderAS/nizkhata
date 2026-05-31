@@ -24,6 +24,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/firebase/config";
 import { subscribeWithRetry } from "@/lib/firestoreRetry";
+import { setCurrentWorkspaceId } from "@/data/actor";
 import { useAuth } from "@/auth/AuthProvider";
 import type { Membership, Role, Workspace } from "@/types/models";
 import type { Permission } from "@/types/permissions";
@@ -138,8 +139,10 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     return unsub;
   }, [memberships]);
 
-  // persist this tab's active workspace whenever it changes
+  // persist this tab's active workspace whenever it changes + expose it to the
+  // mutation layer (for audit/revision stamping)
   useEffect(() => {
+    setCurrentWorkspaceId(activeWorkspaceId);
     if (uid && activeWorkspaceId) writeTabWorkspace(uid, activeWorkspaceId);
   }, [uid, activeWorkspaceId]);
 

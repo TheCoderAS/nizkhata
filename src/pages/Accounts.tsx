@@ -279,6 +279,13 @@ function AccountDetail({
       subtitle={TYPE_LABELS[account.type]}
       fields={fields}
       actions={actions}
+      entityId={account.id}
+      audit={{
+        createdBy: account.createdBy,
+        createdAt: account.createdAt,
+        updatedBy: account.updatedBy,
+        updatedAt: account.updatedAt,
+      }}
     />
   );
 }

@@ -18,6 +18,7 @@ import {
 } from "firebase/auth";
 import { auth, googleProvider } from "@/firebase/config";
 import { ensureUserAndOnboarding } from "@/workspace/onboarding";
+import { actorFromUser, setCurrentActor } from "@/data/actor";
 
 interface AuthState {
   firebaseUser: FirebaseUser | null;
@@ -38,6 +39,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const unsub = onAuthStateChanged(auth, async (user) => {
       try {
         setError(null);
+        setCurrentActor(actorFromUser(user));
         if (user) {
           await ensureUserAndOnboarding(user);
         }

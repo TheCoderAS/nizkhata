@@ -162,6 +162,13 @@ export function Categories() {
             { label: "Source", value: viewing.isSystem ? "System (read-only)" : "Custom" },
           ]}
           actions={rowActions(viewing).filter((a) => a.label !== "View details")}
+          entityId={viewing.id}
+          audit={{
+            createdBy: viewing.createdBy,
+            createdAt: viewing.createdAt,
+            updatedBy: viewing.updatedBy,
+            updatedAt: viewing.updatedAt,
+          }}
         />
       )}
 

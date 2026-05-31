@@ -447,6 +447,13 @@ function DueDetail({
       subtitle={due.direction === "payable" ? "Payable" : "Receivable"}
       fields={fields}
       actions={actions}
+      entityId={due.id}
+      audit={{
+        createdBy: due.createdBy,
+        createdAt: due.createdAt,
+        updatedBy: due.updatedBy,
+        updatedAt: due.updatedAt,
+      }}
     />
   );
 }

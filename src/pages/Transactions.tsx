@@ -459,6 +459,13 @@ function TransactionDetail({
       subtitle={`${txn.lines.length} line${txn.lines.length > 1 ? "s" : ""}`}
       fields={fields}
       actions={actions}
+      entityId={txn.id}
+      audit={{
+        createdBy: txn.createdBy,
+        createdAt: txn.createdAt,
+        updatedBy: txn.updatedBy,
+        updatedAt: txn.updatedAt,
+      }}
     >
       <div className="mt-2">
         <p className="mb-2 text-sm font-medium">Lines</p>

@@ -382,6 +382,13 @@ function DebtDetail({
       subtitle={contactName}
       fields={fields}
       actions={actions}
+      entityId={debt.id}
+      audit={{
+        createdBy: debt.createdBy,
+        createdAt: debt.createdAt,
+        updatedBy: debt.updatedBy,
+        updatedAt: debt.updatedAt,
+      }}
     />
   );
 }
