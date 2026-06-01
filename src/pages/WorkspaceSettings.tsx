@@ -30,8 +30,8 @@ const CURRENCIES = ["INR", "USD", "EUR", "GBP", "AED", "SGD", "AUD", "CAD"];
 
 export function WorkspaceSettings() {
   const navigate = useNavigate();
-  const { firebaseUser } = useAuth();
-  const { activeWorkspace, can } = useWorkspace();
+  const { firebaseUser, signOut } = useAuth();
+  const { activeWorkspace, memberships, switchWorkspace, can } = useWorkspace();
   const { toast } = useToast();
 
   const [name, setName] = useState(activeWorkspace?.name ?? "");
@@ -131,16 +131,24 @@ export function WorkspaceSettings() {
         open={confirmDelete}
         onOpenChange={setConfirmDelete}
         title={`Delete "${activeWorkspace.name}"?`}
-        description="This permanently removes the workspace. Member, role and transaction documents are not auto-deleted by the client; remove them separately if required."
+        description="This permanently removes the workspace for everyone — all members lose access. Transaction, account and role documents are not auto-deleted by the client."
         destructive
         confirmLabel="Delete workspace"
         onConfirm={async () => {
           if (!firebaseUser) return;
-          await deleteWorkspace(activeWorkspace.id, firebaseUser.uid);
+          const deletedId = activeWorkspace.id;
+          await deleteWorkspace(deletedId, firebaseUser.uid);
           toast({ title: "Workspace deleted", variant: "success" });
-          // The active workspace is gone; the provider will self-heal the
-          // selection to another membership. Send the user home meanwhile.
-          navigate("/dashboard");
+          // Move the owner to another workspace if they have one; otherwise
+          // sign them out (their next login re-onboards a personal workspace).
+          const next = memberships.find((m) => m.workspaceId !== deletedId);
+          if (next) {
+            switchWorkspace(next.workspaceId);
+            navigate("/dashboard");
+          } else {
+            await signOut();
+            navigate("/");
+          }
         }}
       />
     </div>

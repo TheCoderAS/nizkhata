@@ -8,8 +8,11 @@ import {
   deleteDoc,
   doc,
   getDoc,
+  getDocs,
+  query,
   serverTimestamp,
   updateDoc,
+  where,
   writeBatch,
 } from "firebase/firestore";
 import { db } from "@/firebase/config";
@@ -474,15 +477,41 @@ export async function updateWorkspace(
  * that no longer exists. Other members' memberships, roles and entity docs are
  * intentionally NOT auto-removed by the client (see the settings copy).
  */
+/**
+ * Delete a workspace and ALL of its memberships, so no member (the owner or
+ * anyone they invited) sees the deleted workspace in their switcher anymore.
+ *
+ * Ordering is dictated by the membership-delete Security Rules:
+ *   1. While the workspace still exists, remove every NON-owner membership
+ *      (allowed via the owner's `members.remove`).
+ *   2. Delete the workspace doc.
+ *   3. Now that the workspace is gone, the owner removes their own dangling
+ *      membership (the only delete the rules permit post-deletion).
+ *   4. Best-effort: clear the owner's `lastWorkspaceId` if it pointed here.
+ *
+ * Entity docs (transactions, accounts, …) and roles are not auto-removed by the
+ * client; that needs a Cloud Function (see settings copy).
+ */
 export async function deleteWorkspace(id: string, ownerUid: string) {
-  // Order matters: delete the workspace doc FIRST. The membership-delete rule
-  // only lets the owner remove their own (otherwise-protected) membership once
-  // the workspace no longer exists, so a single batch would be rejected.
+  // 1. Remove all other members' memberships first (while we still have rights).
+  const memberSnap = await getDocs(
+    query(collection(db, "memberships"), where("workspaceId", "==", id)),
+  );
+  const others = memberSnap.docs.filter((d) => (d.data() as { uid: string }).uid !== ownerUid);
+  // Batch the bulk removal (well under the 500-write limit at v1 member counts).
+  if (others.length > 0) {
+    const batch = writeBatch(db);
+    for (const m of others) batch.delete(m.ref);
+    await batch.commit();
+  }
+
+  // 2. Delete the workspace doc.
   await deleteDoc(doc(db, "workspaces", id));
-  // Membership id is `${workspaceId}_${uid}` (see onboarding/seed).
+
+  // 3. Delete the owner's own (now dangling) membership.
   await deleteDoc(doc(db, "memberships", `${id}_${ownerUid}`));
 
-  // Best-effort: don't let lastWorkspaceId point at a deleted workspace.
+  // 4. Don't let lastWorkspaceId point at a deleted workspace.
   try {
     const userRef = doc(db, "users", ownerUid);
     const snap = await getDoc(userRef);

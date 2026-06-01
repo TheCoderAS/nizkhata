@@ -224,6 +224,20 @@ describe("owner guardrails", () => {
     const db = env.authenticatedContext("owner").firestore();
     await assertSucceeds(deleteDoc(doc(db, "workspaces", WS)));
   });
+
+  it("the owner can remove another member (workspace-delete cleanup)", async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), "memberships", `${WS}_other`), {
+        id: `${WS}_other`,
+        workspaceId: WS,
+        uid: "other",
+        roleId: `${WS}_owner`,
+        status: "active",
+      });
+    });
+    const db = env.authenticatedContext("owner").firestore();
+    await assertSucceeds(deleteDoc(doc(db, "memberships", `${WS}_other`)));
+  });
 });
 
 // =============================================================================
