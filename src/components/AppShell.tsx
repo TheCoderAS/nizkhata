@@ -6,7 +6,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { LogOut, ArrowLeftRight, BarChart3, Bell } from "lucide-react";
 import { useAuth } from "@/auth/AuthProvider";
 import { useWorkspace } from "@/workspace/WorkspaceProvider";
-import { cn } from "@/lib/utils";
+import { cn, avatarColor } from "@/lib/utils";
 import { Logo } from "@/components/Logo";
 import { Sidebar, SidebarContent } from "./Sidebar";
 import { BottomNav } from "./BottomNav";
@@ -96,7 +96,10 @@ export function AppShell() {
             <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="h-11 gap-2 px-2" aria-label="Workspace menu">
-                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
+                <span
+                  className="flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold"
+                  style={avatarColor(wsName)}
+                >
                   {workspaceInitials(wsName)}
                 </span>
                 <span className="hidden min-w-0 flex-col items-start leading-tight sm:flex">

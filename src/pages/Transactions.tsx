@@ -275,7 +275,7 @@ export function Transactions() {
                   "interest_expense",
                   "tax",
                 ] as LineType[]
-              ).map((t) => ({ value: t, label: t }))}
+              ).map((t) => ({ value: t, label: lineTypeLabel(t) }))}
             />
           </FilterRow>
           <label className="flex items-center gap-2 text-sm">

@@ -191,10 +191,6 @@ export function Reports() {
               </ResizableTable>
             </>
           )}
-          <p className="text-xs text-muted-foreground">
-            v1 captures taxable flags and produces this summary; slab/regime
-            computation is a later, jurisdiction-specific layer.
-          </p>
         </TabsContent>
 
         {/* ---- by category ---- */}
