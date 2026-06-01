@@ -82,7 +82,10 @@ export function AppShell() {
             <Logo size="sm" />
           </div>
 
-          <div className="flex items-center gap-1">
+          {/* ml-auto keeps this group right-aligned even on desktop, where the
+              mobile logo above is hidden (a lone justify-between child would
+              otherwise sit at the start). */}
+          <div className="ml-auto flex items-center gap-1">
             {can("reports.view") && (
               <HeaderIconLink to="/reports" label="Reports" icon={BarChart3} />
             )}
