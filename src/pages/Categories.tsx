@@ -8,6 +8,8 @@ import { useWorkspace } from "@/workspace/WorkspaceProvider";
 import { useData } from "@/data/WorkspaceDataProvider";
 import { createCategory, deleteCategory, updateCategory } from "@/data/mutations";
 import { txnsByCategory } from "@/lib/links";
+import { roundMoney } from "@/lib/txn";
+import { formatMoney } from "@/lib/utils";
 import type { Category, CategoryKind } from "@/types/models";
 import { PageHeader } from "@/components/PageHeader";
 import { RowActions, type RowAction } from "@/components/RowActions";
@@ -47,30 +49,30 @@ import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { EmptyState, ErrorState, PageSkeleton } from "@/components/states";
 import { useToast } from "@/components/ui/toast";
 
-type SortKey = "name" | "txns" | "source";
+type SortKey = "name" | "amount" | "source";
 
 export function Categories() {
   const navigate = useNavigate();
-  const { activeWorkspaceId, can } = useWorkspace();
+  const { activeWorkspaceId, activeWorkspace, can } = useWorkspace();
   const { categories, transactions, loading, error } = useData();
   const { toast } = useToast();
   const manage = can("categories.manage");
   const canViewTxns = can("transactions.view");
+  const currency = activeWorkspace?.baseCurrency ?? "INR";
 
-  // Transaction count per category (a txn counts once even if multiple lines
-  // share the category). Derived; cheap at v1 volumes.
-  const txnCountByCategory = useMemo(() => {
-    const counts: Record<string, number> = {};
+  // Net amount per category — the sum of all line amounts tagged with it. For
+  // expense categories this is total spent; for income categories, total
+  // earned. Derived; cheap at v1 volumes.
+  const amountByCategory = useMemo(() => {
+    const totals: Record<string, number> = {};
     for (const t of transactions) {
-      const seen = new Set<string>();
       for (const l of t.lines) {
-        if (l.categoryId && !seen.has(l.categoryId)) {
-          seen.add(l.categoryId);
-          counts[l.categoryId] = (counts[l.categoryId] ?? 0) + 1;
+        if (l.categoryId) {
+          totals[l.categoryId] = roundMoney((totals[l.categoryId] ?? 0) + l.amount);
         }
       }
     }
-    return counts;
+    return totals;
   }, [transactions]);
 
   const [kind, setKind] = useState<CategoryKind>("expense");
@@ -84,7 +86,7 @@ export function Categories() {
   const filtered = categories.filter((c) => c.kind === kind);
   const accessors: Record<SortKey, SortAccessor<Category>> = {
     name: (c) => c.name,
-    txns: (c) => txnCountByCategory[c.id] ?? 0,
+    amount: (c) => amountByCategory[c.id] ?? 0,
     source: (c) => (c.isSystem ? "System" : "Custom"),
   };
   const { sorted, sort, toggle } = useSort(filtered, accessors, {
@@ -154,8 +156,8 @@ export function Categories() {
               <SortableHead sortKey="name" sort={sort} onToggle={toggle}>
                 Name
               </SortableHead>
-              <SortableHead sortKey="txns" sort={sort} onToggle={toggle} align="right">
-                Transactions
+              <SortableHead sortKey="amount" sort={sort} onToggle={toggle} align="right">
+                Net amount
               </SortableHead>
               <SortableHead sortKey="source" sort={sort} onToggle={toggle}>
                 Source
@@ -171,8 +173,8 @@ export function Categories() {
                 className="cursor-pointer"
               >
                 <TableCell className="font-medium">{c.name}</TableCell>
-                <TableCell className="text-right tabular-nums text-muted-foreground">
-                  {txnCountByCategory[c.id] ?? 0}
+                <TableCell className="text-right tabular-nums">
+                  {formatMoney(amountByCategory[c.id] ?? 0, currency)}
                 </TableCell>
                 <TableCell>
                   {c.isSystem ? (
