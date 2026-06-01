@@ -29,7 +29,7 @@ import { useAuth } from "@/auth/AuthProvider";
 import { useWorkspace } from "@/workspace/WorkspaceProvider";
 import { useSharedData } from "@/data/SharedDataProvider";
 import type { Permission } from "@/types/permissions";
-import { cn } from "@/lib/utils";
+import { cn, avatarColor } from "@/lib/utils";
 import { Logo } from "@/components/Logo";
 
 interface NavItem {
@@ -194,7 +194,10 @@ export function SidebarContent({
           )
         }
       >
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
+        <span
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-semibold"
+          style={avatarColor(firebaseUser?.displayName ?? firebaseUser?.email ?? "?")}
+        >
           {actorInitials(
             firebaseUser?.displayName ?? firebaseUser?.email ?? "?",
           )}

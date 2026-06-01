@@ -10,7 +10,7 @@ import { createCategory, deleteCategory, updateCategory } from "@/data/mutations
 import { txnsByCategory } from "@/lib/links";
 import { roundMoney } from "@/lib/txn";
 import { toDate } from "@/lib/derive";
-import { financialYearOf } from "@/lib/financialYear";
+import { resolvePeriod, PERIOD_LABELS, type PeriodKind } from "@/lib/period";
 import { formatMoney } from "@/lib/utils";
 import type { Category, CategoryKind } from "@/types/models";
 import { PageHeader } from "@/components/PageHeader";
@@ -64,15 +64,34 @@ export function Categories() {
   const canViewTxns = can("transactions.view");
   const currency = activeWorkspace?.baseCurrency ?? "INR";
   const fyStartMonth = activeWorkspace?.fyStartMonth ?? 4;
-  const fy = financialYearOf(new Date(), fyStartMonth);
 
-  // Net amount per category for the CURRENT financial year — the sum of line
+  // Period selector (mirrors the Dashboard): the net-amount column reflects the
+  // chosen range — this week / month / year / financial year / custom.
+  const now = useMemo(() => new Date(), []);
+  const [period, setPeriod] = useState<PeriodKind>("fy");
+  const [customStart, setCustomStart] = useState(
+    new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10),
+  );
+  const [customEnd, setCustomEnd] = useState(now.toISOString().slice(0, 10));
+
+  const range = useMemo(() => {
+    if (period === "custom") {
+      const start = new Date(customStart);
+      const end = new Date(customEnd);
+      end.setDate(end.getDate() + 1); // inclusive end day
+      return { start, end };
+    }
+    return resolvePeriod(period, now, fyStartMonth);
+  }, [period, customStart, customEnd, fyStartMonth, now]);
+
+  // Net amount per category within the selected range — the sum of line
   // amounts tagged with it (total spent for expense categories, total earned
-  // for income). FY-scoped to match the Reports/Dashboard breakdowns. Derived.
+  // for income). Derived; cheap at v1 volumes.
   const amountByCategory = useMemo(() => {
     const totals: Record<string, number> = {};
     for (const t of transactions) {
-      if (financialYearOf(toDate(t.date), fyStartMonth) !== fy) continue;
+      const d = toDate(t.date);
+      if (d < range.start || d >= range.end) continue;
       for (const l of t.lines) {
         if (l.categoryId) {
           totals[l.categoryId] = roundMoney((totals[l.categoryId] ?? 0) + l.amount);
@@ -80,7 +99,7 @@ export function Categories() {
       }
     }
     return totals;
-  }, [transactions, fy, fyStartMonth]);
+  }, [transactions, range]);
 
   const [kind, setKind] = useState<CategoryKind>("expense");
   const [editing, setEditing] = useState<Category | "new" | null>(null);
@@ -135,6 +154,20 @@ export function Categories() {
     <div>
       <PageHeader
         title="Categories"
+        actions={
+          <Select value={period} onValueChange={(v) => setPeriod(v as PeriodKind)}>
+            <SelectTrigger className="w-[150px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {(["week", "month", "year", "fy", "custom"] as PeriodKind[]).map((p) => (
+                <SelectItem key={p} value={p}>
+                  {PERIOD_LABELS[p]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        }
         primaryAction={{
           label: "New category",
           icon: Plus,
@@ -142,6 +175,19 @@ export function Categories() {
           hidden: !manage,
         }}
       />
+
+      {period === "custom" && (
+        <div className="mb-4 flex flex-wrap items-end gap-3">
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">From</label>
+            <Input type="date" value={customStart} onChange={(e) => setCustomStart(e.target.value)} />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">To</label>
+            <Input type="date" value={customEnd} onChange={(e) => setCustomEnd(e.target.value)} />
+          </div>
+        </div>
+      )}
 
       <Tabs
         value={kind}
@@ -164,7 +210,7 @@ export function Categories() {
                 Name
               </SortableHead>
               <SortableHead sortKey="amount" sort={sort} onToggle={toggle} align="right">
-                Net · FY {fy}
+                Net
               </SortableHead>
               <SortableHead sortKey="source" sort={sort} onToggle={toggle}>
                 Source
@@ -185,11 +231,11 @@ export function Categories() {
                 </TableCell>
                 <TableCell>
                   {c.isSystem ? (
-                    <Badge variant="outline">
+                    <Badge variant="default">
                       <Lock className="mr-1 h-3 w-3" /> System
                     </Badge>
                   ) : (
-                    <Badge variant="secondary">Custom</Badge>
+                    <Badge variant="success">Custom</Badge>
                   )}
                 </TableCell>
                 <TableCell>

@@ -39,7 +39,7 @@ import {
 } from "@/data/sharedMutations";
 import { sharedBalances, toDate } from "@/lib/derive";
 import { roundMoney } from "@/lib/txn";
-import { cn, formatDate, formatMoney } from "@/lib/utils";
+import { cn, formatDate, formatMoney, avatarColor, initials } from "@/lib/utils";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1058,16 +1058,12 @@ function PartnerCard({
 }
 
 function Avatar({ name }: { name: string }) {
-  const initials =
-    name
-      .trim()
-      .split(/\s+/)
-      .slice(0, 2)
-      .map((w) => w[0]?.toUpperCase() ?? "")
-      .join("") || "?";
   return (
-    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
-      {initials}
+    <span
+      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-semibold"
+      style={avatarColor(name)}
+    >
+      {initials(name) || "?"}
     </span>
   );
 }
