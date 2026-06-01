@@ -4,7 +4,8 @@
 // modal, kebab row actions.
 
 import { useState } from "react";
-import { Plus, HandCoins, Pencil, Trash2 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Plus, HandCoins, Pencil, Trash2, Users, ArrowLeftRight } from "lucide-react";
 import { useAuth } from "@/auth/AuthProvider";
 import { useWorkspace } from "@/workspace/WorkspaceProvider";
 import { useData } from "@/data/WorkspaceDataProvider";
@@ -15,6 +16,7 @@ import {
   updateDebt,
   type TransactionInput,
 } from "@/data/mutations";
+import { txnsByContact, contactDetailPath } from "@/lib/links";
 import type { Debt, DebtDirection, DebtPurpose } from "@/types/models";
 import { PageHeader } from "@/components/PageHeader";
 import { TransactionFormDialog } from "@/components/TransactionForm";
@@ -78,6 +80,7 @@ const COLUMNS: ColumnDef<ColKey>[] = [
 ];
 
 export function Debts() {
+  const navigate = useNavigate();
   const { firebaseUser } = useAuth();
   const { activeWorkspaceId, activeWorkspace, can } = useWorkspace();
   const { debts, contactsById, outstandingOf, loading, error } = useData();
@@ -85,6 +88,8 @@ export function Debts() {
   const currency = activeWorkspace?.baseCurrency ?? "INR";
   const manage = can("debts.manage");
   const canTxn = can("transactions.create");
+  const canViewTxns = can("transactions.view");
+  const canViewContacts = can("contacts.view");
 
   const [editing, setEditing] = useState<Debt | "new" | null>(null);
   const [viewing, setViewing] = useState<Debt | null>(null);
@@ -118,7 +123,20 @@ export function Debts() {
         onSelect: () => setSettling(d),
         hidden: !canTxn || d.status !== "open" || outstanding <= 0,
       },
-      { label: "Edit", icon: Pencil, onSelect: () => setEditing(d), hidden: !manage },
+      {
+        label: "View contact",
+        icon: Users,
+        onSelect: () => navigate(contactDetailPath(d.contactId)),
+        separatorBefore: true,
+        hidden: !canViewContacts || !d.contactId,
+      },
+      {
+        label: "View transactions",
+        icon: ArrowLeftRight,
+        onSelect: () => navigate(txnsByContact(d.contactId)),
+        hidden: !canViewTxns || !d.contactId,
+      },
+      { label: "Edit", icon: Pencil, onSelect: () => setEditing(d), separatorBefore: true, hidden: !manage },
       {
         label: "Delete",
         icon: Trash2,

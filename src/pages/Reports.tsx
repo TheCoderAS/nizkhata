@@ -3,6 +3,7 @@
 // reports.export.
 
 import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Download } from "lucide-react";
 import { useWorkspace } from "@/workspace/WorkspaceProvider";
 import { useData } from "@/data/WorkspaceDataProvider";
@@ -14,6 +15,7 @@ import {
 import { financialYearOf } from "@/lib/financialYear";
 import { downloadCsv, toCsv } from "@/lib/csv";
 import { taxHeadLabel } from "@/lib/taxHeads";
+import { txnsByCategory, txnsByContact } from "@/lib/links";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -37,11 +39,13 @@ import { EmptyState, ErrorState, PageSkeleton } from "@/components/states";
 import { formatMoney } from "@/lib/utils";
 
 export function Reports() {
+  const navigate = useNavigate();
   const { activeWorkspace, can } = useWorkspace();
   const { transactions, categories, contacts, loading, error } = useData();
   const currency = activeWorkspace?.baseCurrency ?? "INR";
   const fyStartMonth = activeWorkspace?.fyStartMonth ?? 4;
   const canExport = can("reports.export");
+  const canViewTxns = can("transactions.view");
 
   // Distinct FYs present in the data, plus the current one.
   const fyOptions = useMemo(() => {
@@ -69,6 +73,7 @@ export function Reports() {
       totals.set(t.contactId, cur);
     }
     return [...totals.entries()].map(([id, v]) => ({
+      id,
       name: contacts.find((c) => c.id === id)?.name ?? "—",
       ...v,
     }));
@@ -220,7 +225,11 @@ export function Reports() {
                 </TableHeader>
                 <TableBody>
                   {byCategory.map((c) => (
-                    <TableRow key={c.categoryId}>
+                    <TableRow
+                      key={c.categoryId}
+                      onClick={canViewTxns ? () => navigate(txnsByCategory(c.categoryId)) : undefined}
+                      className={canViewTxns ? "cursor-pointer" : undefined}
+                    >
                       <TableCell className="font-medium">{c.name}</TableCell>
                       <TableCell className="text-right tabular-nums">
                         {formatMoney(c.amount, currency)}
@@ -271,7 +280,11 @@ export function Reports() {
                 </TableHeader>
                 <TableBody>
                   {byContact.map((c) => (
-                    <TableRow key={c.name}>
+                    <TableRow
+                      key={c.id}
+                      onClick={canViewTxns ? () => navigate(txnsByContact(c.id)) : undefined}
+                      className={canViewTxns ? "cursor-pointer" : undefined}
+                    >
                       <TableCell className="font-medium">{c.name}</TableCell>
                       <TableCell className="text-right tabular-nums text-green-600">
                         {formatMoney(c.inAmt, currency)}

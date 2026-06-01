@@ -96,17 +96,26 @@ export function Transactions() {
   const [typeFilter, setTypeFilter] = useState("__all");
   const [splitOnly, setSplitOnly] = useState(false);
 
-  // Deep-link support: `?category=<id>` (e.g. from a budget card) pre-applies
-  // the category filter. Consume the param once, then drop it from the URL so
-  // the user can clear the filter without it snapping back.
+  // Deep-link support: any of `?account`, `?contact`, `?category`, `?type`
+  // (e.g. from a budget card, a category/contact/account row) pre-applies that
+  // filter. Consume the params once, then drop them from the URL so the user
+  // can clear the filter without it snapping back.
   useEffect(() => {
-    const cat = searchParams.get("category");
-    if (cat) {
-      setCategoryFilter(cat);
-      const next = new URLSearchParams(searchParams);
-      next.delete("category");
-      setSearchParams(next, { replace: true });
-    }
+    let touched = false;
+    const next = new URLSearchParams(searchParams);
+    const consume = (key: string, apply: (v: string) => void) => {
+      const v = searchParams.get(key);
+      if (v) {
+        apply(v);
+        next.delete(key);
+        touched = true;
+      }
+    };
+    consume("account", setAccountFilter);
+    consume("contact", setContactFilter);
+    consume("category", setCategoryFilter);
+    consume("type", setTypeFilter);
+    if (touched) setSearchParams(next, { replace: true });
   }, [searchParams, setSearchParams]);
 
   const [formOpen, setFormOpen] = useState(false);
@@ -281,22 +290,35 @@ export function Transactions() {
         <ColumnsMenu columns={cols.columns} isVisible={cols.isVisible} toggle={cols.toggle} reset={cols.reset} hasCustomWidths={cols.hasCustomWidths} onResetWidths={cols.resetWidths} />
       </Toolbar>
 
-      {categoryFilter !== "__all" && (
-        <div className="mb-3 flex items-center gap-2">
-          <Badge variant="secondary" className="gap-1.5">
-            Category: {categoriesById[categoryFilter]?.name ?? "Unknown"}
-            <button
-              type="button"
-              aria-label="Clear category filter"
-              className="ml-0.5 rounded-full hover:text-foreground"
-              onClick={() => {
-                setCategoryFilter("__all");
-                pagination.reset();
-              }}
-            >
-              <X className="h-3 w-3" />
-            </button>
-          </Badge>
+      {(categoryFilter !== "__all" ||
+        accountFilter !== "__all" ||
+        contactFilter !== "__all" ||
+        typeFilter !== "__all") && (
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          {accountFilter !== "__all" && (
+            <FilterChip
+              label={`Account: ${accountsById[accountFilter]?.name ?? "Unknown"}`}
+              onClear={() => { setAccountFilter("__all"); pagination.reset(); }}
+            />
+          )}
+          {contactFilter !== "__all" && (
+            <FilterChip
+              label={`Contact: ${contactsById[contactFilter]?.name ?? "Unknown"}`}
+              onClear={() => { setContactFilter("__all"); pagination.reset(); }}
+            />
+          )}
+          {categoryFilter !== "__all" && (
+            <FilterChip
+              label={`Category: ${categoriesById[categoryFilter]?.name ?? "Unknown"}`}
+              onClear={() => { setCategoryFilter("__all"); pagination.reset(); }}
+            />
+          )}
+          {typeFilter !== "__all" && (
+            <FilterChip
+              label={`Type: ${lineTypeLabel(typeFilter as LineType)}`}
+              onClear={() => { setTypeFilter("__all"); pagination.reset(); }}
+            />
+          )}
         </div>
       )}
 
@@ -472,5 +494,21 @@ function FilterSelect({
         ))}
       </SelectContent>
     </Select>
+  );
+}
+
+function FilterChip({ label, onClear }: { label: string; onClear: () => void }) {
+  return (
+    <Badge variant="secondary" className="gap-1.5">
+      {label}
+      <button
+        type="button"
+        aria-label={`Clear filter: ${label}`}
+        className="ml-0.5 rounded-full hover:text-foreground"
+        onClick={onClear}
+      >
+        <X className="h-3 w-3" />
+      </button>
+    </Badge>
   );
 }

@@ -3,11 +3,13 @@
 
 import { useMemo } from "react";
 import { Link, useParams } from "react-router-dom";
-import { ArrowLeft, ArrowDownLeft, ArrowUpRight, Scale } from "lucide-react";
+import { ArrowLeft, ArrowDownLeft, ArrowUpRight, ArrowLeftRight, Scale } from "lucide-react";
 import { useWorkspace } from "@/workspace/WorkspaceProvider";
 import { useData } from "@/data/WorkspaceDataProvider";
+import { txnsByContact } from "@/lib/links";
 import type { DebtPurpose } from "@/types/models";
 import { ContactChat } from "@/components/ContactChat";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -33,10 +35,11 @@ const PURPOSE_LABELS: Record<DebtPurpose, string> = {
 
 export function ContactDetail() {
   const { contactId } = useParams<{ contactId: string }>();
-  const { activeWorkspace } = useWorkspace();
+  const { activeWorkspace, can } = useWorkspace();
   const { contacts, transactions, debts, positionOf, outstandingOf, loading, error } =
     useData();
   const currency = activeWorkspace?.baseCurrency ?? "INR";
+  const canViewTxns = can("transactions.view");
 
   const contact = contacts.find((c) => c.id === contactId);
   const position = useMemo(
@@ -122,11 +125,21 @@ export function ContactDetail() {
       </div>
 
       <Tabs defaultValue="transactions">
-        <TabsList>
-          <TabsTrigger value="transactions">Transactions</TabsTrigger>
-          <TabsTrigger value="debts">Debts</TabsTrigger>
-          <TabsTrigger value="report">Report</TabsTrigger>
-        </TabsList>
+        <div className="flex items-center justify-between gap-2">
+          <TabsList>
+            <TabsTrigger value="transactions">Transactions</TabsTrigger>
+            <TabsTrigger value="debts">Debts</TabsTrigger>
+            <TabsTrigger value="report">Report</TabsTrigger>
+          </TabsList>
+          {canViewTxns && contactId && (
+            <Button variant="outline" size="sm" asChild>
+              <Link to={txnsByContact(contactId)}>
+                <ArrowLeftRight className="h-4 w-4" />
+                <span className="hidden sm:inline">Open in Transactions</span>
+              </Link>
+            </Button>
+          )}
+        </div>
 
         <TabsContent value="transactions">
           {contactId && <ContactChat contactId={contactId} />}

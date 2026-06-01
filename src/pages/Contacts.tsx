@@ -3,10 +3,11 @@
 
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Pencil, Trash2, X } from "lucide-react";
+import { Plus, Pencil, Trash2, X, ArrowLeftRight } from "lucide-react";
 import { useWorkspace } from "@/workspace/WorkspaceProvider";
 import { useData } from "@/data/WorkspaceDataProvider";
 import { createContact, deleteContact, updateContact } from "@/data/mutations";
+import { txnsByContact } from "@/lib/links";
 import type {
   Contact,
   ContactType,
@@ -77,6 +78,7 @@ export function Contacts() {
   const { toast } = useToast();
   const currency = activeWorkspace?.baseCurrency ?? "INR";
   const manage = can("contacts.manage");
+  const canViewTxns = can("transactions.view");
 
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<Contact | "new" | null>(null);
@@ -110,7 +112,19 @@ export function Contacts() {
 
   function rowActions(c: Contact): RowAction[] {
     return [
-      { label: "Edit", icon: Pencil, onSelect: () => setEditing(c), hidden: !manage },
+      {
+        label: "View transactions",
+        icon: ArrowLeftRight,
+        onSelect: () => navigate(txnsByContact(c.id)),
+        hidden: !canViewTxns,
+      },
+      {
+        label: "Edit",
+        icon: Pencil,
+        onSelect: () => setEditing(c),
+        separatorBefore: true,
+        hidden: !manage,
+      },
       {
         label: "Delete",
         icon: Trash2,

@@ -2,11 +2,12 @@
 // Sortable headers; rows open a detail modal; actions in a kebab menu.
 
 import { useMemo, useState } from "react";
-import { Plus, Pencil, Trash2, ScrollText } from "lucide-react";
+import { Plus, Pencil, Trash2, ScrollText, ArrowLeftRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useWorkspace } from "@/workspace/WorkspaceProvider";
 import { useData } from "@/data/WorkspaceDataProvider";
 import { createAccount, deleteAccount, updateAccount } from "@/data/mutations";
+import { txnsByAccount, accountLedgerPath } from "@/lib/links";
 import type { Account, AccountType } from "@/types/models";
 import { PageHeader } from "@/components/PageHeader";
 import { RowActions, type RowAction } from "@/components/RowActions";
@@ -119,6 +120,7 @@ export function Accounts() {
   const cols = useColumnPrefs<ColKey>("accounts", COLUMNS);
   const currency = activeWorkspace?.baseCurrency ?? "INR";
   const manage = can("accounts.manage");
+  const canViewTxns = can("transactions.view");
 
   const [editing, setEditing] = useState<Account | "new" | null>(null);
   const [viewing, setViewing] = useState<Account | null>(null);
@@ -148,7 +150,13 @@ export function Accounts() {
       {
         label: "View ledger",
         icon: ScrollText,
-        onSelect: () => navigate(`/settings/accounts/${a.id}/ledger`),
+        onSelect: () => navigate(accountLedgerPath(a.id)),
+      },
+      {
+        label: "View transactions",
+        icon: ArrowLeftRight,
+        onSelect: () => navigate(txnsByAccount(a.id)),
+        hidden: !canViewTxns,
       },
       { label: "Edit", icon: Pencil, onSelect: () => setEditing(a), separatorBefore: true, hidden: !manage },
       {

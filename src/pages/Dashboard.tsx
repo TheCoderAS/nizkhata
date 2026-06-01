@@ -17,6 +17,7 @@ import {
   compareTxnChrono,
 } from "@/lib/derive";
 import { financialYearOf } from "@/lib/financialYear";
+import { txnsByCategory } from "@/lib/links";
 import {
   PERIOD_LABELS,
   resolvePeriod,
@@ -41,7 +42,8 @@ import { ErrorState, PageSkeleton } from "@/components/states";
 import { cn, formatDate, formatMoney } from "@/lib/utils";
 
 export function Dashboard() {
-  const { activeWorkspace } = useWorkspace();
+  const { activeWorkspace, can } = useWorkspace();
+  const canViewTxns = can("transactions.view");
   const {
     accounts,
     transactions,
@@ -208,8 +210,8 @@ export function Dashboard() {
               <div className="space-y-2.5">
                 {topSpend.map((c) => {
                   const max = topSpend[0].amount || 1;
-                  return (
-                    <div key={c.categoryId}>
+                  const Row = (
+                    <>
                       <div className="flex justify-between text-sm">
                         <span className="truncate pr-2">{c.name}</span>
                         <span className="tabular-nums">{formatMoney(c.amount, currency)}</span>
@@ -220,7 +222,18 @@ export function Dashboard() {
                           style={{ width: `${(c.amount / max) * 100}%` }}
                         />
                       </div>
-                    </div>
+                    </>
+                  );
+                  return canViewTxns ? (
+                    <Link
+                      key={c.categoryId}
+                      to={txnsByCategory(c.categoryId)}
+                      className="block rounded-md p-1 -m-1 transition-colors hover:bg-muted/50"
+                    >
+                      {Row}
+                    </Link>
+                  ) : (
+                    <div key={c.categoryId}>{Row}</div>
                   );
                 })}
               </div>
