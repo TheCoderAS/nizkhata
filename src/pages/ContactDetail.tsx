@@ -14,13 +14,13 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  Table,
   TableBody,
   TableCell,
-  TableHead,
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { ResizableTable, ResizableHead } from "@/components/ResizableTable";
+import { useColumnWidths } from "@/lib/useColumnWidths";
 import { EmptyState, ErrorState, PageSkeleton } from "@/components/states";
 import { cn, formatMoney } from "@/lib/utils";
 
@@ -34,6 +34,7 @@ const PURPOSE_LABELS: Record<DebtPurpose, string> = {
 };
 
 export function ContactDetail() {
+  const debtWidths = useColumnWidths("contact-debts");
   const { contactId } = useParams<{ contactId: string }>();
   const { activeWorkspace, can } = useWorkspace();
   const { contacts, transactions, debts, positionOf, outstandingOf, loading, error } =
@@ -153,13 +154,13 @@ export function ContactDetail() {
               {[...debtsByPurpose.entries()].map(([purpose, list]) => (
                 <div key={purpose}>
                   <h3 className="mb-2 text-sm font-semibold">{PURPOSE_LABELS[purpose]}</h3>
-                  <Table>
+                  <ResizableTable prefs={debtWidths} className="[&_td]:truncate">
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Label</TableHead>
-                        <TableHead>Direction</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead className="text-right">Outstanding</TableHead>
+                        <ResizableHead colKey="label">Label</ResizableHead>
+                        <ResizableHead colKey="direction">Direction</ResizableHead>
+                        <ResizableHead colKey="status">Status</ResizableHead>
+                        <ResizableHead colKey="outstanding" className="text-right">Outstanding</ResizableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -182,7 +183,7 @@ export function ContactDetail() {
                         </TableRow>
                       ))}
                     </TableBody>
-                  </Table>
+                  </ResizableTable>
                 </div>
               ))}
             </div>

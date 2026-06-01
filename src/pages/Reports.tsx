@@ -28,18 +28,21 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Table,
   TableBody,
   TableCell,
-  TableHead,
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { ResizableTable, ResizableHead } from "@/components/ResizableTable";
+import { useColumnWidths } from "@/lib/useColumnWidths";
 import { EmptyState, ErrorState, PageSkeleton } from "@/components/states";
 import { formatMoney } from "@/lib/utils";
 
 export function Reports() {
   const navigate = useNavigate();
+  const taxWidths = useColumnWidths("report-tax");
+  const catWidths = useColumnWidths("report-category");
+  const contactWidths = useColumnWidths("report-contact");
   const { activeWorkspace, can } = useWorkspace();
   const { transactions, categories, contacts, loading, error } = useData();
   const currency = activeWorkspace?.baseCurrency ?? "INR";
@@ -162,13 +165,13 @@ export function Reports() {
                   </Button>
                 </div>
               )}
-              <Table>
+              <ResizableTable prefs={taxWidths} className="[&_td]:truncate">
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Head</TableHead>
-                    <TableHead className="text-right">Taxable amount</TableHead>
-                    <TableHead className="text-right">TDS</TableHead>
-                    <TableHead className="text-right">Lines</TableHead>
+                    <ResizableHead colKey="head">Head</ResizableHead>
+                    <ResizableHead colKey="taxable" className="text-right">Taxable amount</ResizableHead>
+                    <ResizableHead colKey="tds" className="text-right">TDS</ResizableHead>
+                    <ResizableHead colKey="lines" className="text-right">Lines</ResizableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -185,7 +188,7 @@ export function Reports() {
                     </TableRow>
                   ))}
                 </TableBody>
-              </Table>
+              </ResizableTable>
             </>
           )}
           <p className="text-xs text-muted-foreground">
@@ -216,11 +219,11 @@ export function Reports() {
                   </Button>
                 </div>
               )}
-              <Table>
+              <ResizableTable prefs={catWidths} className="[&_td]:truncate">
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Category</TableHead>
-                    <TableHead className="text-right">Amount</TableHead>
+                    <ResizableHead colKey="category">Category</ResizableHead>
+                    <ResizableHead colKey="amount" className="text-right">Amount</ResizableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -237,7 +240,7 @@ export function Reports() {
                     </TableRow>
                   ))}
                 </TableBody>
-              </Table>
+              </ResizableTable>
             </>
           )}
         </TabsContent>
@@ -270,12 +273,12 @@ export function Reports() {
                   </Button>
                 </div>
               )}
-              <Table>
+              <ResizableTable prefs={contactWidths} className="[&_td]:truncate">
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Contact</TableHead>
-                    <TableHead className="text-right">Received</TableHead>
-                    <TableHead className="text-right">Paid</TableHead>
+                    <ResizableHead colKey="contact">Contact</ResizableHead>
+                    <ResizableHead colKey="received" className="text-right">Received</ResizableHead>
+                    <ResizableHead colKey="paid" className="text-right">Paid</ResizableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -295,7 +298,7 @@ export function Reports() {
                     </TableRow>
                   ))}
                 </TableBody>
-              </Table>
+              </ResizableTable>
             </>
           )}
         </TabsContent>

@@ -16,6 +16,8 @@ import type { Category, CategoryKind } from "@/types/models";
 import { PageHeader } from "@/components/PageHeader";
 import { RowActions, type RowAction } from "@/components/RowActions";
 import { SortableHead } from "@/components/SortableHead";
+import { ResizableTable } from "@/components/ResizableTable";
+import { useColumnWidths } from "@/lib/useColumnWidths";
 import { DetailDialog } from "@/components/DetailDialog";
 import { useSort, type SortAccessor } from "@/lib/useSort";
 import { usePagination } from "@/lib/usePagination";
@@ -25,7 +27,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import {
-  Table,
   TableBody,
   TableCell,
   TableHead,
@@ -55,6 +56,7 @@ type SortKey = "name" | "amount" | "source";
 
 export function Categories() {
   const navigate = useNavigate();
+  const colWidths = useColumnWidths("categories");
   const { activeWorkspaceId, activeWorkspace, can } = useWorkspace();
   const { categories, transactions, loading, error } = useData();
   const { toast } = useToast();
@@ -155,7 +157,7 @@ export function Categories() {
       {sorted.length === 0 ? (
         <EmptyState title={`No ${kind} categories`} />
       ) : (
-        <Table>
+        <ResizableTable prefs={colWidths} className="[&_td]:truncate">
           <TableHeader>
             <TableRow>
               <SortableHead sortKey="name" sort={sort} onToggle={toggle}>
@@ -196,7 +198,7 @@ export function Categories() {
               </TableRow>
             ))}
           </TableBody>
-        </Table>
+        </ResizableTable>
       )}
 
       {sorted.length > 0 && <Pagination state={pagination} noun="categories" />}

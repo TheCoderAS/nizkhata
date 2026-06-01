@@ -18,7 +18,7 @@ import {
 } from "react";
 import { cn } from "@/lib/utils";
 import { TableHead } from "@/components/ui/table";
-import type { ColumnPrefs } from "@/lib/useColumnPrefs";
+import type { ColumnWidths } from "@/lib/useColumnWidths";
 
 interface Ctx {
   widthOf: (key: string) => number | undefined;
@@ -27,12 +27,13 @@ interface Ctx {
 
 const ColumnWidthContext = createContext<Ctx | null>(null);
 
-export function ResizableTable<K extends string>({
+export function ResizableTable({
   prefs,
   children,
   className,
 }: {
-  prefs: ColumnPrefs<K>;
+  // Accepts anything that exposes widths — useColumnPrefs OR useColumnWidths.
+  prefs: ColumnWidths;
   children: ReactNode;
   className?: string;
 }) {
@@ -45,7 +46,7 @@ export function ResizableTable<K extends string>({
     const headers = tableRef.current?.querySelectorAll<HTMLElement>("thead th[data-col-key]");
     headers?.forEach((th) => {
       const key = th.dataset.colKey;
-      if (key) prefs.setWidth(key as K, th.getBoundingClientRect().width);
+      if (key) prefs.setWidth(key, th.getBoundingClientRect().width);
     });
   }, [prefs]);
 
@@ -54,7 +55,7 @@ export function ResizableTable<K extends string>({
       seedFromDom();
       const startWidth = headerEl.getBoundingClientRect().width;
       const onMove = (e: PointerEvent) =>
-        prefs.setWidth(key as K, startWidth + (e.clientX - startX));
+        prefs.setWidth(key, startWidth + (e.clientX - startX));
       const onUp = () => {
         window.removeEventListener("pointermove", onMove);
         window.removeEventListener("pointerup", onUp);
@@ -69,7 +70,7 @@ export function ResizableTable<K extends string>({
     [prefs, seedFromDom],
   );
 
-  const ctx: Ctx = { widthOf: (k) => prefs.widthOf(k as K), beginResize };
+  const ctx: Ctx = { widthOf: (k) => prefs.widthOf(k), beginResize };
 
   return (
     <ColumnWidthContext.Provider value={ctx}>
