@@ -482,7 +482,7 @@ function FilterSelect({
 }) {
   return (
     <Select value={value} onValueChange={onChange}>
-      <SelectTrigger className="w-40">
+      <SelectTrigger className="w-full">
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
