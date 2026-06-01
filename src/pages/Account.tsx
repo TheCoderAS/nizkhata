@@ -3,6 +3,7 @@
 // from the Google identity (read-only); theme mirrors the avatar menu.
 
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { LogOut, Sun, Moon, Laptop, DoorOpen } from "lucide-react";
 import { useAuth } from "@/auth/AuthProvider";
 import { useWorkspace } from "@/workspace/WorkspaceProvider";
@@ -24,6 +25,7 @@ const THEME_OPTIONS: { value: Theme; label: string; icon: typeof Sun }[] = [
 ];
 
 export function Account() {
+  const navigate = useNavigate();
   const { firebaseUser, signOut } = useAuth();
   const { theme, setTheme } = useTheme();
   const { workspaces, memberships, activeWorkspaceId, switchWorkspace } = useWorkspace();
@@ -140,7 +142,12 @@ export function Account() {
           <CardTitle className="text-base">Session</CardTitle>
         </CardHeader>
         <CardContent>
-          <Button variant="outline" onClick={() => void signOut()}>
+          <Button
+            variant="outline"
+            onClick={() => {
+              void signOut().then(() => navigate("/"));
+            }}
+          >
             <LogOut className="h-4 w-4" />
             Sign out
           </Button>
