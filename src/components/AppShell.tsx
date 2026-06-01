@@ -2,7 +2,7 @@
 // workspace) + desktop sidebar rail + mobile drawer + routed content (§6).
 
 import { Suspense, useState, type ComponentType } from "react";
-import { NavLink, Outlet, useLocation } from "react-router-dom";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { LogOut, ArrowLeftRight, BarChart3, Bell } from "lucide-react";
 import { useAuth } from "@/auth/AuthProvider";
 import { useWorkspace } from "@/workspace/WorkspaceProvider";
@@ -63,6 +63,7 @@ export function AppShell() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
 
   if (loading) return <FullScreenLoader label="Loading workspace…" />;
   if (error) return <ErrorState message={error} />;
@@ -116,7 +117,11 @@ export function AppShell() {
                 Switch workspace
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => void signOut()}>
+              <DropdownMenuItem
+                onClick={() => {
+                  void signOut().then(() => navigate("/"));
+                }}
+              >
                 <LogOut className="mr-2 h-4 w-4" />
                 Sign out
               </DropdownMenuItem>

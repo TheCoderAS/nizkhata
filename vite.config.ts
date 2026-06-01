@@ -34,6 +34,12 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ["**/*.{js,css,html,svg,png,woff2}"],
+        // A new SW activates immediately and purges outdated precaches, so a
+        // redeploy (e.g. new branding icons) takes effect without users having
+        // to manually clear the old service worker cache.
+        clientsClaim: true,
+        skipWaiting: true,
+        cleanupOutdatedCaches: true,
         // Don't precache the SPA shell against Firestore/Google API calls.
         navigateFallbackDenylist: [/^\/__/, /firestore/, /googleapis/],
         runtimeCaching: [
