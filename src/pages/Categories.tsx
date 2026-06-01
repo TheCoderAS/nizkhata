@@ -9,6 +9,8 @@ import { useData } from "@/data/WorkspaceDataProvider";
 import { createCategory, deleteCategory, updateCategory } from "@/data/mutations";
 import { txnsByCategory } from "@/lib/links";
 import { roundMoney } from "@/lib/txn";
+import { toDate } from "@/lib/derive";
+import { financialYearOf } from "@/lib/financialYear";
 import { formatMoney } from "@/lib/utils";
 import type { Category, CategoryKind } from "@/types/models";
 import { PageHeader } from "@/components/PageHeader";
@@ -59,13 +61,16 @@ export function Categories() {
   const manage = can("categories.manage");
   const canViewTxns = can("transactions.view");
   const currency = activeWorkspace?.baseCurrency ?? "INR";
+  const fyStartMonth = activeWorkspace?.fyStartMonth ?? 4;
+  const fy = financialYearOf(new Date(), fyStartMonth);
 
-  // Net amount per category — the sum of all line amounts tagged with it. For
-  // expense categories this is total spent; for income categories, total
-  // earned. Derived; cheap at v1 volumes.
+  // Net amount per category for the CURRENT financial year — the sum of line
+  // amounts tagged with it (total spent for expense categories, total earned
+  // for income). FY-scoped to match the Reports/Dashboard breakdowns. Derived.
   const amountByCategory = useMemo(() => {
     const totals: Record<string, number> = {};
     for (const t of transactions) {
+      if (financialYearOf(toDate(t.date), fyStartMonth) !== fy) continue;
       for (const l of t.lines) {
         if (l.categoryId) {
           totals[l.categoryId] = roundMoney((totals[l.categoryId] ?? 0) + l.amount);
@@ -73,7 +78,7 @@ export function Categories() {
       }
     }
     return totals;
-  }, [transactions]);
+  }, [transactions, fy, fyStartMonth]);
 
   const [kind, setKind] = useState<CategoryKind>("expense");
   const [editing, setEditing] = useState<Category | "new" | null>(null);
@@ -157,7 +162,7 @@ export function Categories() {
                 Name
               </SortableHead>
               <SortableHead sortKey="amount" sort={sort} onToggle={toggle} align="right">
-                Net amount
+                Net · FY {fy}
               </SortableHead>
               <SortableHead sortKey="source" sort={sort} onToggle={toggle}>
                 Source
