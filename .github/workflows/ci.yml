@@ -4,7 +4,7 @@ name: CI
 # run on push:main — the PR run already gated the code and Deploy (deploy.yml)
 # does its own build on merge, so a second CI run on main would be redundant.
 
-run-name: CI · ${{ github.head_ref || github.ref_name }}
+run-name: Build and Test PR
 
 on:
   pull_request:

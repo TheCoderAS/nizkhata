@@ -15,7 +15,7 @@ name: Deploy to Firebase
 # The six VITE_FIREBASE_* values are public (they ship in the client bundle), so
 # they're inlined here rather than stored as secrets.
 
-run-name: Deploy · ${{ github.ref_name }}@${{ github.sha }}
+run-name: Deploy to Firebase
 
 on:
   push:
