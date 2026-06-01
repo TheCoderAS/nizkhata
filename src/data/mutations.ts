@@ -7,8 +7,12 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDoc,
+  getDocs,
+  query,
   serverTimestamp,
   updateDoc,
+  where,
   writeBatch,
 } from "firebase/firestore";
 import { db } from "@/firebase/config";
@@ -465,8 +469,58 @@ export async function updateWorkspace(
   await updateDoc(doc(db, "workspaces", id), stripUndefined(data));
 }
 
-export async function deleteWorkspace(id: string) {
+/**
+ * Delete a workspace. Also removes the owner's own membership (so the deleted
+ * workspace stops appearing in their list / switcher) and clears their
+ * `lastWorkspaceId` pointer if it referenced this workspace — otherwise an
+ * orphan membership + stale pointer left the app trying to open a workspace
+ * that no longer exists. Other members' memberships, roles and entity docs are
+ * intentionally NOT auto-removed by the client (see the settings copy).
+ */
+/**
+ * Delete a workspace and ALL of its memberships, so no member (the owner or
+ * anyone they invited) sees the deleted workspace in their switcher anymore.
+ *
+ * Ordering is dictated by the membership-delete Security Rules:
+ *   1. While the workspace still exists, remove every NON-owner membership
+ *      (allowed via the owner's `members.remove`).
+ *   2. Delete the workspace doc.
+ *   3. Now that the workspace is gone, the owner removes their own dangling
+ *      membership (the only delete the rules permit post-deletion).
+ *   4. Best-effort: clear the owner's `lastWorkspaceId` if it pointed here.
+ *
+ * Entity docs (transactions, accounts, …) and roles are not auto-removed by the
+ * client; that needs a Cloud Function (see settings copy).
+ */
+export async function deleteWorkspace(id: string, ownerUid: string) {
+  // 1. Remove all other members' memberships first (while we still have rights).
+  const memberSnap = await getDocs(
+    query(collection(db, "memberships"), where("workspaceId", "==", id)),
+  );
+  const others = memberSnap.docs.filter((d) => (d.data() as { uid: string }).uid !== ownerUid);
+  // Batch the bulk removal (well under the 500-write limit at v1 member counts).
+  if (others.length > 0) {
+    const batch = writeBatch(db);
+    for (const m of others) batch.delete(m.ref);
+    await batch.commit();
+  }
+
+  // 2. Delete the workspace doc.
   await deleteDoc(doc(db, "workspaces", id));
+
+  // 3. Delete the owner's own (now dangling) membership.
+  await deleteDoc(doc(db, "memberships", `${id}_${ownerUid}`));
+
+  // 4. Don't let lastWorkspaceId point at a deleted workspace.
+  try {
+    const userRef = doc(db, "users", ownerUid);
+    const snap = await getDoc(userRef);
+    if ((snap.data() as { lastWorkspaceId?: string } | undefined)?.lastWorkspaceId === id) {
+      await updateDoc(userRef, { lastWorkspaceId: null });
+    }
+  } catch {
+    /* non-critical — the provider self-heals the active selection anyway */
+  }
 }
 
 // Firestore rejects `undefined`; drop those keys.

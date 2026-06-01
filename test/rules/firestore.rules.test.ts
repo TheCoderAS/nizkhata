@@ -202,12 +202,41 @@ describe("FIX 1 — no open membership self-join", () => {
 });
 
 describe("owner guardrails", () => {
-  it("the owner's membership cannot be deleted", async () => {
+  it("the owner's membership cannot be deleted while the workspace exists", async () => {
     const db = env.authenticatedContext("owner").firestore();
     await assertFails(
       // even owner has members.remove, but owner row is protected
       deleteDoc(doc(db, "memberships", `${WS}_owner`)),
     );
+  });
+
+  it("the owner CAN delete their dangling membership once the workspace is gone", async () => {
+    // Deleting a workspace removes the workspace doc first, then the owner's
+    // own membership; this verifies the post-delete cleanup is permitted.
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await deleteDoc(doc(ctx.firestore(), "workspaces", WS));
+    });
+    const db = env.authenticatedContext("owner").firestore();
+    await assertSucceeds(deleteDoc(doc(db, "memberships", `${WS}_owner`)));
+  });
+
+  it("the owner can delete their own workspace", async () => {
+    const db = env.authenticatedContext("owner").firestore();
+    await assertSucceeds(deleteDoc(doc(db, "workspaces", WS)));
+  });
+
+  it("the owner can remove another member (workspace-delete cleanup)", async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), "memberships", `${WS}_other`), {
+        id: `${WS}_other`,
+        workspaceId: WS,
+        uid: "other",
+        roleId: `${WS}_owner`,
+        status: "active",
+      });
+    });
+    const db = env.authenticatedContext("owner").firestore();
+    await assertSucceeds(deleteDoc(doc(db, "memberships", `${WS}_other`)));
   });
 });
 

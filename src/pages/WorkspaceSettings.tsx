@@ -1,6 +1,7 @@
 // Settings › Workspace (§6.12). Name, currency, FY start month; delete (owner only).
 
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/auth/AuthProvider";
 import { useWorkspace } from "@/workspace/WorkspaceProvider";
 import { deleteWorkspace, updateWorkspace } from "@/data/mutations";
@@ -28,8 +29,9 @@ const MONTHS = [
 const CURRENCIES = ["INR", "USD", "EUR", "GBP", "AED", "SGD", "AUD", "CAD"];
 
 export function WorkspaceSettings() {
-  const { firebaseUser } = useAuth();
-  const { activeWorkspace, can } = useWorkspace();
+  const navigate = useNavigate();
+  const { firebaseUser, signOut } = useAuth();
+  const { activeWorkspace, memberships, switchWorkspace, can } = useWorkspace();
   const { toast } = useToast();
 
   const [name, setName] = useState(activeWorkspace?.name ?? "");
@@ -129,12 +131,24 @@ export function WorkspaceSettings() {
         open={confirmDelete}
         onOpenChange={setConfirmDelete}
         title={`Delete "${activeWorkspace.name}"?`}
-        description="This permanently removes the workspace. Member, role and transaction documents are not auto-deleted by the client; remove them separately if required."
+        description="This permanently removes the workspace for everyone — all members lose access. Transaction, account and role documents are not auto-deleted by the client."
         destructive
         confirmLabel="Delete workspace"
         onConfirm={async () => {
-          await deleteWorkspace(activeWorkspace.id);
+          if (!firebaseUser) return;
+          const deletedId = activeWorkspace.id;
+          await deleteWorkspace(deletedId, firebaseUser.uid);
           toast({ title: "Workspace deleted", variant: "success" });
+          // Move the owner to another workspace if they have one; otherwise
+          // sign them out (their next login re-onboards a personal workspace).
+          const next = memberships.find((m) => m.workspaceId !== deletedId);
+          if (next) {
+            switchWorkspace(next.workspaceId);
+            navigate("/dashboard");
+          } else {
+            await signOut();
+            navigate("/");
+          }
         }}
       />
     </div>

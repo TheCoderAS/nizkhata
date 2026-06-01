@@ -10,6 +10,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -72,19 +73,38 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Seed this tab's active workspace from sessionStorage (per tab), else the
-  // user's lastWorkspaceId (cross-session default). Runs once per uid.
+  // The preferred workspace to open on load: this tab's last choice
+  // (sessionStorage), else the user's cross-session lastWorkspaceId. Resolved
+  // once per uid. We hold it in a ref + a "ready" flag so the memberships
+  // listener doesn't prematurely fall back to the first membership before the
+  // preference is known (that race opened the wrong workspace on every load).
+  const preferredId = useRef<string | null>(null);
+  const [prefReady, setPrefReady] = useState(false);
+
   useEffect(() => {
     if (!uid) return;
+    let cancelled = false;
+    preferredId.current = null;
+    setPrefReady(false);
+
     const fromTab = readTabWorkspace(uid);
     if (fromTab) {
-      setActiveWorkspaceId(fromTab);
+      preferredId.current = fromTab;
+      setPrefReady(true);
       return;
     }
-    void getDoc(doc(db, "users", uid)).then((snap) => {
-      const last = (snap.data() as { lastWorkspaceId?: string } | undefined)?.lastWorkspaceId;
-      if (last) setActiveWorkspaceId((cur) => cur ?? last);
-    });
+    void getDoc(doc(db, "users", uid))
+      .then((snap) => {
+        if (cancelled) return;
+        const last = (snap.data() as { lastWorkspaceId?: string } | undefined)?.lastWorkspaceId;
+        preferredId.current = last ?? null;
+      })
+      .finally(() => {
+        if (!cancelled) setPrefReady(true);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [uid]);
 
   // memberships of the current user
@@ -101,11 +121,6 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       (snap) => {
         const list = snap.docs.map((d) => d.data() as Membership);
         setMemberships(list);
-        setActiveWorkspaceId((current) => {
-          if (current && list.some((m) => m.workspaceId === current)) return current;
-          // current selection no longer valid (or unset) -> first membership
-          return list[0]?.workspaceId ?? null;
-        });
         setLoading(false);
       },
       (e) => {
@@ -115,6 +130,20 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     );
     return unsub;
   }, [uid]);
+
+  // Resolve the active workspace once BOTH the preference and the memberships
+  // are available — preferring the saved choice, then the first membership.
+  // Also self-heals if the current selection is removed (e.g. workspace
+  // deleted or membership revoked).
+  useEffect(() => {
+    if (!prefReady) return;
+    setActiveWorkspaceId((current) => {
+      if (current && memberships.some((m) => m.workspaceId === current)) return current;
+      const pref = preferredId.current;
+      if (pref && memberships.some((m) => m.workspaceId === pref)) return pref;
+      return memberships[0]?.workspaceId ?? null;
+    });
+  }, [prefReady, memberships]);
 
   // workspace docs for all memberships
   useEffect(() => {
