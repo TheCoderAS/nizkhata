@@ -157,7 +157,7 @@ export function AppShell() {
       <Dialog open={drawerOpen} onOpenChange={setDrawerOpen}>
         <DialogContent
           hideClose
-          className="left-0 top-0 h-full max-w-[17rem] translate-x-0 translate-y-0 gap-0 rounded-none border-y-0 border-l-0 p-0 data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left sm:rounded-none"
+          className="inset-y-0 left-0 right-auto m-0 h-full max-h-none w-[17rem] max-w-[17rem] gap-0 rounded-none border-y-0 border-l-0 p-0 data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left sm:rounded-none"
         >
           <DialogTitle className="sr-only">Navigation</DialogTitle>
           <SidebarContent initialView="settings" onNavigate={() => setDrawerOpen(false)} />

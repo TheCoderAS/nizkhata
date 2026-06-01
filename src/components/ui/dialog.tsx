@@ -34,7 +34,11 @@ const DialogContent = React.forwardRef<
     <DialogPrimitive.Content
       ref={ref}
       className={cn(
-        "fixed left-[50%] top-[50%] z-50 grid max-h-[90vh] w-[calc(100%-2rem)] max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 overflow-y-auto rounded-xl border bg-background p-5 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 sm:p-6",
+        // Center via fixed inset-0 + auto margins (NOT translate): translate-
+        // based centering re-anchors to any ancestor with a transform / filter
+        // / backdrop-filter, which pinned the dialog to the corner. h-fit keeps
+        // it sized to content; my-auto centers vertically within the inset.
+        "fixed inset-0 z-50 m-auto grid h-fit max-h-[calc(100vh-2rem)] w-[calc(100%-2rem)] max-w-lg gap-4 overflow-y-auto rounded-xl border bg-background p-5 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 sm:p-6",
         className,
       )}
       {...props}
