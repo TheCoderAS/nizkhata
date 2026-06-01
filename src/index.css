@@ -4,52 +4,72 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    --background: 240 20% 99%;
+    --foreground: 222.2 47% 11%;
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 222.2 47% 11%;
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 262 83% 58%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --success: 142 71% 45%;
+    --popover-foreground: 222.2 47% 11%;
+    /* Primary = indigo (ties to the navy brand mark) */
+    --primary: 243 75% 59%;
+    --primary-foreground: 0 0% 100%;
+    /* Brand accent #2 = emerald, for positive/secondary highlights */
+    --accent2: 160 84% 39%;
+    --accent2-foreground: 0 0% 100%;
+    --secondary: 240 20% 96%;
+    --secondary-foreground: 222.2 47% 11%;
+    --muted: 240 20% 96%;
+    --muted-foreground: 215 16% 47%;
+    --accent: 243 75% 96%;
+    --accent-foreground: 243 75% 40%;
+    --destructive: 0 72% 56%;
+    --destructive-foreground: 0 0% 100%;
+    --success: 160 84% 39%;
     --warning: 38 92% 50%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 262 83% 58%;
-    --radius: 0.65rem;
+    --border: 240 16% 90%;
+    --input: 240 16% 90%;
+    --ring: 243 75% 59%;
+    --radius: 0.75rem;
+
+    /* Glass + elevation (modern look) */
+    --glass-bg: 0 0% 100%;
+    --glass-border: 240 20% 92%;
+    --shadow-color: 240 40% 30%;
+    /* Brand gradient endpoints */
+    --grad-from: 243 75% 59%;
+    --grad-to: 263 80% 62%;
   }
 
   .dark {
-    --background: 222.2 47% 7%;
-    --foreground: 210 40% 96%;
-    --card: 222.2 44% 10%;
-    --card-foreground: 210 40% 96%;
-    --popover: 222.2 44% 10%;
-    --popover-foreground: 210 40% 96%;
-    --primary: 263 90% 70%;
-    --primary-foreground: 222.2 47% 11%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 96%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 19%;
-    --accent-foreground: 210 40% 96%;
-    --destructive: 0 72% 51%;
-    --destructive-foreground: 210 40% 98%;
-    --success: 142 65% 47%;
-    --warning: 38 92% 55%;
-    --border: 217.2 32.6% 20%;
-    --input: 217.2 32.6% 22%;
-    --ring: 263 90% 70%;
+    --background: 235 32% 8%;
+    --foreground: 220 30% 96%;
+    --card: 234 28% 12%;
+    --card-foreground: 220 30% 96%;
+    --popover: 234 30% 11%;
+    --popover-foreground: 220 30% 96%;
+    --primary: 245 90% 72%;
+    --primary-foreground: 235 40% 10%;
+    --accent2: 158 70% 50%;
+    --accent2-foreground: 235 40% 10%;
+    --secondary: 235 20% 18%;
+    --secondary-foreground: 220 30% 96%;
+    --muted: 235 20% 18%;
+    --muted-foreground: 220 14% 66%;
+    --accent: 245 40% 22%;
+    --accent-foreground: 245 90% 85%;
+    --destructive: 0 70% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --success: 158 70% 48%;
+    --warning: 38 92% 58%;
+    --border: 235 18% 22%;
+    --input: 235 18% 24%;
+    --ring: 245 90% 72%;
+
+    --glass-bg: 234 30% 14%;
+    --glass-border: 235 22% 26%;
+    --shadow-color: 235 60% 3%;
+    --grad-from: 245 80% 64%;
+    --grad-to: 270 75% 66%;
   }
 }
 
@@ -68,6 +88,11 @@
     font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
+    /* Subtle ambient color wash so the canvas isn't a flat slab. */
+    background-image:
+      radial-gradient(60rem 60rem at 110% -10%, hsl(var(--grad-to) / 0.10), transparent 60%),
+      radial-gradient(50rem 50rem at -10% 110%, hsl(var(--accent2) / 0.08), transparent 55%);
+    background-attachment: fixed;
   }
   /* Smooth color changes when toggling theme. */
   body,
@@ -89,6 +114,54 @@
       transition-duration: 0.01ms !important;
     }
   }
+}
+
+/* ---------------------------------------------------------------------------
+   Modern surface system: glass panels, gradient brand fills, soft elevation.
+   Used by cards, the app header/sidebar, stat tiles and hero sections.
+--------------------------------------------------------------------------- */
+@layer components {
+  /* Frosted, slightly translucent panel with soft elevation. */
+  .glass {
+    background: hsl(var(--glass-bg) / 0.72);
+    border: 1px solid hsl(var(--glass-border) / 0.8);
+    backdrop-filter: blur(14px) saturate(140%);
+    -webkit-backdrop-filter: blur(14px) saturate(140%);
+    box-shadow:
+      0 1px 2px hsl(var(--shadow-color) / 0.06),
+      0 8px 24px -12px hsl(var(--shadow-color) / 0.18);
+  }
+  /* Soft elevated card (opaque). */
+  .elevated {
+    box-shadow:
+      0 1px 2px hsl(var(--shadow-color) / 0.06),
+      0 10px 30px -16px hsl(var(--shadow-color) / 0.22);
+  }
+  .elevated-hover {
+    transition: box-shadow 0.2s ease, transform 0.2s ease;
+  }
+  .elevated-hover:hover {
+    box-shadow:
+      0 2px 4px hsl(var(--shadow-color) / 0.08),
+      0 18px 40px -18px hsl(var(--shadow-color) / 0.32);
+    transform: translateY(-2px);
+  }
+  /* Brand gradient fill + matching text gradient. */
+  .brand-gradient {
+    background-image: linear-gradient(135deg, hsl(var(--grad-from)), hsl(var(--grad-to)));
+  }
+  .brand-gradient-text {
+    background-image: linear-gradient(135deg, hsl(var(--grad-from)), hsl(var(--grad-to)));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+}
+
+@layer utilities {
+  /* Secondary brand accent (emerald) as text/bg/border helpers. */
+  .text-accent2 { color: hsl(var(--accent2)); }
+  .bg-accent2 { background-color: hsl(var(--accent2)); }
 }
 
 /* Themed scrollbar */

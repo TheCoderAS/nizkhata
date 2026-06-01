@@ -17,6 +17,7 @@ import { useAuth } from "@/auth/AuthProvider";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Logo, LogoMark } from "@/components/Logo";
+import { cn } from "@/lib/utils";
 
 interface Feature {
   icon: LucideIcon;
@@ -63,8 +64,8 @@ export function Landing() {
   return (
     <div className="relative min-h-screen overflow-hidden bg-background">
       {/* ambient gradient blobs */}
-      <div className="pointer-events-none absolute -left-32 -top-32 h-96 w-96 rounded-full bg-primary/20 blur-3xl" />
-      <div className="pointer-events-none absolute -right-32 top-40 h-96 w-96 rounded-full bg-primary/10 blur-3xl" />
+      <div className="pointer-events-none absolute -left-32 -top-32 h-96 w-96 rounded-full bg-primary/25 blur-3xl" />
+      <div className="pointer-events-none absolute -right-32 top-40 h-96 w-96 rounded-full bg-accent2/20 blur-3xl" />
 
       {/* nav */}
       <header className="relative z-10 mx-auto flex max-w-6xl items-center justify-between px-4 py-5 sm:px-6">
@@ -81,7 +82,7 @@ export function Landing() {
       <section className="relative z-10 mx-auto max-w-6xl px-4 pb-16 pt-10 text-center sm:px-6 sm:pt-20">
         <LogoMark size="xl" className="mx-auto mb-6 shadow-xl" />
         <h1 className="mx-auto max-w-3xl text-balance text-4xl font-semibold tracking-tight sm:text-5xl">
-          Every rupee, accounted for.
+          Every rupee, <span className="brand-gradient-text">accounted for.</span>
         </h1>
         <p className="mx-auto mt-4 max-w-2xl text-pretty text-base text-muted-foreground sm:text-lg">
           NizKhata is shared, multi-workspace accounting for households and small businesses —
@@ -105,9 +106,17 @@ export function Landing() {
       {/* features */}
       <section id="features" className="relative z-10 mx-auto max-w-6xl px-4 pb-20 sm:px-6">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {FEATURES.map((f) => (
-            <div key={f.title} className="rounded-2xl border bg-card p-5">
-              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+          {FEATURES.map((f, i) => (
+            <div
+              key={f.title}
+              className="glass elevated-hover rounded-2xl p-5"
+            >
+              <span
+                className={cn(
+                  "flex h-10 w-10 items-center justify-center rounded-xl",
+                  i % 2 === 0 ? "bg-primary/10 text-primary" : "bg-accent2/10 text-accent2",
+                )}
+              >
                 <f.icon className="h-5 w-5" />
               </span>
               <h3 className="mt-4 font-semibold tracking-tight">{f.title}</h3>

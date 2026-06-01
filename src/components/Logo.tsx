@@ -35,12 +35,21 @@ export function Logo({
 }: {
   size?: keyof typeof SIZES;
   className?: string;
+  /** Overrides the default brand-gradient wordmark (e.g. a plain footer mark). */
   wordmarkClassName?: string;
 }) {
   return (
     <span className={cn("inline-flex items-center gap-2", className)}>
       <LogoMark size={size} />
-      <span className={cn("font-semibold tracking-tight", wordmarkClassName)}>NizKhata</span>
+      <span
+        className={cn(
+          "font-semibold tracking-tight",
+          // Gradient wordmark by default; callers can override (e.g. footer).
+          wordmarkClassName ?? "brand-gradient-text",
+        )}
+      >
+        NizKhata
+      </span>
     </span>
   );
 }

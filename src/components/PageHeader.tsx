@@ -21,8 +21,8 @@ export function PageHeader({
   primaryAction?: PrimaryAction;
 }) {
   return (
-    <div className="mb-6 flex items-center justify-between gap-4">
-      <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
+    <div className="mb-5 flex items-center justify-between gap-4">
+      <h1 className="text-2xl font-semibold tracking-tight sm:text-[1.75rem]">{title}</h1>
       <div className="flex shrink-0 items-center gap-2">
         {actions}
         {primaryAction && !primaryAction.hidden && (

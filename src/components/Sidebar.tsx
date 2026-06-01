@@ -65,7 +65,7 @@ function itemClass(isActive: boolean) {
   return cn(
     "group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-150",
     isActive
-      ? "bg-primary text-primary-foreground shadow-sm"
+      ? "brand-gradient text-primary-foreground shadow-md shadow-primary/25"
       : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
   );
 }
@@ -220,7 +220,7 @@ function actorInitials(nameOrEmail: string): string {
 /** Fixed desktop rail (hidden on mobile). */
 export function Sidebar() {
   return (
-    <aside className="hidden w-64 shrink-0 border-r bg-card md:block">
+    <aside className="hidden w-64 shrink-0 border-r border-border/60 bg-card/40 backdrop-blur-xl md:block">
       <SidebarContent />
     </aside>
   );

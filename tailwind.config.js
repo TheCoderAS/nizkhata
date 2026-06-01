@@ -51,8 +51,13 @@ export default {
           DEFAULT: "hsl(var(--warning))",
           foreground: "hsl(var(--primary-foreground))",
         },
+        accent2: {
+          DEFAULT: "hsl(var(--accent2))",
+          foreground: "hsl(var(--accent2-foreground))",
+        },
       },
       borderRadius: {
+        xl: "calc(var(--radius) + 4px)",
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
@@ -81,6 +86,10 @@ export default {
         shimmer: {
           "100%": { transform: "translateX(100%)" },
         },
+        "scale-in": {
+          from: { opacity: "0", transform: "scale(0.97)" },
+          to: { opacity: "1", transform: "scale(1)" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
@@ -88,6 +97,7 @@ export default {
         "fade-in": "fade-in 0.25s ease-out",
         "fade-in-up": "fade-in-up 0.3s ease-out both",
         "slide-in-left": "slide-in-left 0.25s ease-out",
+        "scale-in": "scale-in 0.2s ease-out both",
       },
     },
   },
