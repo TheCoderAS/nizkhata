@@ -1,6 +1,7 @@
 // Settings › Workspace (§6.12). Name, currency, FY start month; delete (owner only).
 
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/auth/AuthProvider";
 import { useWorkspace } from "@/workspace/WorkspaceProvider";
 import { deleteWorkspace, updateWorkspace } from "@/data/mutations";
@@ -28,6 +29,7 @@ const MONTHS = [
 const CURRENCIES = ["INR", "USD", "EUR", "GBP", "AED", "SGD", "AUD", "CAD"];
 
 export function WorkspaceSettings() {
+  const navigate = useNavigate();
   const { firebaseUser } = useAuth();
   const { activeWorkspace, can } = useWorkspace();
   const { toast } = useToast();
@@ -133,8 +135,12 @@ export function WorkspaceSettings() {
         destructive
         confirmLabel="Delete workspace"
         onConfirm={async () => {
-          await deleteWorkspace(activeWorkspace.id);
+          if (!firebaseUser) return;
+          await deleteWorkspace(activeWorkspace.id, firebaseUser.uid);
           toast({ title: "Workspace deleted", variant: "success" });
+          // The active workspace is gone; the provider will self-heal the
+          // selection to another membership. Send the user home meanwhile.
+          navigate("/dashboard");
         }}
       />
     </div>

@@ -7,6 +7,7 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDoc,
   serverTimestamp,
   updateDoc,
   writeBatch,
@@ -465,8 +466,32 @@ export async function updateWorkspace(
   await updateDoc(doc(db, "workspaces", id), stripUndefined(data));
 }
 
-export async function deleteWorkspace(id: string) {
+/**
+ * Delete a workspace. Also removes the owner's own membership (so the deleted
+ * workspace stops appearing in their list / switcher) and clears their
+ * `lastWorkspaceId` pointer if it referenced this workspace — otherwise an
+ * orphan membership + stale pointer left the app trying to open a workspace
+ * that no longer exists. Other members' memberships, roles and entity docs are
+ * intentionally NOT auto-removed by the client (see the settings copy).
+ */
+export async function deleteWorkspace(id: string, ownerUid: string) {
+  // Order matters: delete the workspace doc FIRST. The membership-delete rule
+  // only lets the owner remove their own (otherwise-protected) membership once
+  // the workspace no longer exists, so a single batch would be rejected.
   await deleteDoc(doc(db, "workspaces", id));
+  // Membership id is `${workspaceId}_${uid}` (see onboarding/seed).
+  await deleteDoc(doc(db, "memberships", `${id}_${ownerUid}`));
+
+  // Best-effort: don't let lastWorkspaceId point at a deleted workspace.
+  try {
+    const userRef = doc(db, "users", ownerUid);
+    const snap = await getDoc(userRef);
+    if ((snap.data() as { lastWorkspaceId?: string } | undefined)?.lastWorkspaceId === id) {
+      await updateDoc(userRef, { lastWorkspaceId: null });
+    }
+  } catch {
+    /* non-critical — the provider self-heals the active selection anyway */
+  }
 }
 
 // Firestore rejects `undefined`; drop those keys.

@@ -155,12 +155,19 @@ service cloud.firestore {
         && ownerRoleOnlyForOwner(exWs(), request.resource.data.uid, request.resource.data.roleId);
 
       // A member can leave on their own; an admin can remove others. The owner
-      // can neither be removed nor leave (ownership must transfer/delete first).
-      allow delete: if resource.data.uid != workspaceDoc(exWs()).data.ownerId
-        && (
-          resource.data.uid == request.auth.uid ||
-          can(exWs(), 'members.remove')
-        );
+      // can neither be removed nor leave (ownership must transfer/delete first)
+      // — EXCEPT when the workspace itself has already been deleted, which is
+      // how deleting a workspace cleans up the owner's own membership. Once the
+      // workspace doc is gone, the owner may delete their dangling membership.
+      allow delete: if !exists(/databases/$(database)/documents/workspaces/$(exWs()))
+        ? resource.data.uid == request.auth.uid
+        : (
+            resource.data.uid != workspaceDoc(exWs()).data.ownerId
+            && (
+              resource.data.uid == request.auth.uid ||
+              can(exWs(), 'members.remove')
+            )
+          );
     }
 
     // ---- roles -------------------------------------------------------------
