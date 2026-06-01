@@ -22,13 +22,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import {
-  Table,
   TableBody,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { ResizableTable, ResizableHead } from "@/components/ResizableTable";
+import { useColumnWidths } from "@/lib/useColumnWidths";
 import {
   Dialog,
   DialogContent,
@@ -61,6 +62,8 @@ function isOwnerRole(r: Role): boolean {
 }
 
 export function Members() {
+  const memberWidths = useColumnWidths("members");
+  const inviteWidths = useColumnWidths("member-invites");
   const { firebaseUser } = useAuth();
   const { activeWorkspace, can } = useWorkspace();
   const { memberships, roles, rolesById, invites, loading, error } = useAdminData();
@@ -108,12 +111,12 @@ export function Members() {
         }}
       />
 
-      <Table>
+      <ResizableTable prefs={memberWidths} className="[&_td]:truncate">
         <TableHeader>
           <TableRow>
-            <TableHead>Member</TableHead>
-            <TableHead>Role</TableHead>
-            <TableHead>Status</TableHead>
+            <ResizableHead colKey="member">Member</ResizableHead>
+            <ResizableHead colKey="role">Role</ResizableHead>
+            <ResizableHead colKey="status">Status</ResizableHead>
             {canRemove && <TableHead className="w-20" />}
           </TableRow>
         </TableHeader>
@@ -179,18 +182,18 @@ export function Members() {
             );
           })}
         </TableBody>
-      </Table>
+      </ResizableTable>
 
       {pendingInvites.length > 0 && (
         <div className="mt-8">
           <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
             Pending invites
           </h2>
-          <Table>
+          <ResizableTable prefs={inviteWidths} className="[&_td]:truncate">
             <TableHeader>
               <TableRow>
-                <TableHead>Email</TableHead>
-                <TableHead>Role</TableHead>
+                <ResizableHead colKey="email">Email</ResizableHead>
+                <ResizableHead colKey="role">Role</ResizableHead>
                 {canInvite && <TableHead className="w-20" />}
               </TableRow>
             </TableHeader>
@@ -221,7 +224,7 @@ export function Members() {
                 </TableRow>
               ))}
             </TableBody>
-          </Table>
+          </ResizableTable>
         </div>
       )}
 

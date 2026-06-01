@@ -46,13 +46,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import {
-  Table,
   TableBody,
   TableCell,
-  TableHead,
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { ResizableTable, ResizableHead } from "@/components/ResizableTable";
+import { useColumnWidths } from "@/lib/useColumnWidths";
 import {
   Dialog,
   DialogContent,
@@ -82,6 +82,7 @@ interface Partner {
 }
 
 export function Shared() {
+  const historyWidths = useColumnWidths("shared-history");
   const { activeWorkspaceId, activeWorkspace, can } = useWorkspace();
   const { firebaseUser } = useAuth();
   const { accounts, categories, contacts, debts, transactions, loading: wsLoading } = useData();
@@ -312,14 +313,14 @@ export function Shared() {
           />
         ) : (
           <div className="overflow-hidden rounded-xl border">
-            <Table>
+            <ResizableTable prefs={historyWidths} className="[&_td]:truncate">
               <TableHeader>
                 <TableRow className="bg-muted/40">
-                  <TableHead>Item</TableHead>
-                  <TableHead className="hidden sm:table-cell">With</TableHead>
-                  <TableHead className="hidden sm:table-cell">Date</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Amount</TableHead>
+                  <ResizableHead colKey="item">Item</ResizableHead>
+                  <ResizableHead colKey="with" className="hidden sm:table-cell">With</ResizableHead>
+                  <ResizableHead colKey="date" className="hidden sm:table-cell">Date</ResizableHead>
+                  <ResizableHead colKey="status">Status</ResizableHead>
+                  <ResizableHead colKey="amount" className="text-right">Amount</ResizableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -370,7 +371,7 @@ export function Shared() {
                   );
                 })}
               </TableBody>
-            </Table>
+            </ResizableTable>
           </div>
         )}
       </section>
