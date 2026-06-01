@@ -4,7 +4,8 @@
 // Sortable headers, clickable rows -> detail modal, kebab row actions.
 
 import { useState } from "react";
-import { Plus, Receipt, Pencil, Trash2, Ban } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Plus, Receipt, Pencil, Trash2, Ban, Users, ArrowLeftRight } from "lucide-react";
 import { Timestamp } from "firebase/firestore";
 import { useAuth } from "@/auth/AuthProvider";
 import { useWorkspace } from "@/workspace/WorkspaceProvider";
@@ -16,6 +17,7 @@ import {
   updateDue,
   type TransactionInput,
 } from "@/data/mutations";
+import { txnsByContact, contactDetailPath } from "@/lib/links";
 import type { Due, DueDirection } from "@/types/models";
 import { dueStatusFromSettled, toDate } from "@/lib/derive";
 import { PageHeader } from "@/components/PageHeader";
@@ -75,6 +77,7 @@ const COLUMNS: ColumnDef<ColKey>[] = [
 ];
 
 export function Dues() {
+  const navigate = useNavigate();
   const { firebaseUser } = useAuth();
   const { activeWorkspaceId, activeWorkspace, can } = useWorkspace();
   const { dues, contactsById, accountsById, settledOf, loading, error } = useData();
@@ -82,6 +85,8 @@ export function Dues() {
   const currency = activeWorkspace?.baseCurrency ?? "INR";
   const manage = can("dues.manage");
   const canTxn = can("transactions.create");
+  const canViewTxns = can("transactions.view");
+  const canViewContacts = can("contacts.view");
 
   const [editing, setEditing] = useState<Due | "new" | null>(null);
   const [viewing, setViewing] = useState<Due | null>(null);
@@ -142,7 +147,20 @@ export function Dues() {
         onSelect: () => setPaying(d),
         hidden: !canTxn || !settleable,
       },
-      { label: "Edit", icon: Pencil, onSelect: () => setEditing(d), hidden: !manage },
+      {
+        label: "View contact",
+        icon: Users,
+        onSelect: () => d.contactId && navigate(contactDetailPath(d.contactId)),
+        separatorBefore: true,
+        hidden: !canViewContacts || !d.contactId,
+      },
+      {
+        label: "View transactions",
+        icon: ArrowLeftRight,
+        onSelect: () => d.contactId && navigate(txnsByContact(d.contactId)),
+        hidden: !canViewTxns || !d.contactId,
+      },
+      { label: "Edit", icon: Pencil, onSelect: () => setEditing(d), separatorBefore: true, hidden: !manage },
       {
         label: "Cancel due",
         icon: Ban,

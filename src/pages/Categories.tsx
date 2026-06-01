@@ -1,11 +1,13 @@
 // Categories (§6.7). CRUD; income/expense; system categories read-only.
 // Sortable headers; rows open a detail modal; actions in a kebab menu.
 
-import { useState } from "react";
-import { Plus, Pencil, Trash2, Lock } from "lucide-react";
+import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { Plus, Pencil, Trash2, Lock, ArrowLeftRight } from "lucide-react";
 import { useWorkspace } from "@/workspace/WorkspaceProvider";
 import { useData } from "@/data/WorkspaceDataProvider";
 import { createCategory, deleteCategory, updateCategory } from "@/data/mutations";
+import { txnsByCategory } from "@/lib/links";
 import type { Category, CategoryKind } from "@/types/models";
 import { PageHeader } from "@/components/PageHeader";
 import { RowActions, type RowAction } from "@/components/RowActions";
@@ -45,13 +47,31 @@ import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { EmptyState, ErrorState, PageSkeleton } from "@/components/states";
 import { useToast } from "@/components/ui/toast";
 
-type SortKey = "name" | "source";
+type SortKey = "name" | "txns" | "source";
 
 export function Categories() {
+  const navigate = useNavigate();
   const { activeWorkspaceId, can } = useWorkspace();
-  const { categories, loading, error } = useData();
+  const { categories, transactions, loading, error } = useData();
   const { toast } = useToast();
   const manage = can("categories.manage");
+  const canViewTxns = can("transactions.view");
+
+  // Transaction count per category (a txn counts once even if multiple lines
+  // share the category). Derived; cheap at v1 volumes.
+  const txnCountByCategory = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const t of transactions) {
+      const seen = new Set<string>();
+      for (const l of t.lines) {
+        if (l.categoryId && !seen.has(l.categoryId)) {
+          seen.add(l.categoryId);
+          counts[l.categoryId] = (counts[l.categoryId] ?? 0) + 1;
+        }
+      }
+    }
+    return counts;
+  }, [transactions]);
 
   const [kind, setKind] = useState<CategoryKind>("expense");
   const [editing, setEditing] = useState<Category | "new" | null>(null);
@@ -64,6 +84,7 @@ export function Categories() {
   const filtered = categories.filter((c) => c.kind === kind);
   const accessors: Record<SortKey, SortAccessor<Category>> = {
     name: (c) => c.name,
+    txns: (c) => txnCountByCategory[c.id] ?? 0,
     source: (c) => (c.isSystem ? "System" : "Custom"),
   };
   const { sorted, sort, toggle } = useSort(filtered, accessors, {
@@ -76,9 +97,16 @@ export function Categories() {
   function rowActions(c: Category): RowAction[] {
     return [
       {
+        label: "View transactions",
+        icon: ArrowLeftRight,
+        onSelect: () => navigate(txnsByCategory(c.id)),
+        hidden: !canViewTxns,
+      },
+      {
         label: "Edit",
         icon: Pencil,
         onSelect: () => setEditing(c),
+        separatorBefore: true,
         hidden: !manage,
         disabled: c.isSystem,
       },
@@ -126,6 +154,9 @@ export function Categories() {
               <SortableHead sortKey="name" sort={sort} onToggle={toggle}>
                 Name
               </SortableHead>
+              <SortableHead sortKey="txns" sort={sort} onToggle={toggle} align="right">
+                Transactions
+              </SortableHead>
               <SortableHead sortKey="source" sort={sort} onToggle={toggle}>
                 Source
               </SortableHead>
@@ -140,6 +171,9 @@ export function Categories() {
                 className="cursor-pointer"
               >
                 <TableCell className="font-medium">{c.name}</TableCell>
+                <TableCell className="text-right tabular-nums text-muted-foreground">
+                  {txnCountByCategory[c.id] ?? 0}
+                </TableCell>
                 <TableCell>
                   {c.isSystem ? (
                     <Badge variant="outline">
