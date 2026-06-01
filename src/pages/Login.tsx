@@ -40,17 +40,17 @@ export function Login() {
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background p-4">
       {/* ambient gradient blobs */}
-      <div className="pointer-events-none absolute -left-24 -top-24 h-72 w-72 rounded-full bg-primary/20 blur-3xl" />
-      <div className="pointer-events-none absolute -bottom-24 -right-24 h-72 w-72 rounded-full bg-primary/10 blur-3xl" />
+      <div className="pointer-events-none absolute -left-24 -top-24 h-72 w-72 rounded-full bg-primary/25 blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-24 -right-24 h-72 w-72 rounded-full bg-accent2/20 blur-3xl" />
 
       <div className="absolute right-4 top-4">
         <ThemeToggle />
       </div>
 
-      <div className="w-full max-w-sm animate-fade-in-up rounded-2xl border bg-card p-8 shadow-xl">
+      <div className="glass w-full max-w-sm animate-scale-in rounded-2xl p-8">
         <div className="mb-6 flex flex-col items-center text-center">
           <LogoMark size="xl" className="mb-4 shadow-lg" />
-          <h1 className="text-2xl font-semibold tracking-tight">NizKhata</h1>
+          <h1 className="brand-gradient-text text-3xl font-semibold tracking-tight">NizKhata</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Every rupee, accounted for.
           </p>

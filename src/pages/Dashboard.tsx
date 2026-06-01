@@ -383,23 +383,27 @@ function TrendCard({
   tone: "success" | "destructive";
 }) {
   return (
-    <Card className="overflow-hidden">
+    <Card className="elevated-hover animate-scale-in overflow-hidden">
       <CardHeader className="flex-row items-center justify-between space-y-0 pb-1">
-        <CardTitle className="text-sm font-normal text-muted-foreground">{label}</CardTitle>
+        <CardTitle className="text-sm text-muted-foreground">{label}</CardTitle>
         {Icon && (
-          <Icon
+          <span
             className={cn(
-              "h-4 w-4",
-              tone === "success" ? "text-green-600" : "text-destructive",
+              "flex h-8 w-8 items-center justify-center rounded-lg",
+              tone === "success"
+                ? "bg-accent2/10 text-accent2"
+                : "bg-destructive/10 text-destructive",
             )}
-          />
+          >
+            <Icon className="h-4 w-4" />
+          </span>
         )}
       </CardHeader>
       <CardContent className="pb-0">
         <div
           className={cn(
-            "text-xl font-semibold tabular-nums sm:text-2xl",
-            tone === "success" ? "text-green-600" : "text-destructive",
+            "font-strong text-xl tabular-nums sm:text-2xl",
+            tone === "success" ? "text-accent2" : "text-destructive",
           )}
         >
           {value}
@@ -424,13 +428,17 @@ function StatCard({
   icon?: typeof Wallet;
 }) {
   return (
-    <Card>
+    <Card className="elevated-hover animate-scale-in">
       <CardHeader className="flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-normal text-muted-foreground">{label}</CardTitle>
-        {Icon && <Icon className="h-4 w-4 text-muted-foreground" />}
+        <CardTitle className="text-sm text-muted-foreground">{label}</CardTitle>
+        {Icon && (
+          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <Icon className="h-4 w-4" />
+          </span>
+        )}
       </CardHeader>
       <CardContent>
-        <div className="text-xl font-semibold tabular-nums sm:text-2xl">{value}</div>
+        <div className="font-strong text-xl tabular-nums sm:text-2xl">{value}</div>
         {hint && <p className="mt-1 text-xs text-muted-foreground">{hint}</p>}
       </CardContent>
     </Card>
