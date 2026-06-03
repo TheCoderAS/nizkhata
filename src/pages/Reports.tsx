@@ -10,13 +10,16 @@ import { useData } from "@/data/WorkspaceDataProvider";
 import {
   fyTaxSummary,
   spendByCategory,
+  periodTotals,
   toDate,
 } from "@/lib/derive";
 import { financialYearOf } from "@/lib/financialYear";
+import { trendSeries } from "@/lib/period";
 import { downloadCsv, toCsv } from "@/lib/csv";
 import { taxHeadLabel } from "@/lib/taxHeads";
 import { txnsByCategory, txnsByContact } from "@/lib/links";
 import { PageHeader } from "@/components/PageHeader";
+import { TrendChart } from "@/components/TrendChart";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -36,7 +39,7 @@ import {
 import { ResizableTable, ResizableHead } from "@/components/ResizableTable";
 import { useColumnWidths } from "@/lib/useColumnWidths";
 import { EmptyState, ErrorState, PageSkeleton } from "@/components/states";
-import { formatMoney } from "@/lib/utils";
+import { cn, formatMoney } from "@/lib/utils";
 
 export function Reports() {
   const navigate = useNavigate();
@@ -59,6 +62,23 @@ export function Reports() {
   }, [transactions, fyStartMonth]);
 
   const [fy, setFy] = useState(fyOptions[0] ?? financialYearOf(new Date(), fyStartMonth));
+
+  // Date range for the selected FY string (e.g. "2026-27") so the trend chart
+  // can bucket income/expense across that financial year.
+  const fyRange = useMemo(() => {
+    const startYear = Number(fy.slice(0, 4));
+    const start = new Date(startYear, fyStartMonth - 1, 1);
+    const end = new Date(startYear + 1, fyStartMonth - 1, 1);
+    return { start, end };
+  }, [fy, fyStartMonth]);
+
+  const trend = useMemo(() => trendSeries(transactions, fyRange), [transactions, fyRange]);
+  const totals = useMemo(
+    () => periodTotals(transactions, (d) => d >= fyRange.start && d < fyRange.end),
+    [transactions, fyRange],
+  );
+  const savingsRate =
+    totals.income > 0 ? Math.round((totals.net / totals.income) * 100) : 0;
 
   const byCategory = useMemo(
     () => spendByCategory(transactions, categories, fy, fyStartMonth),
@@ -110,12 +130,35 @@ export function Reports() {
         }
       />
 
-      <Tabs defaultValue="tax">
+      <Tabs defaultValue="insights">
         <TabsList>
+          <TabsTrigger value="insights">Insights</TabsTrigger>
           <TabsTrigger value="tax">FY tax summary</TabsTrigger>
           <TabsTrigger value="category">By category</TabsTrigger>
           <TabsTrigger value="contact">By contact</TabsTrigger>
         </TabsList>
+
+        {/* ---- insights ---- */}
+        <TabsContent value="insights" className="space-y-4">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <InsightStat label="Income" value={formatMoney(totals.income, currency)} tone="pos" />
+            <InsightStat label="Expense" value={formatMoney(totals.expense, currency)} tone="neg" />
+            <InsightStat
+              label="Net"
+              value={formatMoney(totals.net, currency)}
+              tone={totals.net >= 0 ? "pos" : "neg"}
+            />
+            <InsightStat label="Savings rate" value={`${savingsRate}%`} tone={savingsRate >= 0 ? "pos" : "neg"} />
+          </div>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Income vs expense · FY {fy}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <TrendChart data={trend.buckets} currency={currency} />
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         {/* ---- tax ---- */}
         <TabsContent value="tax" className="space-y-4">
@@ -299,6 +342,30 @@ export function Reports() {
           )}
         </TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+function InsightStat({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone: "pos" | "neg";
+}) {
+  return (
+    <div className="rounded-xl border bg-card p-3">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p
+        className={cn(
+          "mt-1 truncate font-strong text-lg tabular-nums sm:text-xl",
+          tone === "pos" ? "text-emerald-600 dark:text-emerald-400" : "text-destructive",
+        )}
+      >
+        {value}
+      </p>
     </div>
   );
 }
