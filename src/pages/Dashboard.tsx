@@ -12,11 +12,10 @@ import {
   budgetProgress,
   custodialHeld,
   dueStatusFromSettled,
-  spendByCategory,
+  spendByCategoryInRange,
   toDate,
   compareTxnChrono,
 } from "@/lib/derive";
-import { financialYearOf } from "@/lib/financialYear";
 import { txnsByCategory } from "@/lib/links";
 import {
   PERIOD_LABELS,
@@ -60,7 +59,6 @@ export function Dashboard() {
   const currency = activeWorkspace?.baseCurrency ?? "INR";
   const fyStartMonth = activeWorkspace?.fyStartMonth ?? 4;
   const now = new Date();
-  const fy = financialYearOf(now, fyStartMonth);
 
   const [openTxn, setOpenTxn] = useState<(typeof transactions)[number] | null>(null);
   const [period, setPeriod] = useState<PeriodKind>("month");
@@ -89,8 +87,8 @@ export function Dashboard() {
   const held = useMemo(() => custodialHeld(debts, transactions), [debts, transactions]);
 
   const topSpend = useMemo(
-    () => spendByCategory(transactions, categories, fy, fyStartMonth).slice(0, 6),
-    [transactions, categories, fy, fyStartMonth],
+    () => spendByCategoryInRange(transactions, categories, range.start, range.end).slice(0, 6),
+    [transactions, categories, range],
   );
 
   const budgetRows = useMemo(
@@ -103,11 +101,14 @@ export function Dashboard() {
       dues
         .filter((d) => {
           const status = dueStatusFromSettled(d, settledOf(d.id));
-          return status === "open" || status === "partial";
+          if (status !== "open" && status !== "partial") return false;
+          // Scope to the selected period (by due date), like the other cards.
+          const dd = toDate(d.dueDate);
+          return dd >= range.start && dd < range.end;
         })
         .sort((a, b) => toDate(a.dueDate).getTime() - toDate(b.dueDate).getTime())
         .slice(0, 5),
-    [dues, settledOf],
+    [dues, settledOf, range],
   );
 
   const recent = useMemo(
@@ -190,9 +191,8 @@ export function Dashboard() {
           icon={Wallet}
         />
         <StatCard
-          label="Held for others"
+          label="Held for others (Custodial)"
           value={formatMoney(held, currency)}
-          hint="Custodial — money you hold that belongs to contacts"
           icon={Users}
         />
       </div>
@@ -201,7 +201,9 @@ export function Dashboard() {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">Spend by category · FY {fy}</CardTitle>
+            <CardTitle className="text-base">
+              Spend by category · {PERIOD_LABELS[period]}
+            </CardTitle>
           </CardHeader>
           <CardContent>
             {topSpend.length === 0 ? (
