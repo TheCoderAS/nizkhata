@@ -357,6 +357,28 @@ export function spendByCategory(
     .sort((a, b) => b.amount - a.amount);
 }
 
+/**
+ * Spend per category within an arbitrary [start, end) window — the range-based
+ * sibling of spendByCategory (which is FY-scoped). Lets the dashboard's
+ * spend-by-category card follow the period dropdown. Reuses categorySpendInRange.
+ */
+export function spendByCategoryInRange(
+  txns: Transaction[],
+  categories: Category[],
+  start: Date,
+  end: Date,
+): CategorySpend[] {
+  const nameById = new Map(categories.map((c) => [c.id, c.name]));
+  const totals = categorySpendInRange(txns, start, end);
+  return Object.entries(totals)
+    .map(([categoryId, amount]) => ({
+      categoryId,
+      name: nameById.get(categoryId) ?? "Uncategorized",
+      amount: roundMoney(amount),
+    }))
+    .sort((a, b) => b.amount - a.amount);
+}
+
 // ---- income / expense / net (within a financial year or month) -------------
 
 export interface PeriodTotals {
