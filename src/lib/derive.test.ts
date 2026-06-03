@@ -4,6 +4,9 @@ import {
   budgetProgress,
   sharedBalances,
   settleUpTransfers,
+  netWorthSeries,
+  categoryTrendSeries,
+  topMovers,
   type SharedEntryLike,
 } from "./derive";
 import type { Transaction } from "@/types/models";
@@ -195,3 +198,133 @@ describe("compareTxnChrono", () => {
     expect(compareTxnChrono(noCreated, withCreated)).toBeLessThan(0);
   });
 });
+
+describe("netWorthSeries", () => {
+  const accounts = [{ id: "a", openingBalance: 1000 }] as never;
+  it("tracks month-end net worth as cumulative income minus expense", () => {
+    const txns = [
+      txn(day("2026-04-10"), "food", 200), // expense -200
+      incomeTxn(day("2026-05-15"), 500), // income +500
+    ];
+    const series = netWorthSeries(
+      accounts,
+      [],
+      txns,
+      new Date(2026, 3, 1),
+      new Date(2026, 6, 1),
+    );
+    expect(series.map((p) => p.netWorth)).toEqual([800, 1300, 1300]);
+  });
+
+  it("subtracts payables and adds receivables", () => {
+    const debts = [
+      { id: "d1", direction: "owe" },
+      { id: "d2", direction: "owed" },
+    ] as never;
+    const txns = [debtTxn(day("2026-04-05"), "d1", "borrow", 300)];
+    const series = netWorthSeries(
+      accounts,
+      debts,
+      txns,
+      new Date(2026, 3, 1),
+      new Date(2026, 4, 1),
+    );
+    // Borrow adds 300 cash but +300 payable → net worth unchanged at 1000.
+    expect(series[0].netWorth).toBe(1000);
+  });
+});
+
+describe("categoryTrendSeries", () => {
+  const cats = [
+    { id: "food", name: "Food" },
+    { id: "rent", name: "Rent" },
+  ] as never;
+  it("buckets expense per category per month", () => {
+    const txns = [
+      txn(day("2026-04-10"), "food", 100),
+      txn(day("2026-04-20"), "rent", 500),
+      txn(day("2026-05-10"), "food", 150),
+    ];
+    const { buckets, keys } = categoryTrendSeries(
+      txns,
+      cats,
+      new Date(2026, 3, 1),
+      new Date(2026, 5, 1),
+    );
+    expect(keys).toEqual(["Rent", "Food"]); // ranked by overall spend
+    expect(buckets[0]).toMatchObject({ Food: 100, Rent: 500 });
+    expect(buckets[1]).toMatchObject({ Food: 150, Rent: 0 });
+  });
+
+  it("folds categories beyond topN into Other", () => {
+    const many = [
+      { id: "c1", name: "C1" },
+      { id: "c2", name: "C2" },
+    ] as never;
+    const txns = [
+      txn(day("2026-04-01"), "c1", 100),
+      txn(day("2026-04-01"), "c2", 30),
+    ];
+    const { keys, buckets } = categoryTrendSeries(
+      txns,
+      many,
+      new Date(2026, 3, 1),
+      new Date(2026, 4, 1),
+      1,
+    );
+    expect(keys).toEqual(["C1", "Other"]);
+    expect(buckets[0]).toMatchObject({ C1: 100, Other: 30 });
+  });
+});
+
+describe("topMovers", () => {
+  it("ranks categories by absolute change, newest vs prior", () => {
+    const current = [
+      { categoryId: "food", name: "Food", amount: 500 },
+      { categoryId: "fuel", name: "Fuel", amount: 100 },
+    ];
+    const previous = [
+      { categoryId: "food", name: "Food", amount: 200 },
+      { categoryId: "rent", name: "Rent", amount: 1000 },
+    ];
+    const movers = topMovers(current, previous, 3);
+    expect(movers[0]).toMatchObject({ name: "Rent", delta: -1000 });
+    expect(movers[1]).toMatchObject({ name: "Food", delta: 300 });
+    expect(movers[2]).toMatchObject({ name: "Fuel", delta: 100 });
+  });
+});
+
+function incomeTxn(date: Date, amount: number): Transaction {
+  return {
+    id: Math.random().toString(36).slice(2),
+    workspaceId: "w",
+    date: date as never,
+    accountId: "a",
+    totalAmount: amount,
+    hasSplit: false,
+    financialYear: "2026-27",
+    createdBy: { uid: "u", name: "U" },
+    createdAt: date as never,
+    lines: [{ lineId: "l1", type: "income", amount }],
+  } as Transaction;
+}
+
+function debtTxn(
+  date: Date,
+  debtId: string,
+  type: "borrow" | "lend" | "repayment",
+  amount: number,
+): Transaction {
+  return {
+    id: Math.random().toString(36).slice(2),
+    workspaceId: "w",
+    date: date as never,
+    accountId: "a",
+    totalAmount: type === "lend" || type === "repayment" ? -amount : amount,
+    hasSplit: false,
+    financialYear: "2026-27",
+    createdBy: { uid: "u", name: "U" },
+    createdAt: date as never,
+    lines: [{ lineId: "l1", type, amount, debtId }],
+  } as Transaction;
+}

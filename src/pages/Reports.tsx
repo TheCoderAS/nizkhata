@@ -10,13 +10,24 @@ import { useData } from "@/data/WorkspaceDataProvider";
 import {
   fyTaxSummary,
   spendByCategory,
+  periodTotals,
+  netWorthSeries,
+  categoryTrendSeries,
+  topMovers,
   toDate,
 } from "@/lib/derive";
 import { financialYearOf } from "@/lib/financialYear";
+import { trendSeries } from "@/lib/period";
 import { downloadCsv, toCsv } from "@/lib/csv";
 import { taxHeadLabel } from "@/lib/taxHeads";
 import { txnsByCategory, txnsByContact } from "@/lib/links";
 import { PageHeader } from "@/components/PageHeader";
+import { TrendChart } from "@/components/TrendChart";
+import {
+  NetWorthChart,
+  CategoryTrendChart,
+  DonutChart,
+} from "@/components/insightCharts";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -36,7 +47,7 @@ import {
 import { ResizableTable, ResizableHead } from "@/components/ResizableTable";
 import { useColumnWidths } from "@/lib/useColumnWidths";
 import { EmptyState, ErrorState, PageSkeleton } from "@/components/states";
-import { formatMoney } from "@/lib/utils";
+import { cn, formatMoney } from "@/lib/utils";
 
 export function Reports() {
   const navigate = useNavigate();
@@ -44,7 +55,7 @@ export function Reports() {
   const catWidths = useColumnWidths("report-category");
   const contactWidths = useColumnWidths("report-contact");
   const { activeWorkspace, can } = useWorkspace();
-  const { transactions, categories, contacts, loading, error } = useData();
+  const { transactions, categories, contacts, accounts, debts, loading, error } = useData();
   const currency = activeWorkspace?.baseCurrency ?? "INR";
   const fyStartMonth = activeWorkspace?.fyStartMonth ?? 4;
   const canExport = can("reports.export");
@@ -60,10 +71,67 @@ export function Reports() {
 
   const [fy, setFy] = useState(fyOptions[0] ?? financialYearOf(new Date(), fyStartMonth));
 
+  // Date range for the selected FY string (e.g. "2026-27") so the trend chart
+  // can bucket income/expense across that financial year.
+  const fyRange = useMemo(() => {
+    const startYear = Number(fy.slice(0, 4));
+    const start = new Date(startYear, fyStartMonth - 1, 1);
+    const end = new Date(startYear + 1, fyStartMonth - 1, 1);
+    return { start, end };
+  }, [fy, fyStartMonth]);
+
+  // Prior FY (one year before the selected one) for period-over-period deltas.
+  const prevFy = useMemo(() => {
+    const startYear = Number(fy.slice(0, 4)) - 1;
+    return `${startYear}-${String((startYear + 1) % 100).padStart(2, "0")}`;
+  }, [fy]);
+  const prevRange = useMemo(
+    () => ({
+      start: new Date(fyRange.start.getFullYear() - 1, fyStartMonth - 1, 1),
+      end: new Date(fyRange.end.getFullYear() - 1, fyStartMonth - 1, 1),
+    }),
+    [fyRange, fyStartMonth],
+  );
+
+  const trend = useMemo(() => trendSeries(transactions, fyRange), [transactions, fyRange]);
+  const totals = useMemo(
+    () => periodTotals(transactions, (d) => d >= fyRange.start && d < fyRange.end),
+    [transactions, fyRange],
+  );
+  const prevTotals = useMemo(
+    () => periodTotals(transactions, (d) => d >= prevRange.start && d < prevRange.end),
+    [transactions, prevRange],
+  );
+  const savingsRate =
+    totals.income > 0 ? Math.round((totals.net / totals.income) * 100) : 0;
+
+  const netWorth = useMemo(
+    () => netWorthSeries(accounts, debts, transactions, fyRange.start, fyRange.end),
+    [accounts, debts, transactions, fyRange],
+  );
+  const catTrend = useMemo(
+    () => categoryTrendSeries(transactions, categories, fyRange.start, fyRange.end),
+    [transactions, categories, fyRange],
+  );
+
   const byCategory = useMemo(
     () => spendByCategory(transactions, categories, fy, fyStartMonth),
     [transactions, categories, fy, fyStartMonth],
   );
+  const prevByCategory = useMemo(
+    () => spendByCategory(transactions, categories, prevFy, fyStartMonth),
+    [transactions, categories, prevFy, fyStartMonth],
+  );
+  const movers = useMemo(
+    () => topMovers(byCategory, prevByCategory, 6),
+    [byCategory, prevByCategory],
+  );
+  // Donut wants {name,value}; cap to top 6 + roll the rest into "Other".
+  const categoryDonut = useMemo(() => {
+    const top = byCategory.slice(0, 6).map((c) => ({ name: c.name, value: c.amount }));
+    const rest = byCategory.slice(6).reduce((s, c) => s + c.amount, 0);
+    return rest > 0 ? [...top, { name: "Other", value: rest }] : top;
+  }, [byCategory]);
 
   const byContact = useMemo(() => {
     const totals = new Map<string, { inAmt: number; outAmt: number }>();
@@ -81,6 +149,16 @@ export function Reports() {
       ...v,
     }));
   }, [transactions, contacts, fy, fyStartMonth]);
+
+  // Donut of money paid out per contact (top 6 + Other).
+  const contactDonut = useMemo(() => {
+    const ranked = byContact
+      .filter((c) => c.outAmt > 0)
+      .sort((a, b) => b.outAmt - a.outAmt);
+    const top = ranked.slice(0, 6).map((c) => ({ name: c.name, value: c.outAmt }));
+    const rest = ranked.slice(6).reduce((s, c) => s + c.outAmt, 0);
+    return rest > 0 ? [...top, { name: "Other", value: rest }] : top;
+  }, [byContact]);
 
   const tax = useMemo(
     () => fyTaxSummary(transactions, fy, fyStartMonth),
@@ -110,12 +188,110 @@ export function Reports() {
         }
       />
 
-      <Tabs defaultValue="tax">
+      <Tabs defaultValue="insights">
         <TabsList>
+          <TabsTrigger value="insights">Insights</TabsTrigger>
           <TabsTrigger value="tax">FY tax summary</TabsTrigger>
           <TabsTrigger value="category">By category</TabsTrigger>
           <TabsTrigger value="contact">By contact</TabsTrigger>
         </TabsList>
+
+        {/* ---- insights ---- */}
+        <TabsContent value="insights" className="space-y-4">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <InsightStat
+              label="Income"
+              value={formatMoney(totals.income, currency)}
+              tone="pos"
+              delta={pctDelta(totals.income, prevTotals.income)}
+              higherIsGood
+            />
+            <InsightStat
+              label="Expense"
+              value={formatMoney(totals.expense, currency)}
+              tone="neg"
+              delta={pctDelta(totals.expense, prevTotals.expense)}
+            />
+            <InsightStat
+              label="Net"
+              value={formatMoney(totals.net, currency)}
+              tone={totals.net >= 0 ? "pos" : "neg"}
+              delta={pctDelta(totals.net, prevTotals.net)}
+              higherIsGood
+            />
+            <InsightStat
+              label="Savings rate"
+              value={`${savingsRate}%`}
+              tone={savingsRate >= 0 ? "pos" : "neg"}
+            />
+          </div>
+
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Net worth · FY {fy}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <NetWorthChart data={netWorth} currency={currency} />
+            </CardContent>
+          </Card>
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base">Income vs expense</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <TrendChart data={trend.buckets} currency={currency} />
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base">Spend by category over time</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <CategoryTrendChart trend={catTrend} currency={currency} />
+              </CardContent>
+            </Card>
+          </div>
+
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Top movers</CardTitle>
+              <p className="text-xs text-muted-foreground">
+                Biggest category changes vs FY {prevFy}
+              </p>
+            </CardHeader>
+            <CardContent>
+              {movers.length === 0 ? (
+                <p className="py-4 text-center text-sm text-muted-foreground">
+                  Not enough history to compare.
+                </p>
+              ) : (
+                <ul className="divide-y">
+                  {movers.map((m) => (
+                    <li key={m.categoryId} className="flex items-center gap-3 py-2 text-sm">
+                      <span className="truncate">{m.name}</span>
+                      <span className="ml-auto text-xs text-muted-foreground tabular-nums">
+                        {formatMoney(m.previous, currency)} → {formatMoney(m.current, currency)}
+                      </span>
+                      <span
+                        className={cn(
+                          "w-20 shrink-0 text-right font-medium tabular-nums",
+                          m.delta > 0
+                            ? "text-destructive"
+                            : "text-emerald-600 dark:text-emerald-400",
+                        )}
+                      >
+                        {m.delta > 0 ? "+" : "−"}
+                        {formatMoney(Math.abs(m.delta), currency)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         {/* ---- tax ---- */}
         <TabsContent value="tax" className="space-y-4">
@@ -215,6 +391,11 @@ export function Reports() {
                   </Button>
                 </div>
               )}
+              <Card>
+                <CardContent className="pt-6">
+                  <DonutChart data={categoryDonut} currency={currency} />
+                </CardContent>
+              </Card>
               <ResizableTable prefs={catWidths} className="[&_td]:truncate">
                 <TableHeader>
                   <TableRow>
@@ -269,6 +450,16 @@ export function Reports() {
                   </Button>
                 </div>
               )}
+              {contactDonut.length > 0 && (
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base">Paid by contact</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <DonutChart data={contactDonut} currency={currency} />
+                  </CardContent>
+                </Card>
+              )}
               <ResizableTable prefs={contactWidths} className="[&_td]:truncate">
                 <TableHeader>
                   <TableRow>
@@ -299,6 +490,54 @@ export function Reports() {
           )}
         </TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+// Percentage change vs a prior value. null when there's no baseline to compare.
+function pctDelta(current: number, previous: number): number | null {
+  if (previous === 0) return null;
+  return Math.round(((current - previous) / Math.abs(previous)) * 100);
+}
+
+function InsightStat({
+  label,
+  value,
+  tone,
+  delta,
+  higherIsGood = false,
+}: {
+  label: string;
+  value: string;
+  tone: "pos" | "neg";
+  delta?: number | null;
+  // Whether an increase is a good thing (income/net) vs bad (expense), for the
+  // delta colour. Omitted stats show no delta.
+  higherIsGood?: boolean;
+}) {
+  const up = (delta ?? 0) > 0;
+  const good = up === higherIsGood;
+  return (
+    <div className="rounded-xl border bg-card p-3">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p
+        className={cn(
+          "mt-1 truncate font-strong text-lg tabular-nums sm:text-xl",
+          tone === "pos" ? "text-emerald-600 dark:text-emerald-400" : "text-destructive",
+        )}
+      >
+        {value}
+      </p>
+      {delta != null && delta !== 0 && (
+        <p
+          className={cn(
+            "mt-0.5 text-xs tabular-nums",
+            good ? "text-emerald-600 dark:text-emerald-400" : "text-destructive",
+          )}
+        >
+          {up ? "▲" : "▼"} {Math.abs(delta)}% vs last FY
+        </p>
+      )}
     </div>
   );
 }
