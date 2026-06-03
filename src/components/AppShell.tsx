@@ -1,9 +1,9 @@
 // App shell: responsive top bar (mobile menu + an avatar menu showing the active
 // workspace) + desktop sidebar rail + mobile drawer + routed content (§6).
 
-import { Suspense, useState, type ComponentType } from "react";
+import { Suspense, useEffect, useState, type ComponentType } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
-import { LogOut, ArrowLeftRight, BarChart3, Bell } from "lucide-react";
+import { LogOut, ArrowLeftRight, BarChart3, Bell, Search } from "lucide-react";
 import { useAuth } from "@/auth/AuthProvider";
 import { useWorkspace } from "@/workspace/WorkspaceProvider";
 import { cn, avatarColor } from "@/lib/utils";
@@ -11,7 +11,9 @@ import { Logo } from "@/components/Logo";
 import { Sidebar, SidebarContent } from "./Sidebar";
 import { BottomNav } from "./BottomNav";
 import { WorkspaceSwitcherDialog } from "./WorkspaceSwitcherDialog";
+import { CommandPalette } from "./CommandPalette";
 import { ErrorState, FullScreenLoader, PageSkeleton } from "./states";
+import { ErrorBoundary } from "./ErrorBoundary";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import {
@@ -62,8 +64,21 @@ export function AppShell() {
   const { loading, error, memberships, activeWorkspace, can } = useWorkspace();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [switcherOpen, setSwitcherOpen] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
+
+  // Global ⌘K / Ctrl+K opens the command palette.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setPaletteOpen((o) => !o);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   if (loading) return <FullScreenLoader label="Loading workspace…" />;
   if (error) return <ErrorState message={error} />;
@@ -86,6 +101,19 @@ export function AppShell() {
               mobile logo above is hidden (a lone justify-between child would
               otherwise sit at the start). */}
           <div className="ml-auto flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setPaletteOpen(true)}
+              aria-label="Search (⌘K)"
+              title="Search (⌘K)"
+              className="flex h-10 items-center gap-2 rounded-full px-3 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground sm:rounded-lg sm:border sm:border-border/60 sm:bg-background/50"
+            >
+              <Search className="h-4 w-4" />
+              <span className="hidden text-sm sm:inline">Search…</span>
+              <kbd className="hidden rounded border bg-muted px-1.5 text-[10px] font-medium text-muted-foreground sm:inline">
+                ⌘K
+              </kbd>
+            </button>
             {can("reports.view") && (
               <HeaderIconLink to="/reports" label="Reports" icon={BarChart3} />
             )}
@@ -142,11 +170,14 @@ export function AppShell() {
             key={location.pathname}
             className="mx-auto max-w-6xl animate-fade-in-up p-4 pb-20 sm:p-6 md:pb-6"
           >
-            {/* Lazy-loaded pages suspend while their chunk downloads; keep the
-                shell/nav visible and show a page skeleton in the content. */}
-            <Suspense fallback={<PageSkeleton />}>
-              <Outlet />
-            </Suspense>
+            {/* Per-route error boundary keeps the shell/nav alive if a screen
+                throws; resetKey clears it on navigation. Lazy-loaded pages
+                suspend while their chunk downloads -> page skeleton. */}
+            <ErrorBoundary variant="page" resetKey={location.pathname}>
+              <Suspense fallback={<PageSkeleton />}>
+                <Outlet />
+              </Suspense>
+            </ErrorBoundary>
           </div>
         </main>
       </div>
@@ -165,6 +196,8 @@ export function AppShell() {
       </Dialog>
 
       <WorkspaceSwitcherDialog open={switcherOpen} onOpenChange={setSwitcherOpen} />
+
+      <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
     </div>
   );
 }
