@@ -475,3 +475,201 @@ export function fyTaxSummary(
     totalTds: roundMoney(totalTds),
   };
 }
+
+// ---- net worth over time ---------------------------------------------------
+// Month-end snapshots of net worth across a range. Net worth = total in
+// accounts (opening balances + applied deltas) minus payables (debts you owe)
+// plus receivables (debts owed to you). Transfers and debt principal movements
+// are self-cancelling, so the curve effectively tracks cumulative income−expense
+// on top of the starting position — but we compute it directly for correctness.
+
+export interface NetWorthPoint {
+  label: string;
+  netWorth: number;
+}
+
+const monthShort = (d: Date) => d.toLocaleString("en-IN", { month: "short" });
+
+export function netWorthSeries(
+  accounts: Account[],
+  debts: Debt[],
+  txns: Transaction[],
+  start: Date,
+  end: Date,
+): NetWorthPoint[] {
+  const debtsById: Record<string, Debt> = {};
+  for (const d of debts) debtsById[d.id] = d;
+  const sorted = [...txns].sort(
+    (a, b) => toDate(a.date).getTime() - toDate(b.date).getTime(),
+  );
+
+  const points: NetWorthPoint[] = [];
+  let accountsTotal = accounts.reduce((s, a) => s + a.openingBalance, 0);
+  const debtOut: Record<string, number> = {};
+  let idx = 0;
+
+  const cursor = new Date(start.getFullYear(), start.getMonth(), 1);
+  while (cursor < end) {
+    const cutoff = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
+    // Fold in every transaction dated before this month's end.
+    while (idx < sorted.length && toDate(sorted[idx].date) < cutoff) {
+      const txn = sorted[idx];
+      for (const v of Object.values(accountDeltas(txn, debtsById))) accountsTotal += v;
+      for (const line of txn.lines) {
+        if (!line.debtId) continue;
+        const debt = debtsById[line.debtId];
+        if (!debt) continue;
+        const establishing = debt.direction === "owe" ? "borrow" : "lend";
+        if (line.type === establishing)
+          debtOut[line.debtId] = (debtOut[line.debtId] ?? 0) + line.amount;
+        else if (line.type === "repayment")
+          debtOut[line.debtId] = (debtOut[line.debtId] ?? 0) - line.amount;
+      }
+      idx++;
+    }
+    let payables = 0;
+    let receivables = 0;
+    for (const d of debts) {
+      const o = debtOut[d.id] ?? 0;
+      if (d.direction === "owe") payables += o;
+      else receivables += o;
+    }
+    points.push({
+      label: monthShort(cursor),
+      netWorth: roundMoney(accountsTotal - payables + receivables),
+    });
+    cursor.setMonth(cursor.getMonth() + 1);
+  }
+  return points;
+}
+
+// ---- category trend (stacked) ----------------------------------------------
+// Per-month expense split across the top categories within a range. Categories
+// beyond `topN` are folded into "Other" so the stack stays readable. Returns the
+// bucket rows (label + one numeric field per series key) and the ordered keys.
+
+export interface CategoryTrend {
+  buckets: Array<Record<string, number | string>>;
+  keys: string[];
+}
+
+export function categoryTrendSeries(
+  txns: Transaction[],
+  categories: Category[],
+  start: Date,
+  end: Date,
+  topN = 5,
+): CategoryTrend {
+  const nameById = new Map(categories.map((c) => [c.id, c.name]));
+
+  // Overall spend per category to decide the top-N.
+  const overall = new Map<string, number>();
+  for (const txn of txns) {
+    const d = toDate(txn.date);
+    if (d < start || d >= end) continue;
+    for (const line of txn.lines) {
+      if (lineIsExpense(line.type) && line.categoryId)
+        overall.set(line.categoryId, (overall.get(line.categoryId) ?? 0) + line.amount);
+    }
+  }
+  const ranked = [...overall.entries()].sort((a, b) => b[1] - a[1]);
+  const topIds = new Set(ranked.slice(0, topN).map(([id]) => id));
+  const hasOther = ranked.length > topN;
+  const keys = [
+    ...ranked.slice(0, topN).map(([id]) => nameById.get(id) ?? "Uncategorized"),
+    ...(hasOther ? ["Other"] : []),
+  ];
+
+  // Month buckets.
+  const buckets: Array<Record<string, number | string>> = [];
+  const index = new Map<string, number>();
+  const cursor = new Date(start.getFullYear(), start.getMonth(), 1);
+  while (cursor < end) {
+    const row: Record<string, number | string> = { label: monthShort(cursor) };
+    for (const k of keys) row[k] = 0;
+    index.set(`${cursor.getFullYear()}-${cursor.getMonth()}`, buckets.length);
+    buckets.push(row);
+    cursor.setMonth(cursor.getMonth() + 1);
+  }
+
+  for (const txn of txns) {
+    const d = toDate(txn.date);
+    if (d < start || d >= end) continue;
+    const bi = index.get(`${d.getFullYear()}-${d.getMonth()}`);
+    if (bi == null) continue;
+    for (const line of txn.lines) {
+      if (!lineIsExpense(line.type) || !line.categoryId) continue;
+      const key =
+        topIds.has(line.categoryId)
+          ? (nameById.get(line.categoryId) ?? "Uncategorized")
+          : hasOther
+            ? "Other"
+            : null;
+      if (key == null) continue;
+      buckets[bi][key] = ((buckets[bi][key] as number) ?? 0) + line.amount;
+    }
+  }
+  for (const row of buckets)
+    for (const k of keys) row[k] = roundMoney(row[k] as number);
+
+  return { buckets, keys };
+}
+
+function lineIsExpense(type: TransactionLine["type"]): boolean {
+  return (
+    type === "expense" ||
+    type === "interest_expense" ||
+    type === "fee" ||
+    type === "tax"
+  );
+}
+
+// ---- top movers (category deltas between two FYs) --------------------------
+// Compares per-category spend across two CategorySpend lists and returns the
+// largest absolute changes, newest period vs the comparison period.
+
+export interface CategoryMover {
+  categoryId: string;
+  name: string;
+  current: number;
+  previous: number;
+  delta: number;
+}
+
+export function topMovers(
+  current: CategorySpend[],
+  previous: CategorySpend[],
+  limit = 5,
+): CategoryMover[] {
+  const prevById = new Map(previous.map((c) => [c.categoryId, c]));
+  const seen = new Set<string>();
+  const movers: CategoryMover[] = [];
+
+  for (const c of current) {
+    seen.add(c.categoryId);
+    const prev = prevById.get(c.categoryId)?.amount ?? 0;
+    movers.push({
+      categoryId: c.categoryId,
+      name: c.name,
+      current: c.amount,
+      previous: prev,
+      delta: roundMoney(c.amount - prev),
+    });
+  }
+  // Categories present last period but gone this period (full drop).
+  for (const c of previous) {
+    if (seen.has(c.categoryId)) continue;
+    movers.push({
+      categoryId: c.categoryId,
+      name: c.name,
+      current: 0,
+      previous: c.amount,
+      delta: roundMoney(-c.amount),
+    });
+  }
+
+  return movers
+    .filter((m) => m.delta !== 0)
+    .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta))
+    .slice(0, limit);
+}
