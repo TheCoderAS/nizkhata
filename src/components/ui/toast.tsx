@@ -20,6 +20,15 @@ interface Toast {
 
 interface ToastApi {
   toast: (t: { title: string; description?: string; variant?: ToastVariant }) => void;
+  /**
+   * Run an async action, surfacing a success toast on completion and an error
+   * toast (with the thrown message) on failure — so a failed write never fails
+   * silently. Returns true on success, false on error.
+   */
+  runWithToast: (
+    action: () => Promise<unknown>,
+    opts?: { success?: string; error?: string },
+  ) => Promise<boolean>;
 }
 
 const ToastContext = createContext<ToastApi | undefined>(undefined);
@@ -42,7 +51,25 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     [remove],
   );
 
-  const api = useMemo(() => ({ toast }), [toast]);
+  const runWithToast = useCallback<ToastApi["runWithToast"]>(
+    async (action, opts) => {
+      try {
+        await action();
+        if (opts?.success) toast({ title: opts.success, variant: "success" });
+        return true;
+      } catch (e) {
+        toast({
+          title: opts?.error ?? "Couldn't save changes",
+          description: e instanceof Error ? e.message : undefined,
+          variant: "error",
+        });
+        return false;
+      }
+    },
+    [toast],
+  );
+
+  const api = useMemo(() => ({ toast, runWithToast }), [toast, runWithToast]);
 
   return (
     <ToastContext.Provider value={api}>
