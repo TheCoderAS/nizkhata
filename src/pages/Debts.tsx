@@ -3,8 +3,8 @@
 // pre-seeded with a repayment line). Sortable headers, clickable rows -> detail
 // modal, kebab row actions.
 
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Plus, HandCoins, Pencil, Trash2, Users, ArrowLeftRight } from "lucide-react";
 import { useAuth } from "@/auth/AuthProvider";
 import { useWorkspace } from "@/workspace/WorkspaceProvider";
@@ -23,6 +23,7 @@ import { TransactionFormDialog } from "@/components/TransactionForm";
 import { RowActions, type RowAction } from "@/components/RowActions";
 import { SortableHead } from "@/components/SortableHead";
 import { DetailDialog, type DetailField } from "@/components/DetailDialog";
+import { LinkedTransactions } from "@/components/LinkedTransactions";
 import { ColumnsMenu } from "@/components/ColumnsMenu";
 import { ResizableTable } from "@/components/ResizableTable";
 import { Toolbar } from "@/components/Toolbar";
@@ -96,6 +97,21 @@ export function Debts() {
   const [settling, setSettling] = useState<Debt | null>(null);
   const [toDelete, setToDelete] = useState<Debt | null>(null);
   const [search, setSearch] = useState("");
+
+  // Deep-link: `?open=<debtId>` auto-opens that debt's detail (e.g. from a
+  // transaction's "Linked to"). Consume the param once it's matched.
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    const id = searchParams.get("open");
+    if (!id) return;
+    const debt = debts.find((d) => d.id === id);
+    if (debt) {
+      setViewing(debt);
+      const next = new URLSearchParams(searchParams);
+      next.delete("open");
+      setSearchParams(next, { replace: true });
+    }
+  }, [searchParams, debts, setSearchParams]);
 
   const cols = useColumnPrefs<ColKey>("debts", COLUMNS);
 
@@ -419,7 +435,9 @@ function DebtDetail({
         updatedBy: debt.updatedBy,
         updatedAt: debt.updatedAt,
       }}
-    />
+    >
+      <LinkedTransactions debtId={debt.id} emptyHint="No transactions linked to this debt yet." />
+    </DetailDialog>
   );
 }
 

@@ -3,6 +3,7 @@
 // table + audit/history. Any screen can open it by passing a `txn`; optional
 // onEdit/onDelete add those actions to the kebab.
 
+import { useNavigate } from "react-router-dom";
 import { useData } from "@/data/WorkspaceDataProvider";
 import { useWorkspace } from "@/workspace/WorkspaceProvider";
 import { DetailDialog, type DetailField } from "@/components/DetailDialog";
@@ -35,9 +36,21 @@ export function TransactionDetailDialog({
   onEdit?: (t: Transaction) => void;
   onDelete?: (t: Transaction) => void;
 }) {
+  const navigate = useNavigate();
   const { activeWorkspace } = useWorkspace();
-  const { accountsById, contactsById, categoriesById } = useData();
+  const { accountsById, contactsById, categoriesById, debtsById, dues } = useData();
   const currency = activeWorkspace?.baseCurrency ?? "INR";
+
+  // What this transaction is linked to (the reverse of due/debt -> txns).
+  const linkedDue = txn.dueId ? dues.find((d) => d.id === txn.dueId) : undefined;
+  const linkedDebtIds = [...new Set(txn.lines.map((l) => l.debtId).filter(Boolean) as string[])];
+  const linkedDebts = linkedDebtIds.map((id) => debtsById[id]).filter(Boolean);
+
+  // Navigate to the linked entity's page and auto-open its detail (?open=<id>).
+  const openLinked = (path: string, id: string) => {
+    onClose();
+    navigate(`${path}?open=${encodeURIComponent(id)}`);
+  };
 
   const accountName = (id: string) =>
     accountsById[id]?.name ?? (id === EXTERNAL_ACCOUNT ? "External" : "—");
@@ -65,6 +78,33 @@ export function TransactionDetailDialog({
       ),
     },
     { label: "Note", value: txn.note ?? "—", block: true, hidden: !txn.note },
+    {
+      label: "Linked to",
+      hidden: !linkedDue && linkedDebts.length === 0,
+      value: (
+        <span className="flex flex-wrap gap-1.5">
+          {linkedDue && (
+            <button
+              type="button"
+              onClick={() => openLinked("/dues", linkedDue.id)}
+              className="rounded-md bg-accent px-2 py-0.5 text-xs text-accent-foreground hover:underline"
+            >
+              Due · {linkedDue.title}
+            </button>
+          )}
+          {linkedDebts.map((d) => (
+            <button
+              key={d.id}
+              type="button"
+              onClick={() => openLinked("/debts", d.id)}
+              className="rounded-md bg-accent px-2 py-0.5 text-xs text-accent-foreground hover:underline"
+            >
+              Debt · {d.label ?? contactsById[d.contactId]?.name ?? "—"}
+            </button>
+          ))}
+        </span>
+      ),
+    },
   ];
 
   const actions: RowAction[] = [

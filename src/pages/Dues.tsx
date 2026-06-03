@@ -3,8 +3,8 @@
 // dueId; partial settlement keeps the due in "partial" until fully covered.
 // Sortable headers, clickable rows -> detail modal, kebab row actions.
 
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Plus, Receipt, Pencil, Trash2, Ban, Users, ArrowLeftRight } from "lucide-react";
 import { Timestamp } from "firebase/firestore";
 import { useAuth } from "@/auth/AuthProvider";
@@ -25,6 +25,7 @@ import { TransactionFormDialog } from "@/components/TransactionForm";
 import { RowActions, type RowAction } from "@/components/RowActions";
 import { SortableHead } from "@/components/SortableHead";
 import { DetailDialog, type DetailField } from "@/components/DetailDialog";
+import { LinkedTransactions } from "@/components/LinkedTransactions";
 import { FilterModal, FilterRow } from "@/components/FilterModal";
 import { ColumnsMenu } from "@/components/ColumnsMenu";
 import { ResizableTable } from "@/components/ResizableTable";
@@ -92,6 +93,21 @@ export function Dues() {
   const [viewing, setViewing] = useState<Due | null>(null);
   const [paying, setPaying] = useState<Due | null>(null);
   const [toDelete, setToDelete] = useState<Due | null>(null);
+
+  // Deep-link: `?open=<dueId>` auto-opens that due's detail (e.g. from a
+  // transaction's "Linked to"). Consume the param once it's matched.
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    const id = searchParams.get("open");
+    if (!id) return;
+    const due = dues.find((d) => d.id === id);
+    if (due) {
+      setViewing(due);
+      const next = new URLSearchParams(searchParams);
+      next.delete("open");
+      setSearchParams(next, { replace: true });
+    }
+  }, [searchParams, dues, setSearchParams]);
 
   const [search, setSearch] = useState("");
   const [directionFilter, setDirectionFilter] = useState("__all");
@@ -486,7 +502,9 @@ function DueDetail({
         updatedBy: due.updatedBy,
         updatedAt: due.updatedAt,
       }}
-    />
+    >
+      <LinkedTransactions dueId={due.id} emptyHint="No payments recorded yet." />
+    </DetailDialog>
   );
 }
 
