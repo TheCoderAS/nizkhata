@@ -144,33 +144,45 @@ export function CategoryTrendChart({
 export function DonutChart({
   data,
   currency,
+  centerLabel = "Total",
   height = 240,
 }: {
   data: Array<{ name: string; value: number }>;
   currency: string;
+  // Caption under the centered total inside the donut hole.
+  centerLabel?: string;
   height?: number;
 }) {
   if (data.length === 0) return <EmptyChart height={height} />;
+  const total = data.reduce((s, d) => s + d.value, 0);
   return (
-    <ResponsiveContainer width="100%" height={height}>
-      <PieChart>
-        <Tooltip wrapperStyle={{ outline: "none" }} content={<MoneyTooltip currency={currency} />} />
-        <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
-        <Pie
-          data={data}
-          dataKey="value"
-          nameKey="name"
-          innerRadius="55%"
-          outerRadius="80%"
-          paddingAngle={1}
-          strokeWidth={0}
-        >
-          {data.map((_, i) => (
-            <Cell key={i} fill={SERIES_COLORS[i % SERIES_COLORS.length]} />
-          ))}
-        </Pie>
-      </PieChart>
-    </ResponsiveContainer>
+    <div className="relative" style={{ height }}>
+      <ResponsiveContainer width="100%" height="100%">
+        <PieChart>
+          <Tooltip wrapperStyle={{ outline: "none" }} content={<MoneyTooltip currency={currency} />} />
+          <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
+          <Pie
+            data={data}
+            dataKey="value"
+            nameKey="name"
+            innerRadius="58%"
+            outerRadius="82%"
+            paddingAngle={1}
+            strokeWidth={0}
+          >
+            {data.map((_, i) => (
+              <Cell key={i} fill={SERIES_COLORS[i % SERIES_COLORS.length]} />
+            ))}
+          </Pie>
+        </PieChart>
+      </ResponsiveContainer>
+      {/* Center total overlay — sits over the donut hole. Legend takes the
+          bottom strip, so nudge the label up to stay centered on the ring. */}
+      <div className="pointer-events-none absolute inset-0 bottom-7 flex flex-col items-center justify-center">
+        <span className="text-[11px] text-muted-foreground">{centerLabel}</span>
+        <span className="font-strong text-lg tabular-nums">{formatMoney(total, currency)}</span>
+      </div>
+    </div>
   );
 }
 

@@ -393,7 +393,7 @@ export function Reports() {
               )}
               <Card>
                 <CardContent className="pt-6">
-                  <DonutChart data={categoryDonut} currency={currency} />
+                  <DonutChart data={categoryDonut} currency={currency} centerLabel="Total spend" />
                 </CardContent>
               </Card>
               <ResizableTable prefs={catWidths} className="[&_td]:truncate">
@@ -456,7 +456,7 @@ export function Reports() {
                     <CardTitle className="text-base">Paid by contact</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <DonutChart data={contactDonut} currency={currency} />
+                    <DonutChart data={contactDonut} currency={currency} centerLabel="Total paid" />
                   </CardContent>
                 </Card>
               )}
