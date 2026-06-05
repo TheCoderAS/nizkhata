@@ -21,11 +21,33 @@ export function BottomNav({ onMore }: { onMore: () => void }) {
   // (e.g. a /settings/* route, or an overflow destination via the drawer).
   const moreActive = !shownPaths.has(location.pathname);
 
+  // Index of the active tab (Settings is the trailing slot) so a single pill can
+  // slide between tabs rather than each one toggling independently.
+  const tabCount = items.length + 1;
+  const activeIndex = moreActive
+    ? items.length
+    : items.findIndex((i) =>
+        i.to === "/"
+          ? location.pathname === "/"
+          : location.pathname === i.to || location.pathname.startsWith(i.to + "/"),
+      );
+
   return (
     <nav
       className="glass fixed inset-x-0 bottom-0 z-30 flex rounded-none border-x-0 border-b-0 pb-[env(safe-area-inset-bottom)] md:hidden"
       aria-label="Primary"
     >
+      {/* Sliding active indicator (a short pill at the top edge). */}
+      {activeIndex >= 0 && (
+        <span
+          aria-hidden
+          className="pointer-events-none absolute top-0 h-0.5 rounded-full bg-primary transition-[left] duration-300 ease-out"
+          style={{
+            width: `calc(${100 / tabCount}% - 2rem)`,
+            left: `calc(${(activeIndex + 0.5) * (100 / tabCount)}% - (${100 / tabCount}% - 2rem) / 2)`,
+          }}
+        />
+      )}
       {items.map((item) => {
         const Icon = item.icon;
         return (

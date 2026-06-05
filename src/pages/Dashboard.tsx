@@ -12,6 +12,7 @@ import {
   budgetProgress,
   custodialHeld,
   dueStatusFromSettled,
+  netWorthSeries,
   spendByCategoryInRange,
   toDate,
   compareTxnChrono,
@@ -24,9 +25,11 @@ import {
   type DateRange,
   type PeriodKind,
 } from "@/lib/period";
+import { Area, AreaChart, ResponsiveContainer } from "recharts";
 import { PageHeader } from "@/components/PageHeader";
 import { TransactionDetailDialog } from "@/components/TransactionDetailDialog";
 import { Sparkline } from "@/components/Sparkline";
+import { CountUp } from "@/components/CountUp";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -85,6 +88,21 @@ export function Dashboard() {
     [accounts, balanceOf],
   );
   const held = useMemo(() => custodialHeld(debts, transactions), [debts, transactions]);
+
+  // Net worth headline: current standing + a trailing-6-month trend, independent
+  // of the period selector (net worth is a slow cumulative metric, so a fixed
+  // recent window reads better than the activity window driving the cards below).
+  const netWorth = useMemo(() => {
+    const end = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    const start = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+    const series = netWorthSeries(accounts, debts, transactions, start, end);
+    const current = series.length ? series[series.length - 1].netWorth : 0;
+    const first = series.length ? series[0].netWorth : 0;
+    const delta = current - first;
+    const pct = first !== 0 ? Math.round((delta / Math.abs(first)) * 100) : null;
+    return { series, current, delta, pct };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accounts, debts, transactions]);
 
   const topSpend = useMemo(
     () => spendByCategoryInRange(transactions, categories, range.start, range.end).slice(0, 6),
@@ -155,11 +173,67 @@ export function Dashboard() {
         </div>
       )}
 
+      {/* net-worth hero */}
+      <div className="brand-gradient relative overflow-hidden rounded-2xl p-5 text-white shadow-lg sm:p-6 animate-scale-in">
+        {/* soft sheen */}
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(40rem_20rem_at_120%_-20%,rgba(255,255,255,0.25),transparent_60%)]" />
+        <div className="relative flex items-end justify-between gap-4">
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-white/80">Net worth</p>
+            <CountUp
+              value={netWorth.current}
+              format={(n) => formatMoney(n, currency)}
+              className="mt-1 block font-strong text-3xl tabular-nums tracking-tight sm:text-4xl"
+            />
+            {netWorth.delta !== 0 && (
+              <p className="mt-2 flex items-center gap-1.5 text-sm text-white/90">
+                <span
+                  className={cn(
+                    "inline-flex items-center gap-1 rounded-full bg-white/15 px-2 py-0.5 text-xs font-medium tabular-nums backdrop-blur",
+                  )}
+                >
+                  {netWorth.delta > 0 ? <ArrowUpRight className="h-3.5 w-3.5" /> : <ArrowDownRight className="h-3.5 w-3.5" />}
+                  {netWorth.pct != null ? `${Math.abs(netWorth.pct)}%` : formatMoney(Math.abs(netWorth.delta), currency)}
+                </span>
+                <span className="truncate text-white/70">
+                  {netWorth.delta > 0 ? "+" : "−"}
+                  {formatMoney(Math.abs(netWorth.delta), currency)} · last 6 months
+                </span>
+              </p>
+            )}
+          </div>
+          {netWorth.series.length > 1 && (
+            <div className="hidden h-16 w-40 shrink-0 sm:block" aria-hidden>
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={netWorth.series} margin={{ top: 4, bottom: 0, left: 0, right: 0 }}>
+                  <defs>
+                    <linearGradient id="hero-nw" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="white" stopOpacity={0.5} />
+                      <stop offset="100%" stopColor="white" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <Area
+                    type="monotone"
+                    dataKey="netWorth"
+                    stroke="white"
+                    strokeWidth={2}
+                    fill="url(#hero-nw)"
+                    isAnimationActive
+                    animationDuration={600}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* trend cards */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
         <TrendCard
           label="Income"
-          value={formatMoney(trend.totals.income, currency)}
+          amount={trend.totals.income}
+          currency={currency}
           metric="income"
           data={trend.buckets}
           icon={ArrowUpRight}
@@ -167,7 +241,8 @@ export function Dashboard() {
         />
         <TrendCard
           label="Expense"
-          value={formatMoney(trend.totals.expense, currency)}
+          amount={trend.totals.expense}
+          currency={currency}
           metric="expense"
           data={trend.buckets}
           icon={ArrowDownRight}
@@ -175,7 +250,8 @@ export function Dashboard() {
         />
         <TrendCard
           label="Net"
-          value={formatMoney(trend.totals.net, currency)}
+          amount={trend.totals.net}
+          currency={currency}
           metric="net"
           data={trend.buckets}
           kind="bar"
@@ -187,12 +263,14 @@ export function Dashboard() {
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
         <StatCard
           label="Total in accounts"
-          value={formatMoney(totalInAccounts, currency)}
+          amount={totalInAccounts}
+          currency={currency}
           icon={Wallet}
         />
         <StatCard
           label="Held for others (Custodial)"
-          value={formatMoney(held, currency)}
+          amount={held}
+          currency={currency}
           icon={Users}
         />
       </div>
@@ -369,7 +447,8 @@ export function Dashboard() {
 
 function TrendCard({
   label,
-  value,
+  amount,
+  currency,
   metric,
   data,
   icon: Icon,
@@ -377,7 +456,8 @@ function TrendCard({
   tone,
 }: {
   label: string;
-  value: string;
+  amount: number;
+  currency: string;
   metric: "income" | "expense" | "net";
   data: import("@/lib/period").TrendBucket[];
   icon?: typeof Wallet;
@@ -402,14 +482,14 @@ function TrendCard({
         )}
       </CardHeader>
       <CardContent className="pb-0">
-        <div
+        <CountUp
+          value={amount}
+          format={(n) => formatMoney(n, currency)}
           className={cn(
-            "font-strong text-xl tabular-nums sm:text-2xl",
+            "block font-strong text-xl tabular-nums sm:text-2xl",
             tone === "success" ? "text-accent2" : "text-destructive",
           )}
-        >
-          {value}
-        </div>
+        />
         <div className="-mx-2 mt-2">
           <Sparkline data={data} metric={metric} kind={kind} />
         </div>
@@ -420,12 +500,14 @@ function TrendCard({
 
 function StatCard({
   label,
-  value,
+  amount,
+  currency,
   hint,
   icon: Icon,
 }: {
   label: string;
-  value: string;
+  amount: number;
+  currency: string;
   hint?: string;
   icon?: typeof Wallet;
 }) {
@@ -440,7 +522,11 @@ function StatCard({
         )}
       </CardHeader>
       <CardContent>
-        <div className="font-strong text-xl tabular-nums sm:text-2xl">{value}</div>
+        <CountUp
+          value={amount}
+          format={(n) => formatMoney(n, currency)}
+          className="block font-strong text-xl tabular-nums sm:text-2xl"
+        />
         {hint && <p className="mt-1 text-xs text-muted-foreground">{hint}</p>}
       </CardContent>
     </Card>

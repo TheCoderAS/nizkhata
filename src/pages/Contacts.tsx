@@ -15,6 +15,7 @@ import type {
   ContactRelationship,
 } from "@/types/models";
 import { PageHeader } from "@/components/PageHeader";
+import { EntityAvatar } from "@/components/EntityAvatar";
 import { RowActions, type RowAction } from "@/components/RowActions";
 import { SortableHead } from "@/components/SortableHead";
 import { ColumnsMenu } from "@/components/ColumnsMenu";
@@ -198,7 +199,8 @@ export function Contacts() {
                 >
                   {cols.isVisible("name") && (
                     <TableCell>
-                      <span className="flex items-center gap-2">
+                      <span className="flex items-center gap-2.5">
+                        <EntityAvatar name={c.name} size="sm" />
                         <span className="truncate">{c.name}</span>
                         {c.relationship === "family" && (
                           <Badge variant="outline" className="shrink-0 text-[10px]">
