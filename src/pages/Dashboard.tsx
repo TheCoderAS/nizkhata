@@ -280,7 +280,7 @@ export function Dashboard() {
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-base">
-              Spend by category · {PERIOD_LABELS[period]}
+              Spend by category
             </CardTitle>
           </CardHeader>
           <CardContent>
