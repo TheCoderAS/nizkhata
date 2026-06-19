@@ -3,9 +3,18 @@
 // pre-seeded with a repayment line). Sortable headers, clickable rows -> detail
 // modal, kebab row actions.
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { Plus, HandCoins, Pencil, Trash2, Users, ArrowLeftRight } from "lucide-react";
+import {
+  Plus,
+  HandCoins,
+  Pencil,
+  Trash2,
+  Users,
+  ArrowLeftRight,
+  ArrowDownLeft,
+  ArrowUpRight,
+} from "lucide-react";
 import { useAuth } from "@/auth/AuthProvider";
 import { useWorkspace } from "@/workspace/WorkspaceProvider";
 import { useData } from "@/data/WorkspaceDataProvider";
@@ -19,6 +28,7 @@ import {
 import { txnsByContact, contactDetailPath } from "@/lib/links";
 import type { Debt, DebtDirection, DebtPurpose } from "@/types/models";
 import { PageHeader } from "@/components/PageHeader";
+import { StatCard } from "@/components/StatCard";
 import { TransactionFormDialog } from "@/components/TransactionForm";
 import { RowActions, type RowAction } from "@/components/RowActions";
 import { SortableHead } from "@/components/SortableHead";
@@ -115,6 +125,21 @@ export function Debts() {
 
   const cols = useColumnPrefs<ColKey>("debts", COLUMNS);
 
+  // Outstanding totals by direction (excluding shared-ledger reflections):
+  // what others still owe you vs what you still owe. Settled debts net to zero.
+  const totals = useMemo(() => {
+    let theyOwe = 0;
+    let youOwe = 0;
+    for (const d of debts) {
+      if (d.purpose === "shared") continue;
+      const o = outstandingOf(d.id);
+      if (o <= 0.005) continue;
+      if (d.direction === "owed") theyOwe += o;
+      else youOwe += o;
+    }
+    return { theyOwe, youOwe };
+  }, [debts, outstandingOf]);
+
   if (loading) return <PageSkeleton />;
   if (error) return <ErrorState message={error} />;
 
@@ -185,6 +210,27 @@ export function Debts() {
           hidden: !manage,
         }}
       />
+
+      {visible.length > 0 && (
+        <div className="mb-4 grid grid-cols-1 gap-3 sm:mb-6 sm:grid-cols-2 sm:gap-4">
+          <StatCard
+            label="They owe you"
+            amount={totals.theyOwe}
+            currency={currency}
+            tone="success"
+            icon={ArrowDownLeft}
+            hint="Total outstanding owed to you"
+          />
+          <StatCard
+            label="You owe"
+            amount={totals.youOwe}
+            currency={currency}
+            tone="destructive"
+            icon={ArrowUpRight}
+            hint="Total outstanding you owe others"
+          />
+        </div>
+      )}
 
       {visible.length > 0 && (
         <Toolbar search={search} onSearch={setSearch} placeholder="Search debts…">
