@@ -30,6 +30,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { TransactionDetailDialog } from "@/components/TransactionDetailDialog";
 import { Sparkline } from "@/components/Sparkline";
 import { CountUp } from "@/components/CountUp";
+import { StatCard } from "@/components/StatCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -493,41 +494,6 @@ function TrendCard({
         <div className="-mx-2 mt-2">
           <Sparkline data={data} metric={metric} kind={kind} />
         </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function StatCard({
-  label,
-  amount,
-  currency,
-  hint,
-  icon: Icon,
-}: {
-  label: string;
-  amount: number;
-  currency: string;
-  hint?: string;
-  icon?: typeof Wallet;
-}) {
-  return (
-    <Card className="elevated-hover animate-scale-in">
-      <CardHeader className="flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm text-muted-foreground">{label}</CardTitle>
-        {Icon && (
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
-            <Icon className="h-4 w-4" />
-          </span>
-        )}
-      </CardHeader>
-      <CardContent>
-        <CountUp
-          value={amount}
-          format={(n) => formatMoney(n, currency)}
-          className="block font-strong text-xl tabular-nums sm:text-2xl"
-        />
-        {hint && <p className="mt-1 text-xs text-muted-foreground">{hint}</p>}
       </CardContent>
     </Card>
   );

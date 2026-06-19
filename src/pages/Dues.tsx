@@ -3,9 +3,19 @@
 // dueId; partial settlement keeps the due in "partial" until fully covered.
 // Sortable headers, clickable rows -> detail modal, kebab row actions.
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { Plus, Receipt, Pencil, Trash2, Ban, Users, ArrowLeftRight } from "lucide-react";
+import {
+  Plus,
+  Receipt,
+  Pencil,
+  Trash2,
+  Ban,
+  Users,
+  ArrowLeftRight,
+  ArrowDownLeft,
+  ArrowUpRight,
+} from "lucide-react";
 import { Timestamp } from "firebase/firestore";
 import { useAuth } from "@/auth/AuthProvider";
 import { useWorkspace } from "@/workspace/WorkspaceProvider";
@@ -21,6 +31,7 @@ import { txnsByContact, contactDetailPath } from "@/lib/links";
 import type { Due, DueDirection } from "@/types/models";
 import { dueStatusFromSettled, toDate } from "@/lib/derive";
 import { PageHeader } from "@/components/PageHeader";
+import { StatCard } from "@/components/StatCard";
 import { TransactionFormDialog } from "@/components/TransactionForm";
 import { RowActions, type RowAction } from "@/components/RowActions";
 import { SortableHead } from "@/components/SortableHead";
@@ -127,6 +138,22 @@ export function Dues() {
     }
     return true;
   });
+  // Outstanding totals across all dues (not the filtered view): how much is
+  // still expected in (receivable) vs still owed out (payable). Cancelled and
+  // fully-settled dues drop out since their remaining is zero.
+  const totals = useMemo(() => {
+    let receivable = 0;
+    let payable = 0;
+    for (const d of dues) {
+      if (d.status === "cancelled") continue;
+      const remaining = d.amount - settledOf(d.id);
+      if (remaining <= 0.005) continue;
+      if (d.direction === "receivable") receivable += remaining;
+      else payable += remaining;
+    }
+    return { receivable, payable };
+  }, [dues, settledOf]);
+
   const activeFilterCount =
     (directionFilter !== "__all" ? 1 : 0) + (statusFilter !== "__all" ? 1 : 0);
   function clearFilters() {
@@ -222,6 +249,27 @@ export function Dues() {
           hidden: !manage,
         }}
       />
+
+      {dues.length > 0 && (
+        <div className="mb-4 grid grid-cols-1 gap-3 sm:mb-6 sm:grid-cols-2 sm:gap-4">
+          <StatCard
+            label="Receivable (owed to you)"
+            amount={totals.receivable}
+            currency={currency}
+            tone="success"
+            icon={ArrowDownLeft}
+            hint="Outstanding across open receivables"
+          />
+          <StatCard
+            label="Payable (you owe)"
+            amount={totals.payable}
+            currency={currency}
+            tone="destructive"
+            icon={ArrowUpRight}
+            hint="Outstanding across open payables"
+          />
+        </div>
+      )}
 
       {dues.length > 0 && (
         <Toolbar
