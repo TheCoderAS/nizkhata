@@ -8,6 +8,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type ToastVariant = "default" | "success" | "error";
@@ -79,9 +80,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
           <div
             key={t.id}
             role="status"
-            onClick={() => remove(t.id)}
             className={cn(
-              "cursor-pointer rounded-md border p-3 shadow-md",
+              "relative rounded-md border p-3 pr-9 shadow-md",
               t.variant === "success" && "border-green-200 bg-green-50 text-green-800",
               t.variant === "error" && "border-red-200 bg-red-50 text-red-800",
               t.variant === "default" && "border-border bg-background",
@@ -91,6 +91,14 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             {t.description && (
               <p className="text-xs opacity-80">{t.description}</p>
             )}
+            <button
+              type="button"
+              aria-label="Dismiss"
+              onClick={() => remove(t.id)}
+              className="absolute right-1.5 top-1.5 rounded p-1 opacity-60 transition-opacity hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current"
+            >
+              <X className="h-4 w-4" />
+            </button>
           </div>
         ))}
       </div>

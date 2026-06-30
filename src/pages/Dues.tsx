@@ -122,14 +122,22 @@ export function Dues() {
 
   const [search, setSearch] = useState("");
   const [directionFilter, setDirectionFilter] = useState("__all");
-  const [statusFilter, setStatusFilter] = useState("__all");
+  // Default to the actionable view: only dues that still need settling (open or
+  // partial). "__all" and the individual statuses remain selectable.
+  const [statusFilter, setStatusFilter] = useState("__unsettled");
 
   const cols = useColumnPrefs<ColKey>("dues", COLUMNS);
 
   const filteredDues = dues.filter((d) => {
     if (directionFilter !== "__all" && d.direction !== directionFilter) return false;
-    if (statusFilter !== "__all" && dueStatusFromSettled(d, settledOf(d.id)) !== statusFilter)
-      return false;
+    if (statusFilter !== "__all") {
+      const st = dueStatusFromSettled(d, settledOf(d.id));
+      if (statusFilter === "__unsettled") {
+        if (st !== "open" && st !== "partial") return false;
+      } else if (st !== statusFilter) {
+        return false;
+      }
+    }
     if (search) {
       const hay = `${d.title} ${
         d.contactId ? contactsById[d.contactId]?.name ?? "" : ""
@@ -155,10 +163,10 @@ export function Dues() {
   }, [dues, settledOf]);
 
   const activeFilterCount =
-    (directionFilter !== "__all" ? 1 : 0) + (statusFilter !== "__all" ? 1 : 0);
+    (directionFilter !== "__all" ? 1 : 0) + (statusFilter !== "__unsettled" ? 1 : 0);
   function clearFilters() {
     setDirectionFilter("__all");
-    setStatusFilter("__all");
+    setStatusFilter("__unsettled");
   }
 
   const accessors: Record<SortKey, SortAccessor<Due>> = {
@@ -250,24 +258,32 @@ export function Dues() {
         }}
       />
 
-      {dues.length > 0 && (
-        <div className="mb-4 grid grid-cols-1 gap-3 sm:mb-6 sm:grid-cols-2 sm:gap-4">
-          <StatCard
-            label="Receivable (owed to you)"
-            amount={totals.receivable}
-            currency={currency}
-            tone="success"
-            icon={ArrowDownLeft}
-            hint="Outstanding across open receivables"
-          />
-          <StatCard
-            label="Payable (you owe)"
-            amount={totals.payable}
-            currency={currency}
-            tone="destructive"
-            icon={ArrowUpRight}
-            hint="Outstanding across open payables"
-          />
+      {(totals.receivable > 0 || totals.payable > 0) && (
+        <div
+          className={`mb-4 grid grid-cols-1 gap-3 sm:mb-6 sm:gap-4 ${
+            totals.receivable > 0 && totals.payable > 0 ? "sm:grid-cols-2" : ""
+          }`}
+        >
+          {totals.receivable > 0 && (
+            <StatCard
+              label="Receivable (owed to you)"
+              amount={totals.receivable}
+              currency={currency}
+              tone="success"
+              icon={ArrowDownLeft}
+              hint="Outstanding across open receivables"
+            />
+          )}
+          {totals.payable > 0 && (
+            <StatCard
+              label="Payable (you owe)"
+              amount={totals.payable}
+              currency={currency}
+              tone="destructive"
+              icon={ArrowUpRight}
+              hint="Outstanding across open payables"
+            />
+          )}
         </div>
       )}
 
@@ -295,6 +311,7 @@ export function Dues() {
                 onChange={setStatusFilter}
                 allLabel="All statuses"
                 options={[
+                  { value: "__unsettled", label: "Unsettled" },
                   { value: "open", label: "Open" },
                   { value: "partial", label: "Partial" },
                   { value: "settled", label: "Settled" },
@@ -406,6 +423,12 @@ export function Dues() {
         </ResizableTable>
       )}
 
+      {dues.length > 0 && sorted.length === 0 && (
+        <p className="py-8 text-center text-sm text-muted-foreground">
+          No dues match the current filter.
+        </p>
+      )}
+
       {sorted.length > 0 && <Pagination state={pagination} noun="dues" />}
 
       {viewing && (
@@ -440,6 +463,7 @@ export function Dues() {
           initial={{
             presetContactId: paying.contactId,
             presetAccountId: paying.accountId,
+            presetNote: paying.title,
             presetLines: [
               {
                 lineId: `due_${Date.now()}`,
