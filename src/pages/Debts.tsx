@@ -211,24 +211,32 @@ export function Debts() {
         }}
       />
 
-      {visible.length > 0 && (
-        <div className="mb-4 grid grid-cols-1 gap-3 sm:mb-6 sm:grid-cols-2 sm:gap-4">
-          <StatCard
-            label="They owe you"
-            amount={totals.theyOwe}
-            currency={currency}
-            tone="success"
-            icon={ArrowDownLeft}
-            hint="Total outstanding owed to you"
-          />
-          <StatCard
-            label="You owe"
-            amount={totals.youOwe}
-            currency={currency}
-            tone="destructive"
-            icon={ArrowUpRight}
-            hint="Total outstanding you owe others"
-          />
+      {(totals.theyOwe > 0 || totals.youOwe > 0) && (
+        <div
+          className={`mb-4 grid grid-cols-1 gap-3 sm:mb-6 sm:gap-4 ${
+            totals.theyOwe > 0 && totals.youOwe > 0 ? "sm:grid-cols-2" : ""
+          }`}
+        >
+          {totals.theyOwe > 0 && (
+            <StatCard
+              label="They owe you"
+              amount={totals.theyOwe}
+              currency={currency}
+              tone="success"
+              icon={ArrowDownLeft}
+              hint="Total outstanding owed to you"
+            />
+          )}
+          {totals.youOwe > 0 && (
+            <StatCard
+              label="You owe"
+              amount={totals.youOwe}
+              currency={currency}
+              tone="destructive"
+              icon={ArrowUpRight}
+              hint="Total outstanding you owe others"
+            />
+          )}
         </div>
       )}
 

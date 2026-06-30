@@ -73,6 +73,7 @@ export interface TransactionFormInitial {
   presetLines?: TransactionLine[];
   presetContactId?: string;
   presetAccountId?: string;
+  presetNote?: string;
   lockContact?: boolean;
 }
 
@@ -104,7 +105,7 @@ export function TransactionFormDialog({
   const [contactId, setContactId] = useState(
     txn?.contactId ?? initial?.presetContactId ?? "",
   );
-  const [note, setNote] = useState(txn?.note ?? "");
+  const [note, setNote] = useState(txn?.note ?? initial?.presetNote ?? "");
   const [lines, setLines] = useState<TransactionLine[]>(
     txn?.lines ?? initial?.presetLines ?? [blankLine()],
   );
