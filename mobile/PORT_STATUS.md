@@ -15,18 +15,21 @@ Strategy: port all features first; verify/fix the APK build at the very end.
 - Write layer `mutations.dart` (audited create/update/delete + revisions,
   createTransaction / settleDue / createDebtWithOpening)
 
-## �在 In progress (parallel agents this round)
+## ✅ Done — wave 1 (integrated + routed; build pending)
 - Dues: create/edit form + record-payment + cancel/delete
 - Debts: create/edit form + record repayment/receipt + delete
 - Categories: screen + create/edit/delete (system read-only)
 - Budgets: screen (progress) + create/edit/delete
 - Contact detail (header stats + Transactions/Debts/Report tabs)
 - Activity feed (revisions stream)
+- mutations: updateTransaction added; models: line tax parsed
+
+## 🔄 In progress — wave 2 (agents running)
+- Reports: Insights / FY tax / By category / By contact + CSV (share_plus)
+- Account ledger (passbook: running balance + CSV)
+- Transactions: detail sheet + edit + delete + filters
 
 ## ⏳ Remaining gaps (next waves)
-- Reports: Insights (stat tiles + charts) / FY tax summary / By category / By
-  contact, with CSV export (share_plus)
-- Account ledger (passbook: running balance, date filter, CSV)
 - Members: list + invite + role change + remove  (needs admin mutations)
 - Roles: list + create/edit/duplicate/delete + permission grid  (admin mutations)
 - Workspace settings: name/currency/FY-start + delete  (mutations)
