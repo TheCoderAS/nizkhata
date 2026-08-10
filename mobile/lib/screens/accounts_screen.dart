@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../core/format.dart';
@@ -68,12 +69,14 @@ class AccountsScreen extends StatelessWidget {
                       if (canManage)
                         PopupMenuButton<String>(
                           onSelected: (v) {
+                            if (v == 'ledger') context.push('/accounts/${a.id}/ledger');
                             if (v == 'edit') showAccountForm(context, existing: a);
                             if (v == 'delete') _confirmDelete(context, a);
                           },
-                          itemBuilder: (_) => const [
-                            PopupMenuItem(value: 'edit', child: Text('Edit')),
-                            PopupMenuItem(value: 'delete', child: Text('Delete')),
+                          itemBuilder: (_) => [
+                            const PopupMenuItem(value: 'ledger', child: Text('View ledger')),
+                            if (canManage) const PopupMenuItem(value: 'edit', child: Text('Edit')),
+                            if (canManage) const PopupMenuItem(value: 'delete', child: Text('Delete')),
                           ],
                         ),
                     ],

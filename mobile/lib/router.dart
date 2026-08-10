@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import 'screens/account_ledger_screen.dart';
 import 'screens/accounts_screen.dart';
 import 'screens/activity_screen.dart';
 import 'screens/budgets_screen.dart';
@@ -12,6 +13,7 @@ import 'screens/debts_screen.dart';
 import 'screens/dues_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/more_screen.dart';
+import 'screens/reports_screen.dart';
 import 'screens/shell.dart';
 import 'screens/transactions_screen.dart';
 import 'state/auth_controller.dart';
@@ -34,6 +36,11 @@ GoRouter buildRouter(AuthController auth) {
       GoRoute(path: '/categories', builder: (_, __) => const CategoriesScreen()),
       GoRoute(path: '/budgets', builder: (_, __) => const BudgetsScreen()),
       GoRoute(path: '/activity', builder: (_, __) => const ActivityScreen()),
+      GoRoute(path: '/reports', builder: (_, __) => const ReportsScreen()),
+      GoRoute(
+        path: '/accounts/:id/ledger',
+        builder: (_, state) => AccountLedgerScreen(accountId: state.pathParameters['id']!),
+      ),
       GoRoute(
         path: '/contacts/:id',
         builder: (_, state) => ContactDetailScreen(contactId: state.pathParameters['id']!),

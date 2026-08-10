@@ -24,9 +24,9 @@ Strategy: port all features first; verify/fix the APK build at the very end.
 - Activity feed (revisions stream)
 - mutations: updateTransaction added; models: line tax parsed
 
-## 🔄 In progress — wave 2 (agents running)
-- Reports: Insights / FY tax / By category / By contact + CSV (share_plus)
-- Account ledger (passbook: running balance + CSV)
+## ✅ Done — wave 2 (integrated + routed; build pending)
+- Reports: Insights / FY tax / By category / By contact + CSV (share_plus)  [/reports]
+- Account ledger (passbook: running balance + CSV)  [/accounts/:id/ledger]
 - Transactions: detail sheet + edit + delete + filters
 
 ## ⏳ Remaining gaps (next waves)

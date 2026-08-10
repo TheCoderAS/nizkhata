@@ -12,14 +12,14 @@ import '../state/workspace_controller.dart';
 /// Add-transaction sheet. Single-line entry covering the common types
 /// (expense / income / transfer / borrow / lend / repayment). Multi-line splits
 /// come from the web engine; this native form builds the equivalent line(s).
-Future<void> showTransactionForm(BuildContext context) {
+Future<void> showTransactionForm(BuildContext context, {Txn? existing}) {
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     showDragHandle: true,
     builder: (_) => Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-      child: const _TransactionForm(),
+      child: _TransactionForm(existing: existing),
     ),
   );
 }
@@ -34,7 +34,8 @@ const _kTypes = <String, String>{
 };
 
 class _TransactionForm extends StatefulWidget {
-  const _TransactionForm();
+  final Txn? existing;
+  const _TransactionForm({this.existing});
   @override
   State<_TransactionForm> createState() => _TransactionFormState();
 }
@@ -53,6 +54,48 @@ class _TransactionFormState extends State<_TransactionForm> {
   bool _busy = false;
 
   bool get _isDebtType => _type == 'borrow' || _type == 'lend' || _type == 'repayment';
+  bool get _isEditing => widget.existing != null;
+
+  @override
+  void initState() {
+    super.initState();
+    // Prefill for editing a single-line transaction. Multi-line splits come from
+    // the web engine and are edited there, so only single-line txns are prefilled.
+    final txn = widget.existing;
+    if (txn != null && txn.lines.length == 1) {
+      final line = txn.lines.first;
+      switch (line.type) {
+        case 'transfer_out':
+        case 'transfer_in':
+          _type = 'transfer';
+          break;
+        case 'income':
+          _type = 'income';
+          break;
+        case 'expense':
+          _type = 'expense';
+          break;
+        case 'borrow':
+        case 'lend':
+        case 'repayment':
+          _type = line.type;
+          break;
+        default:
+          _type = 'expense';
+      }
+      _accountId = txn.accountId;
+      _date = txn.date;
+      _amount.text = line.amount.toString();
+      _categoryId = line.categoryId;
+      _contactId = txn.contactId;
+      _debtId = line.debtId;
+      // For a transfer the destination lives on the transfer_in line.
+      for (final l in txn.lines) {
+        if (l.type == 'transfer_in' && l.toAccountId != null) _toAccountId = l.toAccountId;
+      }
+      _note.text = txn.note ?? '';
+    }
+  }
 
   @override
   void dispose() {
@@ -112,19 +155,36 @@ class _TransactionFormState extends State<_TransactionForm> {
 
     setState(() => _busy = true);
     try {
-      await Mutations(Actor.fromUser(user)).createTransaction(
-        ws,
-        date: _date,
-        note: _note.text.trim().isEmpty ? null : _note.text.trim(),
-        accountId: _accountId!,
-        contactId: contactId,
-        totalAmount: roundMoney(total),
-        financialYear: financialYearOf(_date, fyStart),
-        lines: lines,
-      );
+      final m = Mutations(Actor.fromUser(user));
+      final note = _note.text.trim().isEmpty ? null : _note.text.trim();
+      if (widget.existing != null) {
+        await m.updateTransaction(
+          ws,
+          widget.existing!.id,
+          date: _date,
+          note: note,
+          accountId: _accountId!,
+          contactId: contactId,
+          totalAmount: roundMoney(total),
+          financialYear: financialYearOf(_date, fyStart),
+          lines: lines,
+        );
+      } else {
+        await m.createTransaction(
+          ws,
+          date: _date,
+          note: note,
+          accountId: _accountId!,
+          contactId: contactId,
+          totalAmount: roundMoney(total),
+          financialYear: financialYearOf(_date, fyStart),
+          lines: lines,
+        );
+      }
       if (mounted) {
         Navigator.of(context).pop();
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Transaction added')));
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(_isEditing ? 'Transaction updated' : 'Transaction added')));
       }
     } catch (e) {
       if (mounted) {
@@ -153,7 +213,8 @@ class _TransactionFormState extends State<_TransactionForm> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('New transaction', style: Theme.of(context).textTheme.titleLarge),
+              Text(_isEditing ? 'Edit transaction' : 'New transaction',
+                  style: Theme.of(context).textTheme.titleLarge),
               const SizedBox(height: 16),
               DropdownButtonFormField<String>(
                 value: _type,
