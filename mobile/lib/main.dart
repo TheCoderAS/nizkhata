@@ -9,6 +9,7 @@ import 'firebase_options.dart';
 import 'router.dart';
 import 'state/auth_controller.dart';
 import 'state/data_controller.dart';
+import 'state/shared_controller.dart';
 import 'state/theme_controller.dart';
 import 'state/workspace_controller.dart';
 
@@ -42,6 +43,14 @@ class NizkhataApp extends StatelessWidget {
           update: (_, ws, data) {
             final c = data ?? DataController();
             WidgetsBinding.instance.addPostFrameCallback((_) => c.setWorkspace(ws.activeWorkspaceId));
+            return c;
+          },
+        ),
+        ChangeNotifierProxyProvider<AuthController, SharedController>(
+          create: (_) => SharedController(),
+          update: (_, auth, shared) {
+            final c = shared ?? SharedController();
+            WidgetsBinding.instance.addPostFrameCallback((_) => c.setUid(auth.user?.uid));
             return c;
           },
         ),

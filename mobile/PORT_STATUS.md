@@ -40,11 +40,17 @@ Strategy: port all features first; verify/fix the APK build at the very end.
 - Workspace settings: name/currency/FY-start + delete  [/workspace-settings]
 - Profile: sign out, workspaces, leave  [/profile]
 
-## ⏳ Remaining gaps (final wave)
-- Shared ledger (cross-user): invites, expenses, settlements, inbox, conflicts,
-  history  (port sharedMutations.ts + Shared.tsx)
-- Transactions: multi-line split entry (single-line edit already done)
-- Theme toggle (needs a ThemeController wired into MaterialApp)
+## ✅ Done — final wave (integrated + routed; build pending)
+- Shared ledger (cross-user): shared_mutations.dart (full sharedMutations.ts
+  port + reflection engine), shared_controller.dart (streams), shared_screen.dart
+  (summary/inbox/conflicts/partners/history + invite/expense/settle/resolve)  [/shared]
+- Transactions: multi-line split entry (quick/split add menu)
+- Theme toggle (ThemeController -> MaterialApp; Appearance control in Profile)
+
+## 🎉 FEATURE PORT COMPLETE — all screens/flows ported.
+Next: the final build-verification/convergence pass — compile via CI, fix all
+accumulated Dart/Gradle errors until the APK builds green + android-latest
+publishes.
 
 ## N/A on mobile (web-only UX)
 - Resizable/column-pref tables (mobile uses lists), marketing Landing page

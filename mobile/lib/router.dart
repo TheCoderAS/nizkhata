@@ -17,6 +17,7 @@ import 'screens/more_screen.dart';
 import 'screens/profile_screen.dart';
 import 'screens/reports_screen.dart';
 import 'screens/roles_screen.dart';
+import 'screens/shared_screen.dart';
 import 'screens/workspace_settings_screen.dart';
 import 'screens/shell.dart';
 import 'screens/transactions_screen.dart';
@@ -41,6 +42,7 @@ GoRouter buildRouter(AuthController auth) {
       GoRoute(path: '/budgets', builder: (_, __) => const BudgetsScreen()),
       GoRoute(path: '/activity', builder: (_, __) => const ActivityScreen()),
       GoRoute(path: '/reports', builder: (_, __) => const ReportsScreen()),
+      GoRoute(path: '/shared', builder: (_, __) => const SharedScreen()),
       GoRoute(path: '/members', builder: (_, __) => const MembersScreen()),
       GoRoute(path: '/roles', builder: (_, __) => const RolesScreen()),
       GoRoute(path: '/workspace-settings', builder: (_, __) => const WorkspaceSettingsScreen()),

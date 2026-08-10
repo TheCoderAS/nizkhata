@@ -73,6 +73,8 @@ class MoreScreen extends StatelessWidget {
               _navTile(context, Icons.bar_chart_outlined, 'Reports', '/reports'),
               const Divider(height: 1),
               _navTile(context, Icons.history, 'Activity', '/activity'),
+              const Divider(height: 1),
+              _navTile(context, Icons.groups_outlined, 'Shared', '/shared'),
             ],
           ),
         ),
