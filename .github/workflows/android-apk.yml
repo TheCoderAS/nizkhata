@@ -15,6 +15,10 @@ on:
   push:
     tags:
       - "v*"
+    branches:
+      # Build on pushes to the app branch during development. Remove before
+      # merging to main (kept here so the APK build is validated on every push).
+      - "claude/android-app"
 
 permissions:
   contents: write
