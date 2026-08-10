@@ -31,13 +31,12 @@ because it registers *this app* with your Google project.
 1. **Register the Android app** in the Firebase console (project `nizkhata`):
    - Package name: **`com.nizkhata.nizkhata`**
    - Add the signing certificate **SHA-1** (see below).
-2. **Firebase config needs no secrets.** The seven Firebase Web values are public
-   (they ship in the web bundle) and are baked into `lib/firebase_options.dart`,
-   exactly like the web deploy workflow inlines them. So the only secret to add is:
-   - `GOOGLE_WEB_CLIENT_ID` — the **Web** OAuth 2.0 client ID from
-     *Authentication → Sign-in method → Google* (used as the ID-token audience so
-     Firebase accepts the native Google credential). The web app didn't need this
-     because its popup sign-in uses `authDomain`.
+2. **No config secrets needed.** Every Firebase/OAuth value (API key, app ID,
+   project number, and the Web OAuth client ID for native sign-in) is a **public
+   client identifier** from `google-services.json` and is baked into
+   `lib/firebase_options.dart`. Security lives in Firestore Rules + the OAuth
+   client's package-name/SHA-1 lock, not in hiding these. **The only secrets are
+   the release keystore** (below).
 3. **Register the SHA-1.** A release keystore is already generated and the
    workflow signs release APKs with it (when the secrets below are present), so
    the SHA-1 is **stable**. Register this fingerprint on the

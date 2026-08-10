@@ -144,14 +144,10 @@ jobs:
         run: dart run flutter_launcher_icons || echo "icon generation skipped"
 
       - name: Build APK
-        env:
-          # Firebase config is baked into lib/firebase_options.dart (public
-          # values, same as the web bundle), so NO Firebase secrets are needed.
-          # Only the Web OAuth client id for native Google sign-in is injected.
-          GOOGLE_WEB_CLIENT_ID: ${{ secrets.GOOGLE_WEB_CLIENT_ID }}
-        run: |
-          flutter build apk --release \
-            --dart-define=GOOGLE_WEB_CLIENT_ID="$GOOGLE_WEB_CLIENT_ID"
+        # All Firebase/OAuth config is baked into lib/firebase_options.dart
+        # (public values from google-services.json), so no config secrets are
+        # needed. Only the release keystore (signing step above) is secret.
+        run: flutter build apk --release
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4

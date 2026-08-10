@@ -15,27 +15,22 @@
 import 'package:firebase_core/firebase_core.dart';
 
 class DefaultFirebaseOptions {
+  // Web OAuth 2.0 client ID (client_type 3 in google-services.json). Used as the
+  // ID-token audience for native google_sign_in so firebase_auth accepts the
+  // credential. Public identifier — safe to bake in.
   static const String googleWebClientId =
-      String.fromEnvironment('GOOGLE_WEB_CLIENT_ID', defaultValue: '');
+      '626552427608-uhi017lm6gph5ug2c3aq3v7tbh0c1576.apps.googleusercontent.com';
 
-  // Firebase Web client config for project `nizkhata`. These are PUBLIC
-  // identifiers (they ship in the web app's JS bundle — see the web deploy
-  // workflow), so they're safe to bake in; security lives in Firestore Rules.
-  // Baking them in means the app is correctly configured with zero secrets.
-  static FirebaseOptions get currentPlatform => const FirebaseOptions(
-        apiKey: String.fromEnvironment('FIREBASE_API_KEY',
-            defaultValue: 'AIzaSyAiCtL1MqHDuzpNvCRGIpnuEY1vJTHN03I'),
-        appId: String.fromEnvironment('FIREBASE_APP_ID',
-            defaultValue: '1:626552427608:web:de49ec934a647fce06a62d'),
-        messagingSenderId:
-            String.fromEnvironment('FIREBASE_MESSAGING_SENDER_ID', defaultValue: '626552427608'),
-        projectId:
-            String.fromEnvironment('FIREBASE_PROJECT_ID', defaultValue: 'nizkhata'),
-        authDomain: String.fromEnvironment('FIREBASE_AUTH_DOMAIN',
-            defaultValue: 'nizkhata.firebaseapp.com'),
-        storageBucket: String.fromEnvironment('FIREBASE_STORAGE_BUCKET',
-            defaultValue: 'nizkhata.firebasestorage.app'),
-        measurementId:
-            String.fromEnvironment('FIREBASE_MEASUREMENT_ID', defaultValue: 'G-N6JH009E7Q'),
-      );
+  // Native Android config for project `nizkhata` (from google-services.json).
+  // All PUBLIC identifiers — security lives in Firestore Rules + the OAuth
+  // client's package-name/SHA-1 lock, not in hiding these. So the app is fully
+  // configured with zero secrets.
+  static const FirebaseOptions currentPlatform = FirebaseOptions(
+    apiKey: 'AIzaSyBUNKeUYJ_3M8u3h4IJER7eflq2C8kd-AU',
+    appId: '1:626552427608:android:0375a1216b3f0a6906a62d',
+    messagingSenderId: '626552427608',
+    projectId: 'nizkhata',
+    authDomain: 'nizkhata.firebaseapp.com',
+    storageBucket: 'nizkhata.firebasestorage.app',
+  );
 }

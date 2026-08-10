@@ -101,10 +101,13 @@ class Account {
   final double openingBalance;
   final String? code;
   final String? accountNumber;
+  final String? cif;
   final String? ifsc;
   final String? branchName;
   final String? description;
+  final String? nameOnCard;
   final String? cardLast4;
+  final String? cardExpiry;
   Account({
     required this.id,
     required this.workspaceId,
@@ -113,10 +116,13 @@ class Account {
     required this.openingBalance,
     this.code,
     this.accountNumber,
+    this.cif,
     this.ifsc,
     this.branchName,
     this.description,
+    this.nameOnCard,
     this.cardLast4,
+    this.cardExpiry,
   });
   factory Account.fromDoc(DocumentSnapshot d) {
     final m = d.data() as Map<String, dynamic>;
@@ -128,10 +134,13 @@ class Account {
       openingBalance: _num(m['openingBalance']),
       code: m['code'],
       accountNumber: m['accountNumber'],
+      cif: m['cif'],
       ifsc: m['ifsc'],
       branchName: m['branchName'],
       description: m['description'],
+      nameOnCard: m['nameOnCard'],
       cardLast4: m['cardLast4'],
+      cardExpiry: m['cardExpiry'],
     );
   }
 }

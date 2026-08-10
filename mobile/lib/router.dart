@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import 'screens/accounts_screen.dart';
 import 'screens/contacts_screen.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/debts_screen.dart';
@@ -25,6 +26,7 @@ GoRouter buildRouter(AuthController auth) {
     },
     routes: [
       GoRoute(path: '/login', builder: (_, __) => const LoginScreen()),
+      GoRoute(path: '/accounts', builder: (_, __) => const AccountsScreen()),
       ShellRoute(
         builder: (context, state, child) => AppShell(state: state, child: child),
         routes: [

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../core/format.dart';
@@ -56,6 +57,19 @@ class MoreScreen extends StatelessWidget {
               _kv('Total in accounts', formatMoney(totalInAccounts, currency)),
               _kv('Contacts', '${data.contacts.where((c) => c.connectionUid == null).length}'),
               _kv('Transactions', '${data.transactions.length}'),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        Card(
+          child: Column(
+            children: [
+              ListTile(
+                leading: const Icon(Icons.account_balance_wallet_outlined),
+                title: const Text('Accounts'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => context.push('/accounts'),
+              ),
             ],
           ),
         ),
