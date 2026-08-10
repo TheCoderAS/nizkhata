@@ -12,8 +12,12 @@ import 'screens/dashboard_screen.dart';
 import 'screens/debts_screen.dart';
 import 'screens/dues_screen.dart';
 import 'screens/login_screen.dart';
+import 'screens/members_screen.dart';
 import 'screens/more_screen.dart';
+import 'screens/profile_screen.dart';
 import 'screens/reports_screen.dart';
+import 'screens/roles_screen.dart';
+import 'screens/workspace_settings_screen.dart';
 import 'screens/shell.dart';
 import 'screens/transactions_screen.dart';
 import 'state/auth_controller.dart';
@@ -37,6 +41,10 @@ GoRouter buildRouter(AuthController auth) {
       GoRoute(path: '/budgets', builder: (_, __) => const BudgetsScreen()),
       GoRoute(path: '/activity', builder: (_, __) => const ActivityScreen()),
       GoRoute(path: '/reports', builder: (_, __) => const ReportsScreen()),
+      GoRoute(path: '/members', builder: (_, __) => const MembersScreen()),
+      GoRoute(path: '/roles', builder: (_, __) => const RolesScreen()),
+      GoRoute(path: '/workspace-settings', builder: (_, __) => const WorkspaceSettingsScreen()),
+      GoRoute(path: '/profile', builder: (_, __) => const ProfileScreen()),
       GoRoute(
         path: '/accounts/:id/ledger',
         builder: (_, state) => AccountLedgerScreen(accountId: state.pathParameters['id']!),

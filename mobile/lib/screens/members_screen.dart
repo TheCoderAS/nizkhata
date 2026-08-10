@@ -361,7 +361,7 @@ class _InviteDialogState extends State<_InviteDialog> {
             ),
             const SizedBox(height: 16),
             DropdownButtonFormField<String>(
-              initialValue: _roleId,
+              value: _roleId,
               decoration: const InputDecoration(labelText: 'Role'),
               items: [
                 for (final r in widget.roles) DropdownMenuItem(value: r.id, child: Text(r.name)),

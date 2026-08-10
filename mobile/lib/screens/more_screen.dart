@@ -76,6 +76,20 @@ class MoreScreen extends StatelessWidget {
             ],
           ),
         ),
+        const SizedBox(height: 12),
+        Card(
+          child: Column(
+            children: [
+              _navTile(context, Icons.person_outline, 'Account', '/profile'),
+              const Divider(height: 1),
+              _navTile(context, Icons.group_outlined, 'Members', '/members'),
+              const Divider(height: 1),
+              _navTile(context, Icons.shield_outlined, 'Roles', '/roles'),
+              const Divider(height: 1),
+              _navTile(context, Icons.settings_outlined, 'Workspace settings', '/workspace-settings'),
+            ],
+          ),
+        ),
         if (ws.workspaces.length > 1) ...[
           const SizedBox(height: 12),
           SectionCard(

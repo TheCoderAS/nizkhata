@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../core/theme.dart';
+import '../data/models.dart';
 import '../data/mutations.dart';
 import '../state/auth_controller.dart';
 import '../state/workspace_controller.dart';
@@ -37,7 +38,7 @@ class _WorkspaceSettingsScreenState extends State<WorkspaceSettingsScreen> {
     super.dispose();
   }
 
-  void _seed(ws) {
+  void _seed(WorkspaceController ws) {
     final w = ws.activeWorkspace;
     if (w == null || _seeded) return;
     _name.text = w.name;

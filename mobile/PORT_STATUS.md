@@ -34,13 +34,13 @@ Strategy: port all features first; verify/fix the APK build at the very end.
   revokeInvite, changeMemberRole/removeMember/leaveWorkspace, updateWorkspace/
   deleteWorkspace, updateTransaction + GuardrailException (ports adminMutations.ts)
 
-## 🔄 In progress — wave 3 (agents running)
-- Members: list + invite + role change + remove
-- Roles: list + create/edit/duplicate/delete + permission grid
-- Workspace settings: name/currency/FY-start + delete
-- Personal profile screen: sign out, workspaces, leave
+## ✅ Done — wave 3 (integrated + routed; build pending)
+- Members: list + invite + role change + remove  [/members]
+- Roles: list + create/edit/duplicate/delete + permission grid  [/roles]
+- Workspace settings: name/currency/FY-start + delete  [/workspace-settings]
+- Profile: sign out, workspaces, leave  [/profile]
 
-## ⏳ Remaining gaps (next waves)
+## ⏳ Remaining gaps (final wave)
 - Shared ledger (cross-user): invites, expenses, settlements, inbox, conflicts,
   history  (port sharedMutations.ts + Shared.tsx)
 - Transactions: multi-line split entry (single-line edit already done)
