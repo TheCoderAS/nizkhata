@@ -31,18 +31,22 @@ because it registers *this app* with your Google project.
 1. **Register the Android app** in the Firebase console (project `nizkhata`):
    - Package name: **`com.nizkhata.nizkhata`**
    - Add the signing certificate **SHA-1** (see below).
-2. **Add repo secrets** (Settings → Secrets and variables → Actions). All are the
-   public client-config values from your web `.env` (`VITE_FIREBASE_*`):
-   - `FIREBASE_API_KEY`
-   - `FIREBASE_APP_ID` (use the **Android** app id once registered; the web id
-     also works for Firestore/Auth in a pinch)
-   - `FIREBASE_MESSAGING_SENDER_ID`
-   - `FIREBASE_PROJECT_ID` (`nizkhata`)
-   - `FIREBASE_AUTH_DOMAIN` (`nizkhata.firebaseapp.com`)
-   - `FIREBASE_STORAGE_BUCKET`
+2. **Add repo secrets** (Settings → Secrets and variables → Actions). The Firebase
+   ones are the **same `VITE_FIREBASE_*` secrets the web app already uses** — the
+   workflow reads them directly, so you don't configure Firebase twice:
+   - `VITE_FIREBASE_API_KEY`
+   - `VITE_FIREBASE_APP_ID`
+   - `VITE_FIREBASE_MESSAGING_SENDER_ID`
+   - `VITE_FIREBASE_PROJECT_ID` (`nizkhata`)
+   - `VITE_FIREBASE_AUTH_DOMAIN` (`nizkhata.firebaseapp.com`)
+   - `VITE_FIREBASE_STORAGE_BUCKET`
+   - `VITE_FIREBASE_MEASUREMENT_ID`
+
+   The only **Android-specific** secret to add:
    - `GOOGLE_WEB_CLIENT_ID` — the **Web** OAuth 2.0 client ID from
      *Authentication → Sign-in method → Google* (used as the ID-token audience so
-     Firebase accepts the native Google credential).
+     Firebase accepts the native Google credential). The web app didn't need this
+     because its popup sign-in uses `authDomain`.
    - *(optional)* `GOOGLE_SERVICES_JSON_BASE64` — `base64 -w0 google-services.json`
      if you prefer to ship it instead of the individual values.
 3. **Register the SHA-1** of whatever key signs the APK:
