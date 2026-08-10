@@ -231,6 +231,39 @@ class Mutations {
 
   Future<void> deleteTransaction(String ws, String id) => _auditedDelete('transactions', ws, id);
 
+  /// Edit a transaction. Uses batch.update so createdBy/createdAt stay untouched
+  /// (Security Rules enforce their immutability). Optional fields cleared with
+  /// FieldValue.delete().
+  Future<void> updateTransaction(
+    String ws,
+    String id, {
+    required DateTime date,
+    String? note,
+    required String accountId,
+    String? contactId,
+    required double totalAmount,
+    String? dueId,
+    required String financialYear,
+    required List<Map<String, dynamic>> lines,
+  }) async {
+    final batch = _db.batch();
+    batch.update(_db.collection('transactions').doc(id), {
+      'date': Timestamp.fromDate(date),
+      'accountId': accountId,
+      'totalAmount': totalAmount,
+      'hasSplit': lines.length > 1,
+      'financialYear': financialYear,
+      'lines': lines.map(_strip).toList(),
+      'updatedBy': by.toMap(),
+      'updatedAt': FieldValue.serverTimestamp(),
+      'note': note ?? FieldValue.delete(),
+      'contactId': contactId ?? FieldValue.delete(),
+      'dueId': dueId ?? FieldValue.delete(),
+    });
+    _appendRevision(batch, workspaceId: ws, entityType: 'transactions', entityId: id, action: 'update');
+    await batch.commit();
+  }
+
   /// Settle a due: create the txn and flip the due status in one batch.
   Future<void> settleDue(
     String ws,

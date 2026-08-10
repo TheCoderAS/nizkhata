@@ -323,6 +323,7 @@ class TxnLine {
   final String? toAccountId;
   final String? note;
   final bool external;
+  final Map<String, dynamic>? tax; // {taxable, head, tdsAmount, taxInclusive}
   TxnLine({
     required this.lineId,
     required this.type,
@@ -332,6 +333,7 @@ class TxnLine {
     this.toAccountId,
     this.note,
     this.external = false,
+    this.tax,
   });
   factory TxnLine.fromMap(Map<String, dynamic> m) => TxnLine(
         lineId: m['lineId'] ?? '',
@@ -342,6 +344,7 @@ class TxnLine {
         toAccountId: m['toAccountId'],
         note: m['note'],
         external: m['external'] == true,
+        tax: m['tax'] is Map ? Map<String, dynamic>.from(m['tax']) : null,
       );
   Map<String, dynamic> toMap() => {
         'lineId': lineId,
