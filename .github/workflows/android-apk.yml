@@ -109,11 +109,13 @@ jobs:
           p = 'android/app/build.gradle.kts'
           s = open(p).read()
           if 'key.properties' not in s:
+              if 'import java.util.Properties' not in s:
+                  s = 'import java.util.Properties\n' + s
               loader = (
-                  'val keystoreProperties = java.util.Properties()\n'
+                  'val keystoreProperties = Properties()\n'
                   'val keystorePropertiesFile = rootProject.file("key.properties")\n'
                   'if (keystorePropertiesFile.exists()) {\n'
-                  '    keystorePropertiesFile.inputStream().use { keystoreProperties.load(it) }\n'
+                  '    keystorePropertiesFile.inputStream().use { input -> keystoreProperties.load(input) }\n'
                   '}\n\n'
               )
               s = re.sub(r'\nandroid \{', '\n' + loader + 'android {', s, count=1)
@@ -145,14 +147,16 @@ jobs:
         env:
           # Firebase config reuses the SAME secrets the web app uses (VITE_FIREBASE_*),
           # so you configure them once. Only GOOGLE_WEB_CLIENT_ID is Android-specific.
+          # Accept either the web app's VITE_FIREBASE_* secret names or plain
+          # FIREBASE_* — whichever you configured.
           GOOGLE_WEB_CLIENT_ID: ${{ secrets.GOOGLE_WEB_CLIENT_ID }}
-          FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
-          FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
-          FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
-          FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
-          FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
-          FIREBASE_STORAGE_BUCKET: ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}
-          FIREBASE_MEASUREMENT_ID: ${{ secrets.VITE_FIREBASE_MEASUREMENT_ID }}
+          FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY || secrets.FIREBASE_API_KEY }}
+          FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID || secrets.FIREBASE_APP_ID }}
+          FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID || secrets.FIREBASE_MESSAGING_SENDER_ID }}
+          FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID || secrets.FIREBASE_PROJECT_ID }}
+          FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN || secrets.FIREBASE_AUTH_DOMAIN }}
+          FIREBASE_STORAGE_BUCKET: ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET || secrets.FIREBASE_STORAGE_BUCKET }}
+          FIREBASE_MEASUREMENT_ID: ${{ secrets.VITE_FIREBASE_MEASUREMENT_ID || secrets.FIREBASE_MEASUREMENT_ID }}
         run: |
           flutter build apk --release \
             --dart-define=GOOGLE_WEB_CLIENT_ID="$GOOGLE_WEB_CLIENT_ID" \
