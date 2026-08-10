@@ -98,11 +98,17 @@ jobs:
             exit 0
           fi
           echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > android/app/release.jks
+          # Trim any stray whitespace/newlines from the secret values.
+          STOREPW="$(printf '%s' "$ANDROID_KEYSTORE_PASSWORD" | tr -d '\r\n')"
+          ALIAS="$(printf '%s' "${ANDROID_KEY_ALIAS:-nizkhata}" | tr -d '\r\n')"
+          # The keystore is PKCS12, where the key password ALWAYS equals the
+          # store password (a separate key password isn't supported). So use the
+          # store password for the key too — ANDROID_KEY_PASSWORD is not needed.
           {
             echo "storeFile=release.jks"
-            echo "storePassword=$ANDROID_KEYSTORE_PASSWORD"
-            echo "keyAlias=$ANDROID_KEY_ALIAS"
-            echo "keyPassword=$ANDROID_KEY_PASSWORD"
+            echo "storePassword=$STOREPW"
+            echo "keyAlias=$ALIAS"
+            echo "keyPassword=$STOREPW"
           } > android/key.properties
           python3 - <<'PY'
           import re

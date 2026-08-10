@@ -45,12 +45,14 @@ because it registers *this app* with your Google project.
    SHA-1:   9D:29:33:32:2F:6D:22:E7:48:70:1C:D8:5E:12:60:CD:6F:C5:84:83
    SHA-256: 87:B6:66:C1:A5:E1:A6:7A:28:7D:F2:18:02:A5:87:00:2F:FC:53:B4:98:2C:F5:9D:27:A0:A6:09:B0:CF:D9:62
    ```
-   Add these signing secrets (the keystore file + passwords were provided
+   Add these signing secrets (the keystore file + password were provided
    separately — store them safely, they sign your releases):
    - `ANDROID_KEYSTORE_BASE64` — base64 of `nizkhata-release.jks`
-   - `ANDROID_KEYSTORE_PASSWORD`
-   - `ANDROID_KEY_PASSWORD`
+   - `ANDROID_KEYSTORE_PASSWORD` — the keystore password
    - `ANDROID_KEY_ALIAS` (`nizkhata`)
+
+   The keystore is PKCS12, so the key password equals the store password —
+   there is no separate `ANDROID_KEY_PASSWORD` to set.
 
    Without these secrets the build falls back to debug signing (installable, but
    its SHA-1 is ephemeral so Google sign-in won't match).
