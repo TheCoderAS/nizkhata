@@ -49,18 +49,23 @@ because it registers *this app* with your Google project.
      because its popup sign-in uses `authDomain`.
    - *(optional)* `GOOGLE_SERVICES_JSON_BASE64` — `base64 -w0 google-services.json`
      if you prefer to ship it instead of the individual values.
-3. **Register the SHA-1** of whatever key signs the APK:
-   - The default CI build is **debug-signed** with an ephemeral key, so its SHA-1
-     changes each run — fine for installing, but Google sign-in won't match.
-   - For a **stable** SHA-1, create a release keystore once and register its
-     SHA-1:
-     ```
-     keytool -genkey -v -keystore nizkhata.jks -keyalg RSA -keysize 2048 \
-       -validity 10000 -alias nizkhata
-     keytool -list -v -keystore nizkhata.jks -alias nizkhata   # copy the SHA1
-     ```
-     Then wire release signing (add the keystore + `key.properties` via secrets)
-     — ask and this can be added to the workflow.
+3. **Register the SHA-1.** A release keystore is already generated and the
+   workflow signs release APKs with it (when the secrets below are present), so
+   the SHA-1 is **stable**. Register this fingerprint on the
+   `com.nizkhata.nizkhata` Android app in the Firebase console:
+   ```
+   SHA-1:   9D:29:33:32:2F:6D:22:E7:48:70:1C:D8:5E:12:60:CD:6F:C5:84:83
+   SHA-256: 87:B6:66:C1:A5:E1:A6:7A:28:7D:F2:18:02:A5:87:00:2F:FC:53:B4:98:2C:F5:9D:27:A0:A6:09:B0:CF:D9:62
+   ```
+   Add these signing secrets (the keystore file + passwords were provided
+   separately — store them safely, they sign your releases):
+   - `ANDROID_KEYSTORE_BASE64` — base64 of `nizkhata-release.jks`
+   - `ANDROID_KEYSTORE_PASSWORD`
+   - `ANDROID_KEY_PASSWORD`
+   - `ANDROID_KEY_ALIAS` (`nizkhata`)
+
+   Without these secrets the build falls back to debug signing (installable, but
+   its SHA-1 is ephemeral so Google sign-in won't match).
 
 Firestore Security Rules are already deployed for the web app and apply
 unchanged (same project), so no rules changes are needed.
