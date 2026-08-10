@@ -136,22 +136,22 @@ class Account {
   }
 }
 
-class Category {
+class AppCategory {
   final String id;
   final String workspaceId;
   final String name;
   final String kind; // income | expense
   final bool isSystem;
-  Category({
+  AppCategory({
     required this.id,
     required this.workspaceId,
     required this.name,
     required this.kind,
     required this.isSystem,
   });
-  factory Category.fromDoc(DocumentSnapshot d) {
+  factory AppCategory.fromDoc(DocumentSnapshot d) {
     final m = d.data() as Map<String, dynamic>;
-    return Category(
+    return AppCategory(
       id: d.id,
       workspaceId: m['workspaceId'] ?? '',
       name: m['name'] ?? '',

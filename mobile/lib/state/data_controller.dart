@@ -18,7 +18,7 @@ class DataController extends ChangeNotifier {
   String? error;
 
   List<Account> accounts = [];
-  List<Category> categories = [];
+  List<AppCategory> categories = [];
   List<Contact> contacts = [];
   List<Debt> debts = [];
   List<Due> dues = [];
@@ -29,7 +29,7 @@ class DataController extends ChangeNotifier {
 
   Map<String, Debt> get debtsById => {for (final d in debts) d.id: d};
   Map<String, Account> get accountsById => {for (final a in accounts) a.id: a};
-  Map<String, Category> get categoriesById => {for (final c in categories) c.id: c};
+  Map<String, AppCategory> get categoriesById => {for (final c in categories) c.id: c};
   Map<String, Contact> get contactsById => {for (final c in contacts) c.id: c};
 
   double balanceOf(String accountId) {
@@ -85,7 +85,7 @@ class DataController extends ChangeNotifier {
       notifyListeners();
     }, onError: _onErr));
     _subs.add(q('categories').snapshots().listen((s) {
-      categories = s.docs.map(Category.fromDoc).toList();
+      categories = s.docs.map(AppCategory.fromDoc).toList();
       notifyListeners();
     }, onError: _onErr));
     _subs.add(q('contacts').snapshots().listen((s) {

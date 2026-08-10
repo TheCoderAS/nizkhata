@@ -139,7 +139,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _spendRow(CategorySpend c, double max, String currency) {
-    final ratio = max > 0 ? (c.amount / max).clamp(0.0, 1.0) : 0.0;
+    final double ratio = max > 0 ? (c.amount / max).clamp(0.0, 1.0).toDouble() : 0.0;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 5),
       child: Column(

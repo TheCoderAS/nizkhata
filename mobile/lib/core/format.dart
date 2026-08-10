@@ -1,7 +1,6 @@
 // Formatting helpers — ports of src/lib/utils.ts (formatMoney/formatDate/
 // initials/avatarColor) so numbers and dates read identically to the web app.
 
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -62,7 +61,3 @@ String initialsOf(String nameOrEmail) {
     to: HSLColor.fromAHSL(1, ((hue + 40) % 360).toDouble(), 0.72, 0.48).toColor(),
   );
 }
-
-double roundMoney(num n) => (n * 100).round() / 100;
-
-double maxNum(double a, double b) => math.max(a, b);

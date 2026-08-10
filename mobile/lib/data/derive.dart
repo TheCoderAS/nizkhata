@@ -162,7 +162,7 @@ class CategorySpend {
 }
 
 List<CategorySpend> spendByCategoryInRange(
-    List<Txn> txns, List<Category> categories, DateTime start, DateTime end) {
+    List<Txn> txns, List<AppCategory> categories, DateTime start, DateTime end) {
   final byId = {for (final c in categories) c.id: c};
   final sums = <String, double>{};
   for (final t in txns) {
@@ -367,7 +367,7 @@ class BudgetProgress {
 }
 
 List<BudgetProgress> budgetProgress(
-    List<Budget> budgets, List<Txn> txns, Map<String, Category> categoriesById, int fyStartMonth) {
+    List<Budget> budgets, List<Txn> txns, Map<String, AppCategory> categoriesById, int fyStartMonth) {
   final now = DateTime.now();
   final monthRange = resolvePeriod(PeriodKind.month, now, fyStartMonth);
   final fyRange = financialYearRange(now, fyStartMonth);
@@ -385,7 +385,7 @@ List<BudgetProgress> budgetProgress(
     }
     spent = roundMoney(spent);
     final ratio = b.amount > 0 ? spent / b.amount : 0.0;
-    out.add(BudgetProgress(b, categoriesById[b.categoryId]?.name ?? 'Category', spent, b.amount, ratio));
+    out.add(BudgetProgress(b, categoriesById[b.categoryId]?.name ?? 'AppCategory', spent, b.amount, ratio));
   }
   return out;
 }
