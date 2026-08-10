@@ -31,24 +31,13 @@ because it registers *this app* with your Google project.
 1. **Register the Android app** in the Firebase console (project `nizkhata`):
    - Package name: **`com.nizkhata.nizkhata`**
    - Add the signing certificate **SHA-1** (see below).
-2. **Add repo secrets** (Settings → Secrets and variables → Actions). The Firebase
-   ones are the **same `VITE_FIREBASE_*` secrets the web app already uses** — the
-   workflow reads them directly, so you don't configure Firebase twice:
-   - `VITE_FIREBASE_API_KEY`
-   - `VITE_FIREBASE_APP_ID`
-   - `VITE_FIREBASE_MESSAGING_SENDER_ID`
-   - `VITE_FIREBASE_PROJECT_ID` (`nizkhata`)
-   - `VITE_FIREBASE_AUTH_DOMAIN` (`nizkhata.firebaseapp.com`)
-   - `VITE_FIREBASE_STORAGE_BUCKET`
-   - `VITE_FIREBASE_MEASUREMENT_ID`
-
-   The only **Android-specific** secret to add:
+2. **Firebase config needs no secrets.** The seven Firebase Web values are public
+   (they ship in the web bundle) and are baked into `lib/firebase_options.dart`,
+   exactly like the web deploy workflow inlines them. So the only secret to add is:
    - `GOOGLE_WEB_CLIENT_ID` — the **Web** OAuth 2.0 client ID from
      *Authentication → Sign-in method → Google* (used as the ID-token audience so
      Firebase accepts the native Google credential). The web app didn't need this
      because its popup sign-in uses `authDomain`.
-   - *(optional)* `GOOGLE_SERVICES_JSON_BASE64` — `base64 -w0 google-services.json`
-     if you prefer to ship it instead of the individual values.
 3. **Register the SHA-1.** A release keystore is already generated and the
    workflow signs release APKs with it (when the secrets below are present), so
    the SHA-1 is **stable**. Register this fingerprint on the

@@ -18,18 +18,24 @@ class DefaultFirebaseOptions {
   static const String googleWebClientId =
       String.fromEnvironment('GOOGLE_WEB_CLIENT_ID', defaultValue: '');
 
+  // Firebase Web client config for project `nizkhata`. These are PUBLIC
+  // identifiers (they ship in the web app's JS bundle — see the web deploy
+  // workflow), so they're safe to bake in; security lives in Firestore Rules.
+  // Baking them in means the app is correctly configured with zero secrets.
   static FirebaseOptions get currentPlatform => const FirebaseOptions(
-        apiKey: String.fromEnvironment('FIREBASE_API_KEY', defaultValue: ''),
-        appId: String.fromEnvironment('FIREBASE_APP_ID', defaultValue: ''),
+        apiKey: String.fromEnvironment('FIREBASE_API_KEY',
+            defaultValue: 'AIzaSyAiCtL1MqHDuzpNvCRGIpnuEY1vJTHN03I'),
+        appId: String.fromEnvironment('FIREBASE_APP_ID',
+            defaultValue: '1:626552427608:web:de49ec934a647fce06a62d'),
         messagingSenderId:
-            String.fromEnvironment('FIREBASE_MESSAGING_SENDER_ID', defaultValue: ''),
+            String.fromEnvironment('FIREBASE_MESSAGING_SENDER_ID', defaultValue: '626552427608'),
         projectId:
             String.fromEnvironment('FIREBASE_PROJECT_ID', defaultValue: 'nizkhata'),
         authDomain: String.fromEnvironment('FIREBASE_AUTH_DOMAIN',
             defaultValue: 'nizkhata.firebaseapp.com'),
         storageBucket: String.fromEnvironment('FIREBASE_STORAGE_BUCKET',
-            defaultValue: 'nizkhata.appspot.com'),
+            defaultValue: 'nizkhata.firebasestorage.app'),
         measurementId:
-            String.fromEnvironment('FIREBASE_MEASUREMENT_ID', defaultValue: ''),
+            String.fromEnvironment('FIREBASE_MEASUREMENT_ID', defaultValue: 'G-N6JH009E7Q'),
       );
 }
