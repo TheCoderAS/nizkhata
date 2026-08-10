@@ -1,0 +1,59 @@
+name: nizkhata
+description: NizKhata — native Android app. Every rupee, accounted for.
+publish_to: "none"
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+  flutter: ">=3.22.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+
+  # Firebase (native) — same backend/project as the web app.
+  firebase_core: ^3.8.0
+  firebase_auth: ^5.3.4
+  cloud_firestore: ^5.5.1
+  google_sign_in: ^6.2.2
+
+  # State management — mirrors the web app's React context providers.
+  provider: ^6.1.2
+
+  # Routing.
+  go_router: ^14.6.2
+
+  # Charts (sparklines, donuts, bars) — replaces recharts.
+  fl_chart: ^0.69.2
+
+  # Formatting (en-IN currency/date) — replaces Intl.NumberFormat/DateTimeFormat.
+  intl: ^0.19.0
+
+  # Local prefs (active workspace, column choices) — replaces localStorage.
+  shared_preferences: ^2.3.3
+
+  # CSV export share sheet — replaces browser blob download.
+  share_plus: ^10.1.2
+  path_provider: ^2.1.5
+
+  google_fonts: ^6.2.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+  flutter_launcher_icons: ^0.14.1
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/
+
+# App launcher icon generated from the existing PWA icon.
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: "assets/icon.png"
+  adaptive_icon_background: "#4f46e5"
+  adaptive_icon_foreground: "assets/icon.png"

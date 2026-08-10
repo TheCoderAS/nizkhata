@@ -1,0 +1,117 @@
+# NizKhata — Native Android app (Flutter)
+
+A **pure native** Flutter port of the NizKhata web app. It talks to the **same
+Firebase project (`nizkhata`)** — the same Firestore data, the same auth — via
+the native `firebase_auth` / `cloud_firestore` / `google_sign_in` SDKs. No
+WebView, no PWA wrapper. Domain models, derivations (balances, net worth, debt
+outstanding, dues, contact position, budgets), permissions and seed data are
+Dart re-implementations of the web `src/` and match its formulas 1:1
+(see `PORT_SPEC.md`).
+
+## Getting the APK
+
+The APK is built by **GitHub Actions** (`.github/workflows/android-apk.yml`):
+
+- **On demand:** Actions → *Android APK* → *Run workflow* → download the
+  `nizkhata-apk` artifact.
+- **On a version tag:** push a tag `vX.Y.Z` and the APK is attached to the
+  GitHub Release automatically.
+
+The workflow builds without any secrets (so you always get an installable APK),
+but **Google sign-in and Firestore need the configuration below** to work at
+runtime.
+
+## One-time Firebase / Google Cloud setup (required for sign-in)
+
+This is standard Firebase-Android setup — nothing in the code can do it for you,
+because it registers *this app* with your Google project.
+
+1. **Register the Android app** in the Firebase console (project `nizkhata`):
+   - Package name: **`com.nizkhata.nizkhata`**
+   - Add the signing certificate **SHA-1** (see below).
+2. **Add repo secrets** (Settings → Secrets and variables → Actions). All are the
+   public client-config values from your web `.env` (`VITE_FIREBASE_*`):
+   - `FIREBASE_API_KEY`
+   - `FIREBASE_APP_ID` (use the **Android** app id once registered; the web id
+     also works for Firestore/Auth in a pinch)
+   - `FIREBASE_MESSAGING_SENDER_ID`
+   - `FIREBASE_PROJECT_ID` (`nizkhata`)
+   - `FIREBASE_AUTH_DOMAIN` (`nizkhata.firebaseapp.com`)
+   - `FIREBASE_STORAGE_BUCKET`
+   - `GOOGLE_WEB_CLIENT_ID` — the **Web** OAuth 2.0 client ID from
+     *Authentication → Sign-in method → Google* (used as the ID-token audience so
+     Firebase accepts the native Google credential).
+   - *(optional)* `GOOGLE_SERVICES_JSON_BASE64` — `base64 -w0 google-services.json`
+     if you prefer to ship it instead of the individual values.
+3. **Register the SHA-1** of whatever key signs the APK:
+   - The default CI build is **debug-signed** with an ephemeral key, so its SHA-1
+     changes each run — fine for installing, but Google sign-in won't match.
+   - For a **stable** SHA-1, create a release keystore once and register its
+     SHA-1:
+     ```
+     keytool -genkey -v -keystore nizkhata.jks -keyalg RSA -keysize 2048 \
+       -validity 10000 -alias nizkhata
+     keytool -list -v -keystore nizkhata.jks -alias nizkhata   # copy the SHA1
+     ```
+     Then wire release signing (add the keystore + `key.properties` via secrets)
+     — ask and this can be added to the workflow.
+
+Firestore Security Rules are already deployed for the web app and apply
+unchanged (same project), so no rules changes are needed.
+
+## Local development
+
+```
+cd mobile
+flutter create --platforms=android --org com.nizkhata --project-name nizkhata .
+git checkout -- lib pubspec.yaml          # keep our sources
+flutter pub get
+flutter run --dart-define=GOOGLE_WEB_CLIENT_ID=... --dart-define=FIREBASE_API_KEY=... [etc]
+```
+
+## Architecture
+
+```
+lib/
+  main.dart                 Firebase init + providers + MaterialApp.router
+  router.dart               go_router (+ auth redirect), bottom-nav shell
+  firebase_options.dart     FirebaseOptions from --dart-define
+  core/theme.dart           Material 3 brand theme (indigo/emerald, light+dark)
+  core/format.dart          formatMoney / formatDate / avatars (ports utils.ts)
+  data/models.dart          Firestore <-> Dart models (ports types/models.ts)
+  data/permissions.dart     permission catalog + role templates + seed data
+  data/derive.dart          txn engine + all derivations (ports txn/derive/period/FY)
+  state/auth_controller.dart      Google sign-in + first-login onboarding
+  state/workspace_controller.dart memberships/roles/active workspace + can()
+  state/data_controller.dart      live Firestore streams + derived lookups
+  screens/                  login, shell, dashboard, transactions, dues, debts,
+                            contacts, more
+  widgets/common.dart       StatCard, EntityAvatar, section/empty/loading
+```
+
+State management mirrors the web React context providers
+(Auth → Workspace → Data) via `provider`.
+
+## Port status
+
+This is being ported screen-by-screen and validated through the APK CI. Current
+coverage:
+
+- ✅ Google sign-in (native) + first-login onboarding (user doc, personal
+  workspace seed: 4 system roles + 18 default categories, `lastWorkspaceId`)
+- ✅ Workspace context + RBAC `can(permission)` + workspace switching
+- ✅ Live Firestore streams for all workspace collections
+- ✅ Derivations ported 1:1 (balances, net worth, debt outstanding, dues
+  settlement/status, custodial, contact position, spend-by-category, trend,
+  budgets, FY/period)
+- ✅ Dashboard (net-worth hero + sparkline, income/expense/net, balances,
+  spend-by-category, recent transactions, period selector)
+- ✅ Transactions / Dues / Debts / Contacts list views + summaries
+- ✅ More (profile, workspace stats, switch workspace, sign out)
+- ⏳ Create/edit forms (transactions, dues, debts, contacts, accounts,
+  categories, budgets)
+- ⏳ Contact detail, Reports/Insights (+ CSV export), Settings sub-pages
+  (accounts/ledger, categories, budgets, members, roles, workspace)
+- ⏳ Shared ledger (cross-user), Activity feed
+
+Each new screen lands behind the same CI so the APK stays buildable.
