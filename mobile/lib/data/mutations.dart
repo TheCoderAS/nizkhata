@@ -8,7 +8,17 @@ import 'dart:math' as math;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+import 'models.dart';
+
 const externalAccount = '__external__';
+
+/// Thrown by admin guardrails (last-holder, role-in-use, owner-protection).
+class GuardrailException implements Exception {
+  final String message;
+  GuardrailException(this.message);
+  @override
+  String toString() => message;
+}
 
 class Actor {
   final String uid;
@@ -361,5 +371,116 @@ class Mutations {
     }
     await batch.commit();
     return debtId;
+  }
+
+  // ---- admin: roles / members / invites / workspace ----
+  // (plain writes, no revision log — mirrors src/data/adminMutations.ts)
+
+  Future<String> createRole(String ws, String name, Map<String, bool> permissions) async {
+    final id = newId('roles');
+    await _db.collection('roles').doc(id).set({
+      'id': id,
+      'workspaceId': ws,
+      'name': name,
+      'isSystem': false,
+      'permissions': permissions,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+    return id;
+  }
+
+  Future<void> updateRole(String id, {String? name, Map<String, bool>? permissions}) async {
+    final data = <String, dynamic>{};
+    if (name != null) data['name'] = name;
+    if (permissions != null) data['permissions'] = permissions;
+    await _db.collection('roles').doc(id).update(data);
+  }
+
+  Future<String> duplicateRole(String ws, Role source) =>
+      createRole(ws, '${source.name} (copy)', {...source.permissions});
+
+  Future<void> deleteRole(Role role, List<Membership> memberships) async {
+    if (role.isSystem) {
+      throw GuardrailException("System roles can't be deleted — duplicate to customize.");
+    }
+    if (memberships.any((m) => m.roleId == role.id)) {
+      throw GuardrailException('This role is assigned to a member; reassign them first.');
+    }
+    await _db.collection('roles').doc(role.id).delete();
+  }
+
+  Future<void> changeMemberRole(Membership membership, Role newRole, String ownerId) async {
+    if (membership.uid == ownerId) {
+      throw GuardrailException("The workspace owner's role can't be changed.");
+    }
+    if (newRole.isSystem && newRole.name == 'Owner') {
+      throw GuardrailException("The Owner role is reserved for the workspace owner and can't be assigned.");
+    }
+    await _db.collection('memberships').doc(membership.id).update({'roleId': newRole.id});
+  }
+
+  Future<void> removeMember(Membership membership, String ownerId) async {
+    if (membership.uid == ownerId) {
+      throw GuardrailException("The workspace owner can't be removed.");
+    }
+    await _db.collection('memberships').doc(membership.id).delete();
+  }
+
+  Future<void> leaveWorkspace(Membership membership, String ownerId) async {
+    if (membership.uid == ownerId) {
+      throw GuardrailException("The owner can't leave — transfer ownership or delete the workspace.");
+    }
+    await _db.collection('memberships').doc(membership.id).delete();
+  }
+
+  String inviteId(String ws, String email) => '${ws}_${email.toLowerCase()}';
+
+  Future<String> createInvite(String ws, String email, String roleId, String invitedBy) async {
+    final id = inviteId(ws, email);
+    final expiresAt = Timestamp.fromDate(DateTime.now().add(const Duration(days: 14)));
+    await _db.collection('invites').doc(id).set({
+      'id': id,
+      'workspaceId': ws,
+      'email': email.toLowerCase(),
+      'roleId': roleId,
+      'status': 'pending',
+      'invitedBy': invitedBy,
+      'createdAt': FieldValue.serverTimestamp(),
+      'expiresAt': expiresAt,
+    });
+    return id;
+  }
+
+  Future<void> revokeInvite(String id) async {
+    await _db.collection('invites').doc(id).update({'status': 'revoked'});
+  }
+
+  Future<void> updateWorkspace(String id, {String? name, String? baseCurrency, int? fyStartMonth}) async {
+    final data = <String, dynamic>{};
+    if (name != null) data['name'] = name;
+    if (baseCurrency != null) data['baseCurrency'] = baseCurrency;
+    if (fyStartMonth != null) data['fyStartMonth'] = fyStartMonth;
+    await _db.collection('workspaces').doc(id).update(data);
+  }
+
+  Future<void> deleteWorkspace(String id, String ownerUid) async {
+    final memberSnap = await _db.collection('memberships').where('workspaceId', isEqualTo: id).get();
+    final others = memberSnap.docs.where((d) => d.data()['uid'] != ownerUid).toList();
+    if (others.isNotEmpty) {
+      final batch = _db.batch();
+      for (final m in others) {
+        batch.delete(m.reference);
+      }
+      await batch.commit();
+    }
+    await _db.collection('workspaces').doc(id).delete();
+    await _db.collection('memberships').doc('${id}_$ownerUid').delete();
+    try {
+      final userRef = _db.collection('users').doc(ownerUid);
+      final snap = await userRef.get();
+      if (snap.data()?['lastWorkspaceId'] == id) {
+        await userRef.update({'lastWorkspaceId': null});
+      }
+    } catch (_) {}
   }
 }
