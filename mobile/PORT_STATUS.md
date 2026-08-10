@@ -29,17 +29,22 @@ Strategy: port all features first; verify/fix the APK build at the very end.
 - Account ledger (passbook: running balance + CSV)  [/accounts/:id/ledger]
 - Transactions: detail sheet + edit + delete + filters
 
+## ✅ Done — admin write layer
+- mutations.dart: createRole/updateRole/duplicateRole/deleteRole, createInvite/
+  revokeInvite, changeMemberRole/removeMember/leaveWorkspace, updateWorkspace/
+  deleteWorkspace, updateTransaction + GuardrailException (ports adminMutations.ts)
+
+## 🔄 In progress — wave 3 (agents running)
+- Members: list + invite + role change + remove
+- Roles: list + create/edit/duplicate/delete + permission grid
+- Workspace settings: name/currency/FY-start + delete
+- Personal profile screen: sign out, workspaces, leave
+
 ## ⏳ Remaining gaps (next waves)
-- Members: list + invite + role change + remove  (needs admin mutations)
-- Roles: list + create/edit/duplicate/delete + permission grid  (admin mutations)
-- Workspace settings: name/currency/FY-start + delete  (mutations)
-- Personal profile screen: theme toggle, sign out, workspaces, leave
 - Shared ledger (cross-user): invites, expenses, settlements, inbox, conflicts,
-  history  (sharedMutations port)
-- Transactions: detail view, edit, delete, filters, multi-line split entry
-- Admin mutations to add to mutations.dart: createRole/updateRole/duplicateRole/
-  deleteRole, createInvite/revokeInvite, changeMemberRole/removeMember/leave,
-  updateWorkspace/deleteWorkspace, updateTransaction
+  history  (port sharedMutations.ts + Shared.tsx)
+- Transactions: multi-line split entry (single-line edit already done)
+- Theme toggle (needs a ThemeController wired into MaterialApp)
 
 ## N/A on mobile (web-only UX)
 - Resizable/column-pref tables (mobile uses lists), marketing Landing page
