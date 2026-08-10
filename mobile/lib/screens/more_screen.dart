@@ -64,12 +64,13 @@ class MoreScreen extends StatelessWidget {
         Card(
           child: Column(
             children: [
-              ListTile(
-                leading: const Icon(Icons.account_balance_wallet_outlined),
-                title: const Text('Accounts'),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => context.push('/accounts'),
-              ),
+              _navTile(context, Icons.account_balance_wallet_outlined, 'Accounts', '/accounts'),
+              const Divider(height: 1),
+              _navTile(context, Icons.category_outlined, 'Categories', '/categories'),
+              const Divider(height: 1),
+              _navTile(context, Icons.savings_outlined, 'Budgets', '/budgets'),
+              const Divider(height: 1),
+              _navTile(context, Icons.history, 'Activity', '/activity'),
             ],
           ),
         ),
@@ -99,6 +100,13 @@ class MoreScreen extends StatelessWidget {
       ],
     );
   }
+
+  Widget _navTile(BuildContext context, IconData icon, String title, String route) => ListTile(
+        leading: Icon(icon),
+        title: Text(title),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () => context.push(route),
+      );
 
   Widget _kv(String k, String v) => Padding(
         padding: const EdgeInsets.symmetric(vertical: 4),

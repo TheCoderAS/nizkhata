@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import 'screens/accounts_screen.dart';
+import 'screens/activity_screen.dart';
+import 'screens/budgets_screen.dart';
+import 'screens/categories_screen.dart';
+import 'screens/contact_detail_screen.dart';
 import 'screens/contacts_screen.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/debts_screen.dart';
@@ -27,6 +31,13 @@ GoRouter buildRouter(AuthController auth) {
     routes: [
       GoRoute(path: '/login', builder: (_, __) => const LoginScreen()),
       GoRoute(path: '/accounts', builder: (_, __) => const AccountsScreen()),
+      GoRoute(path: '/categories', builder: (_, __) => const CategoriesScreen()),
+      GoRoute(path: '/budgets', builder: (_, __) => const BudgetsScreen()),
+      GoRoute(path: '/activity', builder: (_, __) => const ActivityScreen()),
+      GoRoute(
+        path: '/contacts/:id',
+        builder: (_, state) => ContactDetailScreen(contactId: state.pathParameters['id']!),
+      ),
       ShellRoute(
         builder: (context, state, child) => AppShell(state: state, child: child),
         routes: [
