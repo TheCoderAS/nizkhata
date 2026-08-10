@@ -11,6 +11,7 @@ import '../core/theme.dart';
 import '../data/models.dart';
 import '../data/mutations.dart';
 import '../state/auth_controller.dart';
+import '../state/theme_controller.dart';
 import '../state/workspace_controller.dart';
 import '../widgets/common.dart';
 
@@ -80,6 +81,20 @@ class ProfileScreen extends StatelessWidget {
                         _workspaceTile(context, ws, w, uid),
                     ],
                   ),
+          ),
+          const SizedBox(height: 16),
+          SectionCard(
+            title: 'Appearance',
+            child: SegmentedButton<ThemeMode>(
+              segments: const [
+                ButtonSegment(value: ThemeMode.light, label: Text('Light'), icon: Icon(Icons.light_mode)),
+                ButtonSegment(value: ThemeMode.dark, label: Text('Dark'), icon: Icon(Icons.dark_mode)),
+                ButtonSegment(value: ThemeMode.system, label: Text('System'), icon: Icon(Icons.brightness_auto)),
+              ],
+              selected: {context.watch<ThemeController>().mode},
+              showSelectedIcon: false,
+              onSelectionChanged: (s) => context.read<ThemeController>().setMode(s.first),
+            ),
           ),
           const SizedBox(height: 16),
           SectionCard(

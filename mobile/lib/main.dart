@@ -9,6 +9,7 @@ import 'firebase_options.dart';
 import 'router.dart';
 import 'state/auth_controller.dart';
 import 'state/data_controller.dart';
+import 'state/theme_controller.dart';
 import 'state/workspace_controller.dart';
 
 Future<void> main() async {
@@ -26,6 +27,7 @@ class NizkhataApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
+        ChangeNotifierProvider(create: (_) => ThemeController()),
         ChangeNotifierProvider(create: (_) => AuthController()),
         ChangeNotifierProxyProvider<AuthController, WorkspaceController>(
           create: (_) => WorkspaceController(),
@@ -65,7 +67,7 @@ class _RootState extends State<_Root> {
       debugShowCheckedModeBanner: false,
       theme: buildLightTheme(),
       darkTheme: buildDarkTheme(),
-      themeMode: ThemeMode.system,
+      themeMode: context.watch<ThemeController>().mode,
       routerConfig: router,
     );
   }
