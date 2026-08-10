@@ -8,6 +8,8 @@ outstanding, dues, contact position, budgets), permissions and seed data are
 Dart re-implementations of the web `src/` and match its formulas 1:1
 (see `PORT_SPEC.md`).
 
+**Minimum supported OS: Android 12 (API 31).**
+
 ## Getting the APK
 
 The APK is built by **GitHub Actions** (`.github/workflows/android-apk.yml`):

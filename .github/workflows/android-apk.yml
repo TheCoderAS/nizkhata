@@ -49,7 +49,7 @@ jobs:
           git checkout -- lib pubspec.yaml
           rm -f test/widget_test.dart
 
-      - name: Ensure INTERNET permission + minSdk 23
+      - name: Ensure INTERNET permission + minSdk 31 (Android 12)
         run: |
           MANIFEST=android/app/src/main/AndroidManifest.xml
           python3 - "$MANIFEST" <<'PY'
@@ -57,18 +57,17 @@ jobs:
           p = sys.argv[1]
           s = open(p).read()
           if 'android.permission.INTERNET' not in s:
-              s = s.replace('<manifest', '<manifest', 1)
               s = re.sub(r'(<manifest[^>]*>)', r'\1\n    <uses-permission android:name="android.permission.INTERNET"/>', s, count=1)
               open(p, 'w').write(s)
               print('INTERNET permission added')
           else:
               print('INTERNET permission already present')
           PY
-          # Bump minSdk to 23 (required by firebase_auth/cloud_firestore).
+          # Minimum supported platform: Android 12 (API 31).
           for f in android/app/build.gradle android/app/build.gradle.kts; do
             [ -f "$f" ] || continue
-            sed -i -E 's/minSdk(Version)?[ =]+flutter\.minSdkVersion/minSdk = 23/g' "$f"
-            sed -i -E 's/minSdk(Version)? +[0-9]+/minSdk = 23/g' "$f"
+            sed -i -E 's/minSdk(Version)?[ =]+flutter\.minSdkVersion/minSdk = 31/g' "$f"
+            sed -i -E 's/minSdk(Version)? +[0-9]+/minSdk = 31/g' "$f"
           done
 
       - name: Optional google-services.json
