@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../core/format.dart';
@@ -50,7 +51,7 @@ class ContactsScreen extends StatelessWidget {
                   leading: EntityAvatar(name: c.name),
                   title: Text(c.name),
                   subtitle: Text(c.type == 'business' ? 'Business' : 'Person'),
-                  onTap: canManage ? () => showContactForm(context, existing: c) : null,
+                  onTap: () => context.push('/contacts/${c.id}'),
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
