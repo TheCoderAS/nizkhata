@@ -23,6 +23,11 @@ on:
 permissions:
   contents: write
 
+# During rapid dev iteration, cancel an in-flight build when a newer commit lands.
+concurrency:
+  group: android-apk-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-apk:
     runs-on: ubuntu-latest

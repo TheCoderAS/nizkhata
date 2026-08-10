@@ -31,8 +31,16 @@ String _currencySymbol(String code) {
       return '€';
     case 'GBP':
       return '£';
+    case 'AED':
+      return 'AED ';
+    case 'SGD':
+      return 'S\$';
+    case 'AUD':
+      return 'A\$';
+    case 'CAD':
+      return 'C\$';
     default:
-      return NumberFormat.simpleCurrency(name: code).currencySymbol;
+      return '$code ';
   }
 }
 
