@@ -1,0 +1,24 @@
+# Flutter/Dart
+.dart_tool/
+.packages
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+pubspec.lock
+
+# Generated Android scaffold (created by `flutter create` in CI).
+# We keep only lib/, pubspec.yaml, assets/, and this ignore file in git; the
+# android/ project + platform files are generated at build time so they always
+# match the CI Flutter/AGP versions.
+android/
+ios/
+linux/
+macos/
+windows/
+web/
+
+# Secrets — never commit
+android/app/google-services.json
+**/key.properties
+**/*.keystore
+**/*.jks
