@@ -129,10 +129,24 @@ class _ContactFormState extends State<_ContactForm> {
     }
   }
 
+  Widget _sectionLabel(String text) => Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: Text(
+          text.toUpperCase(),
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.4,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
+      );
+
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
+      padding: EdgeInsets.fromLTRB(
+          20, 4, 20, 20 + MediaQuery.of(context).padding.bottom),
       child: SingleChildScrollView(
         child: Form(
           key: _formKey,
@@ -142,14 +156,15 @@ class _ContactFormState extends State<_ContactForm> {
             children: [
               Text(widget.existing == null ? 'New contact' : 'Edit contact',
                   style: Theme.of(context).textTheme.titleLarge),
-              const SizedBox(height: 16),
+              const SizedBox(height: 20),
+              _sectionLabel('Identity'),
               TextFormField(
                 controller: _name,
                 decoration: const InputDecoration(labelText: 'Name'),
                 textCapitalization: TextCapitalization.words,
                 validator: (v) => (v == null || v.trim().isEmpty) ? 'Name is required' : null,
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
               SegmentedButton<String>(
                 segments: const [
                   ButtonSegment(value: 'person', label: Text('Person')),
@@ -158,7 +173,7 @@ class _ContactFormState extends State<_ContactForm> {
                 selected: {_type},
                 onSelectionChanged: (s) => setState(() => _type = s.first),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
               SegmentedButton<String>(
                 segments: const [
                   ButtonSegment(value: 'external', label: Text('External')),
@@ -167,18 +182,17 @@ class _ContactFormState extends State<_ContactForm> {
                 selected: {_relationship},
                 onSelectionChanged: (s) => setState(() => _relationship = s.first),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
               TextFormField(
                 controller: _phone,
                 decoration: const InputDecoration(labelText: 'Phone (optional)'),
                 keyboardType: TextInputType.phone,
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 22),
               Row(
                 children: [
                   Expanded(
-                    child: Text('Emails',
-                        style: Theme.of(context).textTheme.labelLarge),
+                    child: _sectionLabel('Emails'),
                   ),
                   TextButton.icon(
                     onPressed: _addEmail,
@@ -246,13 +260,14 @@ class _ContactFormState extends State<_ContactForm> {
                   ),
                 ),
               ],
-              const SizedBox(height: 12),
+              const SizedBox(height: 22),
+              _sectionLabel('Address & notes'),
               TextFormField(
                 controller: _address,
                 decoration: const InputDecoration(labelText: 'Address (optional)'),
                 maxLines: 2,
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
               TextFormField(
                 controller: _notes,
                 decoration: const InputDecoration(labelText: 'Notes (optional)'),

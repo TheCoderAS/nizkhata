@@ -80,6 +80,19 @@ class _DueFormState extends State<_DueForm> {
     }
   }
 
+  Widget _sectionLabel(String text) => Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: Text(
+          text.toUpperCase(),
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.4,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
+      );
+
   @override
   Widget build(BuildContext context) {
     final data = context.watch<DataController>();
@@ -87,7 +100,8 @@ class _DueFormState extends State<_DueForm> {
     final accounts = data.accounts;
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
+      padding: EdgeInsets.fromLTRB(
+          20, 4, 20, 20 + MediaQuery.of(context).padding.bottom),
       child: SingleChildScrollView(
         child: Form(
           key: _formKey,
@@ -106,14 +120,14 @@ class _DueFormState extends State<_DueForm> {
                 selected: {_direction},
                 onSelectionChanged: (s) => setState(() => _direction = s.first),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
               TextFormField(
                 controller: _title,
                 decoration: const InputDecoration(labelText: 'Title'),
                 textCapitalization: TextCapitalization.sentences,
                 validator: (v) => (v == null || v.trim().isEmpty) ? 'Title is required' : null,
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
               TextFormField(
                 controller: _amount,
                 decoration: const InputDecoration(labelText: 'Amount', prefixText: '₹ '),
@@ -121,7 +135,7 @@ class _DueFormState extends State<_DueForm> {
                 validator: (v) =>
                     (double.tryParse(v?.trim() ?? '') ?? 0) <= 0 ? 'Enter an amount greater than 0' : null,
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
               InkWell(
                 onTap: () async {
                   final picked = await showDatePicker(
@@ -137,7 +151,8 @@ class _DueFormState extends State<_DueForm> {
                   child: Text(formatDate(_dueDate)),
                 ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 22),
+              _sectionLabel('Linked to (optional)'),
               DropdownButtonFormField<String>(
                 value: _contactId,
                 decoration: const InputDecoration(labelText: 'Contact (optional)'),
@@ -147,7 +162,7 @@ class _DueFormState extends State<_DueForm> {
                 ],
                 onChanged: (v) => setState(() => _contactId = v),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
               DropdownButtonFormField<String>(
                 value: _accountId,
                 decoration: const InputDecoration(labelText: 'Account (optional)'),
