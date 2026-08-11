@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.nizkhata.nizkhata",
+      "sha256_cert_fingerprints": [
+        "87:B6:66:C1:A5:E1:A6:7A:28:7D:F2:18:02:A5:87:00:2F:FC:53:B4:98:2C:F5:9D:27:A0:A6:09:B0:CF:D9:62"
+      ]
+    }
+  }
+]

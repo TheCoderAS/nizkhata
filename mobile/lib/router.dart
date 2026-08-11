@@ -23,11 +23,36 @@ import 'screens/shell.dart';
 import 'screens/transactions_screen.dart';
 import 'state/auth_controller.dart';
 
+/// Translate an incoming web-app deep-link path (https://nizkhata.web.app/...)
+/// to the native route. The web app nests several screens under /settings/*
+/// where the app uses top-level routes; returns null when [loc] is already a
+/// native path (so redirect doesn't loop).
+String? mapDeepLinkPath(String loc) {
+  if (loc == '/' || loc.isEmpty) return '/dashboard';
+  if (loc == '/settings/account') return '/profile';
+  if (loc == '/settings/workspace') return '/workspace-settings';
+  final ledger = RegExp(r'^/settings/accounts/([^/]+)/ledger$').firstMatch(loc);
+  if (ledger != null) return '/accounts/${ledger.group(1)}/ledger';
+  const prefixMap = {
+    '/settings/accounts': '/accounts',
+    '/settings/categories': '/categories',
+    '/settings/budgets': '/budgets',
+    '/settings/members': '/members',
+    '/settings/roles': '/roles',
+  };
+  return prefixMap[loc];
+}
+
 GoRouter buildRouter(AuthController auth) {
   return GoRouter(
     initialLocation: '/dashboard',
     refreshListenable: auth,
+    // Any deep link that matches no route falls back to the dashboard.
+    onException: (_, __, router) => router.go('/dashboard'),
     redirect: (context, state) {
+      // Remap web-app deep-link paths (/settings/*, /) to native routes first.
+      final mapped = mapDeepLinkPath(state.matchedLocation);
+      if (mapped != null) return mapped;
       final signedIn = auth.user != null;
       final loggingIn = state.matchedLocation == '/login';
       if (auth.loading) return null;
