@@ -34,6 +34,8 @@ class _ContactFormState extends State<_ContactForm> {
       TextEditingController(text: widget.existing?.phone ?? '');
   late final TextEditingController _email =
       TextEditingController(text: widget.existing?.email ?? '');
+  late final TextEditingController _address =
+      TextEditingController(text: widget.existing?.address ?? '');
   late final TextEditingController _notes =
       TextEditingController(text: widget.existing?.notes ?? '');
   late String _type = widget.existing?.type ?? 'person';
@@ -45,6 +47,7 @@ class _ContactFormState extends State<_ContactForm> {
     _name.dispose();
     _phone.dispose();
     _email.dispose();
+    _address.dispose();
     _notes.dispose();
     super.dispose();
   }
@@ -62,6 +65,14 @@ class _ContactFormState extends State<_ContactForm> {
       'relationship': _relationship,
       'phone': _phone.text.trim().isEmpty ? null : _phone.text.trim(),
       'email': _email.text.trim().isEmpty ? null : _email.text.trim(),
+      // Keep the web's emails[] array in sync (label+value), so a web-created
+      // contact doesn't keep showing a stale address after a native edit.
+      'emails': _email.text.trim().isEmpty
+          ? <Map<String, String>>[]
+          : [
+              {'label': 'Personal', 'value': _email.text.trim()}
+            ],
+      'address': _address.text.trim().isEmpty ? null : _address.text.trim(),
       'notes': _notes.text.trim().isEmpty ? null : _notes.text.trim(),
     };
     try {
@@ -132,6 +143,12 @@ class _ContactFormState extends State<_ContactForm> {
                 controller: _email,
                 decoration: const InputDecoration(labelText: 'Email (optional)'),
                 keyboardType: TextInputType.emailAddress,
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _address,
+                decoration: const InputDecoration(labelText: 'Address (optional)'),
+                maxLines: 2,
               ),
               const SizedBox(height: 12),
               TextFormField(

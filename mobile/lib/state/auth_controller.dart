@@ -77,6 +77,11 @@ class AuthController extends ChangeNotifier {
 
   Future<void> _ensureOnboarding(User u) async {
     await _upsertUser(u);
+    // Best-effort: claim any pending cross-user share invites (forms the
+    // SharedConnection so the Shared ledger works). Ports claimShareInvites.
+    try {
+      await _claimShareInvites(u);
+    } catch (_) {/* non-critical — never block sign-in */}
     var workspaceIds = await _listMembershipWorkspaceIds(u.uid);
     if (workspaceIds.isEmpty) {
       final id = await createPersonalWorkspace(u);
@@ -109,6 +114,43 @@ class AuthController extends ChangeNotifier {
         'displayName': u.displayName,
         'photoURL': u.photoURL,
       }, SetOptions(merge: true));
+    }
+  }
+
+  /// Claim pending share invites addressed to this user's email: establish the
+  /// SharedConnection (denormalized names/emails) and mark each invite accepted.
+  /// Ports src/workspace/onboarding.ts claimShareInvites.
+  Future<void> _claimShareInvites(User u) async {
+    final email = (u.email ?? '').toLowerCase();
+    if (email.isEmpty) return;
+    final snap = await _db
+        .collection('shareInvites')
+        .where('toEmail', isEqualTo: email)
+        .where('status', isEqualTo: 'pending')
+        .get();
+    final meName = (u.displayName?.trim().isNotEmpty ?? false)
+        ? u.displayName!.trim()
+        : (email.isNotEmpty ? email : (u.uid.length >= 8 ? '${u.uid.substring(0, 8)}…' : u.uid));
+    for (final doc in snap.docs) {
+      final inv = doc.data();
+      final expiresAt = inv['expiresAt'];
+      if (expiresAt is Timestamp && expiresAt.toDate().isBefore(DateTime.now())) continue;
+      final fromUid = inv['fromUid'] as String? ?? '';
+      if (fromUid.isEmpty) continue;
+      final pair = [fromUid, u.uid]..sort();
+      final connId = pair.join('_');
+      final batch = _db.batch();
+      batch.set(_db.collection('sharedConnections').doc(connId), {
+        'id': connId,
+        'uids': pair,
+        'names': {fromUid: inv['fromName'] ?? '', u.uid: meName},
+        'emails': {fromUid: inv['fromEmail'] ?? '', u.uid: email},
+        'status': 'active',
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+      batch.set(_db.collection('shareInvites').doc(doc.id), {'status': 'accepted'},
+          SetOptions(merge: true));
+      await batch.commit();
     }
   }
 

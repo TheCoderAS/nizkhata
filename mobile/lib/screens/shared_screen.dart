@@ -79,6 +79,17 @@ class SharedScreen extends StatelessWidget {
     final canManage = ws.can('shared.manage');
     final myUid = auth.user?.uid ?? '';
 
+    // Read gate: shared.view is required to see balances/partners/history.
+    if (!ws.loading && !ws.can('shared.view')) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Shared')),
+        body: const EmptyView(
+          title: 'No access',
+          hint: "You don't have permission to view the shared ledger.",
+        ),
+      );
+    }
+
     if (shared.loading || ws.loading) {
       return Scaffold(appBar: AppBar(title: const Text('Shared')), body: const LoadingView());
     }

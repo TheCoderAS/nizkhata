@@ -39,6 +39,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final current = nwSeries.isNotEmpty ? nwSeries.last.netWorth : 0.0;
     final first = nwSeries.isNotEmpty ? nwSeries.first.netWorth : 0.0;
     final delta = current - first;
+    final int? nwPct = first != 0 ? (delta / first.abs() * 100).round() : null;
 
     final topSpend =
         spendByCategoryInRange(data.transactions, data.categories, range.start, range.end).take(6).toList();
@@ -51,7 +52,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       children: [
         _periodSelector(),
         const SizedBox(height: 12),
-        _NetWorthHero(current: current, delta: delta, series: nwSeries, currency: currency),
+        _NetWorthHero(current: current, delta: delta, pct: nwPct, series: nwSeries, currency: currency),
         const SizedBox(height: 12),
         Row(
           children: [
@@ -69,9 +70,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ],
         ),
         const SizedBox(height: 12),
-        if (held.abs() > 0.005)
-          StatCard(label: 'Held for others (Custodial)', amount: held, currency: currency, icon: Icons.people_outline),
-        if (held.abs() > 0.005) const SizedBox(height: 12),
+        StatCard(label: 'Held for others (Custodial)', amount: held, currency: currency, icon: Icons.people_outline),
+        const SizedBox(height: 12),
         SectionCard(
           title: 'Spend by category',
           child: topSpend.isEmpty
@@ -166,9 +166,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
 class _NetWorthHero extends StatelessWidget {
   final double current;
   final double delta;
+  final int? pct;
   final List<NetWorthPoint> series;
   final String currency;
-  const _NetWorthHero({required this.current, required this.delta, required this.series, required this.currency});
+  const _NetWorthHero(
+      {required this.current, required this.delta, required this.pct, required this.series, required this.currency});
 
   @override
   Widget build(BuildContext context) {
@@ -195,7 +197,9 @@ class _NetWorthHero extends StatelessWidget {
                     children: [
                       Icon(delta > 0 ? Icons.arrow_upward : Icons.arrow_downward, color: Colors.white, size: 14),
                       const SizedBox(width: 4),
-                      Text('${delta > 0 ? '+' : '−'}${formatMoney(delta.abs(), currency)} · 6 months',
+                      Text(
+                          '${delta > 0 ? '+' : '−'}${formatMoney(delta.abs(), currency)}'
+                          '${pct != null ? ' (${pct! > 0 ? '+' : ''}$pct%)' : ''} · 6 months',
                           style: const TextStyle(color: Colors.white70, fontSize: 12)),
                     ],
                   ),
