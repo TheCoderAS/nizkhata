@@ -14,6 +14,10 @@ class StatCard extends StatelessWidget {
   final String? hint;
   final IconData? icon;
   final StatTone tone;
+
+  /// Optional inline chart (e.g. a sparkline) rendered INSIDE the card, below
+  /// the value — so trend graphs sit within the card, not floating beneath it.
+  final Widget? chart;
   const StatCard({
     super.key,
     required this.label,
@@ -22,6 +26,7 @@ class StatCard extends StatelessWidget {
     this.hint,
     this.icon,
     this.tone = StatTone.neutral,
+    this.chart,
   });
 
   @override
@@ -83,6 +88,10 @@ class StatCard extends StatelessWidget {
             if (hint != null) ...[
               const SizedBox(height: 4),
               Text(hint!, style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant)),
+            ],
+            if (chart != null) ...[
+              const SizedBox(height: 10),
+              SizedBox(height: 30, child: chart),
             ],
           ],
         ),
