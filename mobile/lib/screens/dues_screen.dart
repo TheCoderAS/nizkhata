@@ -41,6 +41,7 @@ class DuesScreen extends StatefulWidget {
 class _DuesScreenState extends State<DuesScreen> {
   String _statusFilter = '__unsettled';
   String _directionFilter = '__all';
+  String _search = '';
 
   int get _activeFilterCount =>
       (_statusFilter != '__unsettled' ? 1 : 0) + (_directionFilter != '__all' ? 1 : 0);
@@ -144,8 +145,10 @@ class _DuesScreenState extends State<DuesScreen> {
       }
     }
 
-    // Apply status + direction filters. Default view is unsettled (open +
-    // partial); status derives from the settled amount.
+    // Apply search + status + direction filters. Default view is unsettled
+    // (open + partial); status derives from the settled amount. Search matches
+    // title and contact name (case-insensitive).
+    final query = _search.trim().toLowerCase();
     final filtered = data.dues.where((d) {
       if (_directionFilter != '__all' && d.direction != _directionFilter) return false;
       if (_statusFilter != '__all') {
@@ -155,6 +158,12 @@ class _DuesScreenState extends State<DuesScreen> {
         } else if (st != _statusFilter) {
           return false;
         }
+      }
+      if (query.isNotEmpty) {
+        final contactName =
+            d.contactId != null ? data.contactsById[d.contactId]?.name ?? '' : '';
+        final hay = '${d.title} $contactName'.toLowerCase();
+        if (!hay.contains(query)) return false;
       }
       return true;
     }).toList()
@@ -187,6 +196,15 @@ class _DuesScreenState extends State<DuesScreen> {
                   ),
                   const SizedBox(height: 12),
                 ],
+                TextField(
+                  onChanged: (v) => setState(() => _search = v),
+                  decoration: const InputDecoration(
+                    hintText: 'Search dues…',
+                    prefixIcon: Icon(Icons.search, size: 20),
+                    isDense: true,
+                  ),
+                ),
+                const SizedBox(height: 8),
                 Row(
                   children: [
                     OutlinedButton.icon(
@@ -219,8 +237,12 @@ class _DuesScreenState extends State<DuesScreen> {
                 ? Padding(
                     padding: const EdgeInsets.only(top: 40),
                     child: EmptyView(
-                      icon: _activeFilterCount > 0 ? Icons.filter_alt_off : Icons.call_received,
-                      title: _activeFilterCount > 0 ? 'No dues match the filter' : 'No unsettled dues',
+                      icon: (_activeFilterCount > 0 || query.isNotEmpty)
+                          ? Icons.filter_alt_off
+                          : Icons.call_received,
+                      title: (_activeFilterCount > 0 || query.isNotEmpty)
+                          ? 'No dues match the filter'
+                          : 'No unsettled dues',
                       action: _activeFilterCount > 0
                           ? FilledButton(onPressed: _clearFilters, child: const Text('Clear filters'))
                           : null,
@@ -345,6 +367,11 @@ class _DueMenu extends StatelessWidget {
           case 'contact':
             if (due.contactId != null) context.push('/contacts/${due.contactId}');
             break;
+          case 'txns':
+            if (due.contactId != null) {
+              context.push('/transactions?contact=${due.contactId}');
+            }
+            break;
           case 'edit':
             showDueForm(context, existing: due);
             break;
@@ -359,6 +386,7 @@ class _DueMenu extends StatelessWidget {
       itemBuilder: (_) => [
         if (canTxn && settleable) const PopupMenuItem(value: 'pay', child: Text('Record payment')),
         if (canViewContacts && hasContact) const PopupMenuItem(value: 'contact', child: Text('View contact')),
+        if (canViewTxns && hasContact) const PopupMenuItem(value: 'txns', child: Text('View transactions')),
         if (canManage) const PopupMenuItem(value: 'edit', child: Text('Edit')),
         if (canManage && canCancel) const PopupMenuItem(value: 'cancel', child: Text('Cancel due')),
         if (canManage) const PopupMenuItem(value: 'delete', child: Text('Delete')),

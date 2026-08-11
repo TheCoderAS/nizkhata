@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../core/format.dart';
@@ -8,6 +9,7 @@ import '../data/models.dart';
 import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
 import '../widgets/common.dart';
+import 'transaction_detail.dart';
 
 const _purposeLabels = <String, String>{
   'loan': 'Loans',
@@ -46,15 +48,35 @@ class ContactDetailScreen extends StatelessWidget {
         ? StatTone.success
         : (position.net < -0.005 ? StatTone.danger : StatTone.neutral);
 
-    final infoBits = [contact.phone, contact.email, contact.address]
-        .where((s) => s != null && s.isNotEmpty)
-        .cast<String>()
-        .toList();
+    final canViewTxns = ws.can('transactions.view');
+
+    // Emails render with their label (e.g. "Personal: a@b.com"); fall back to
+    // the legacy single email when no array is present.
+    final emailBits = contact.emails.isNotEmpty
+        ? contact.emails.map((e) => '${e.label}: ${e.value}').toList()
+        : (contact.email != null && contact.email!.isNotEmpty
+            ? [contact.email!]
+            : <String>[]);
+    final infoBits = [
+      if (contact.phone != null && contact.phone!.isNotEmpty) contact.phone!,
+      ...emailBits,
+      if (contact.address != null && contact.address!.isNotEmpty) contact.address!,
+    ];
 
     return DefaultTabController(
       length: 3,
       child: Scaffold(
-        appBar: AppBar(title: Text(contact.name)),
+        appBar: AppBar(
+          title: Text(contact.name),
+          actions: [
+            if (canViewTxns)
+              IconButton(
+                tooltip: 'Open in Transactions',
+                icon: const Icon(Icons.swap_horiz),
+                onPressed: () => context.push('/transactions?contact=$contactId'),
+              ),
+          ],
+        ),
         body: Column(
           children: [
             Padding(
@@ -145,26 +167,114 @@ class ContactDetailScreen extends StatelessWidget {
     if (txns.isEmpty) {
       return const EmptyView(title: 'No transactions with this contact');
     }
-    return ListView.separated(
+    // Chat-style: oldest -> newest, with a date separator between different days.
+    final ordered = [...txns]..sort((a, b) => a.date.compareTo(b.date));
+    return ListView.builder(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-      itemCount: txns.length,
-      separatorBuilder: (_, __) => const Divider(height: 1),
+      itemCount: ordered.length,
       itemBuilder: (context, i) {
-        final t = txns[i];
-        final account = data.accountsById[t.accountId]?.name ?? '—';
-        return ListTile(
-          contentPadding: const EdgeInsets.symmetric(vertical: 2),
-          title: Text(t.note?.isNotEmpty == true ? t.note! : account),
-          subtitle: Text('${formatDate(t.date)} · $account'),
-          trailing: Text(
-            formatMoney(t.totalAmount, currency),
-            style: TextStyle(
-              fontWeight: FontWeight.w600,
-              color: t.totalAmount < 0 ? AppColors.danger : AppColors.accent2,
+        final t = ordered[i];
+        final day = formatDate(t.date);
+        final showSep = i == 0 || formatDate(ordered[i - 1].date) != day;
+        // Money received (>= 0) reads as incoming -> left; paid out -> right.
+        final incoming = t.totalAmount >= 0;
+        final debtLabels = t.lines
+            .where((l) => l.debtId != null)
+            .map((l) => data.debtsById[l.debtId]?.label)
+            .whereType<String>()
+            .toList();
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (showSep) _dateSeparator(context, day),
+            Align(
+              alignment: incoming ? Alignment.centerLeft : Alignment.centerRight,
+              child: _txnBubble(context, t, currency, incoming, debtLabels),
             ),
-          ),
+          ],
         );
       },
+    );
+  }
+
+  Widget _dateSeparator(BuildContext context, String day) {
+    final cs = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Center(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
+          decoration: BoxDecoration(
+            color: cs.surfaceContainerHighest,
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: Text(
+            day,
+            style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _txnBubble(BuildContext context, Txn t, String currency, bool incoming,
+      List<String> debtLabels) {
+    final cs = Theme.of(context).colorScheme;
+    final amountColor = incoming ? AppColors.accent2 : AppColors.danger;
+    final sign = incoming ? '+' : '−';
+    return ConstrainedBox(
+      constraints: BoxConstraints(
+        maxWidth: MediaQuery.of(context).size.width * 0.78,
+      ),
+      child: Material(
+        color: incoming
+            ? cs.surfaceContainerHigh
+            : cs.primary.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.only(
+          topLeft: Radius.circular(incoming ? 4 : 16),
+          topRight: Radius.circular(incoming ? 16 : 4),
+          bottomLeft: const Radius.circular(16),
+          bottomRight: const Radius.circular(16),
+        ),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () => showTransactionDetail(context, t),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  '$sign${formatMoney(t.totalAmount.abs(), currency)}',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: amountColor,
+                  ),
+                ),
+                if (t.note?.isNotEmpty == true) ...[
+                  const SizedBox(height: 2),
+                  Text(t.note!,
+                      style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant)),
+                ],
+                if (t.lines.isNotEmpty || debtLabels.isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 4,
+                    children: [
+                      for (final l in t.lines.take(3)) _MiniBadge(_lineTypeLabel(l.type)),
+                      for (final label in debtLabels)
+                        _MiniBadge(label, color: AppColors.accent2),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -272,6 +382,48 @@ class ContactDetailScreen extends StatelessWidget {
           ],
         ),
       );
+}
+
+const _lineTypeLabels = <String, String>{
+  'income': 'Income',
+  'expense': 'Expense',
+  'transfer_out': 'Transfer out',
+  'transfer_in': 'Transfer in',
+  'borrow': 'Borrow',
+  'lend': 'Lend',
+  'repayment': 'Repayment',
+  'fee': 'Fee',
+  'interest_income': 'Interest income',
+  'interest_expense': 'Interest expense',
+  'tax': 'Tax',
+};
+
+String _lineTypeLabel(String type) => _lineTypeLabels[type] ?? type;
+
+/// Compact pill used inside chat bubbles for line types / debt labels.
+class _MiniBadge extends StatelessWidget {
+  final String text;
+  final Color? color;
+  const _MiniBadge(this.text, {this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final base = color ?? cs.outlineVariant;
+    final fg = color ?? cs.onSurfaceVariant;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      decoration: BoxDecoration(
+        color: base.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: base.withValues(alpha: 0.4)),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: fg),
+      ),
+    );
+  }
 }
 
 class _Badge extends StatelessWidget {

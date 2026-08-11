@@ -23,8 +23,15 @@ const _kPurposeLabels = <String, String>{
   'shared': 'Shared',
 };
 
-class DebtsScreen extends StatelessWidget {
+class DebtsScreen extends StatefulWidget {
   const DebtsScreen({super.key});
+
+  @override
+  State<DebtsScreen> createState() => _DebtsScreenState();
+}
+
+class _DebtsScreenState extends State<DebtsScreen> {
+  String _search = '';
 
   @override
   Widget build(BuildContext context) {
@@ -36,7 +43,18 @@ class DebtsScreen extends StatelessWidget {
     final canViewContacts = ws.can('contacts.view');
     final canViewTxns = ws.can('transactions.view');
 
-    final visible = data.debts.where((d) => d.purpose != 'shared').toList();
+    final query = _search.trim().toLowerCase();
+    final hasDebts = data.debts.any((d) => d.purpose != 'shared');
+    final visible = data.debts.where((d) {
+      if (d.purpose == 'shared') return false;
+      if (query.isNotEmpty) {
+        final contactName = data.contactsById[d.contactId]?.name ?? '';
+        final purposeLabel = _kPurposeLabels[d.purpose] ?? d.purpose;
+        final hay = '${d.label ?? ''} $contactName $purposeLabel'.toLowerCase();
+        if (!hay.contains(query)) return false;
+      }
+      return true;
+    }).toList();
     var theyOwe = 0.0;
     var youOwe = 0.0;
     for (final d in visible) {
@@ -71,11 +89,26 @@ class DebtsScreen extends StatelessWidget {
                 ],
               ),
             ),
+          if (hasDebts)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+              child: TextField(
+                onChanged: (v) => setState(() => _search = v),
+                decoration: const InputDecoration(
+                  hintText: 'Search debts…',
+                  prefixIcon: Icon(Icons.search, size: 20),
+                  isDense: true,
+                ),
+              ),
+            ),
           Expanded(
             child: visible.isEmpty
-                ? const Padding(
-                    padding: EdgeInsets.only(top: 40),
-                    child: EmptyView(title: 'No debts yet', icon: Icons.credit_card_outlined),
+                ? Padding(
+                    padding: const EdgeInsets.only(top: 40),
+                    child: EmptyView(
+                      title: query.isNotEmpty ? 'No debts match the search' : 'No debts yet',
+                      icon: query.isNotEmpty ? Icons.filter_alt_off : Icons.credit_card_outlined,
+                    ),
                   )
                 : DataTableView<Debt>(
                     tableId: 'debts',
@@ -181,6 +214,9 @@ class _DebtMenu extends StatelessWidget {
           case 'contact':
             if (hasContact) context.push('/contacts/${debt.contactId}');
             break;
+          case 'txns':
+            if (hasContact) context.push('/transactions?contact=${debt.contactId}');
+            break;
           case 'edit':
             showDebtForm(context, existing: debt);
             break;
@@ -192,6 +228,7 @@ class _DebtMenu extends StatelessWidget {
       itemBuilder: (_) => [
         if (canTxn && settleable) PopupMenuItem(value: 'settle', child: Text(settleLabel)),
         if (canViewContacts && hasContact) const PopupMenuItem(value: 'contact', child: Text('View contact')),
+        if (canViewTxns && hasContact) const PopupMenuItem(value: 'txns', child: Text('View transactions')),
         if (canManage) const PopupMenuItem(value: 'edit', child: Text('Edit')),
         if (canManage) const PopupMenuItem(value: 'delete', child: Text('Delete')),
       ],

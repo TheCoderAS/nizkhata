@@ -6,6 +6,7 @@ import '../data/derive.dart';
 import '../data/models.dart';
 import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
+import 'due_form.dart';
 
 /// Read-only detail sheet for a due. Shows direction, status, amounts and the
 /// linked payment transactions. Mirrors the web DueDetail dialog.
@@ -30,6 +31,7 @@ class _DueDetail extends StatelessWidget {
     final data = context.watch<DataController>();
     final ws = context.watch<WorkspaceController>();
     final currency = ws.activeWorkspace?.baseCurrency ?? 'INR';
+    final canManage = ws.can('dues.manage');
     final settled = data.settledOf(due.id);
     final status = dueStatusFromSettled(due, settled);
     final remaining = due.amount - settled;
@@ -45,7 +47,23 @@ class _DueDetail extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(due.title, style: Theme.of(context).textTheme.titleLarge),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(due.title, style: Theme.of(context).textTheme.titleLarge),
+                ),
+                if (canManage)
+                  TextButton.icon(
+                    onPressed: () {
+                      final nav = Navigator.of(context);
+                      nav.pop();
+                      showDueForm(nav.context, existing: due);
+                    },
+                    icon: const Icon(Icons.edit, size: 18),
+                    label: const Text('Edit'),
+                  ),
+              ],
+            ),
             const SizedBox(height: 16),
             _row(context, 'Direction', due.direction == 'receivable' ? 'Receivable' : 'Payable'),
             _row(context, 'Status', status),

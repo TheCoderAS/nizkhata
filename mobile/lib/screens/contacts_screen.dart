@@ -36,6 +36,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
     final ws = context.watch<WorkspaceController>();
     final currency = ws.activeWorkspace?.baseCurrency ?? 'INR';
     final canManage = ws.can('contacts.manage');
+    final canViewTxns = ws.can('transactions.view');
     final query = _search.trim().toLowerCase();
     final contacts = data.contacts
         .where((c) => c.connectionUid == null && c.name.toLowerCase().contains(query))
@@ -92,15 +93,24 @@ class _ContactsScreenState extends State<ContactsScreen> {
                     tableId: 'contacts',
                     rows: contacts,
                     onRowTap: (c) => context.push('/contacts/${c.id}'),
-                    trailing: canManage
+                    trailing: (canManage || canViewTxns)
                         ? (c) => PopupMenuButton<String>(
                               onSelected: (v) {
+                                if (v == 'transactions') {
+                                  context.push('/transactions?contact=${c.id}');
+                                }
                                 if (v == 'edit') showContactForm(context, existing: c);
                                 if (v == 'delete') _confirmDelete(context, c);
                               },
-                              itemBuilder: (_) => const [
-                                PopupMenuItem(value: 'edit', child: Text('Edit')),
-                                PopupMenuItem(value: 'delete', child: Text('Delete')),
+                              itemBuilder: (_) => [
+                                if (canViewTxns)
+                                  const PopupMenuItem(
+                                      value: 'transactions',
+                                      child: Text('View transactions')),
+                                if (canManage) ...const [
+                                  PopupMenuItem(value: 'edit', child: Text('Edit')),
+                                  PopupMenuItem(value: 'delete', child: Text('Delete')),
+                                ],
                               ],
                             )
                         : null,

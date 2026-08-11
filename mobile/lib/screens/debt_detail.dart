@@ -5,6 +5,7 @@ import '../core/format.dart';
 import '../data/models.dart';
 import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
+import 'debt_form.dart';
 
 const _kPurposeLabels = <String, String>{
   'loan': 'Loan',
@@ -40,6 +41,7 @@ class _DebtDetail extends StatelessWidget {
     final data = context.watch<DataController>();
     final ws = context.watch<WorkspaceController>();
     final currency = ws.activeWorkspace?.baseCurrency ?? 'INR';
+    final canManage = ws.can('debts.manage');
     final outstanding = data.outstandingOf(debt.id);
     final contactName = data.contactsById[debt.contactId]?.name ?? '—';
     final title = debt.label ?? contactName;
@@ -55,7 +57,23 @@ class _DebtDetail extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(title, style: Theme.of(context).textTheme.titleLarge),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(title, style: Theme.of(context).textTheme.titleLarge),
+                ),
+                if (canManage)
+                  TextButton.icon(
+                    onPressed: () {
+                      final nav = Navigator.of(context);
+                      nav.pop();
+                      showDebtForm(nav.context, existing: debt);
+                    },
+                    icon: const Icon(Icons.edit, size: 18),
+                    label: const Text('Edit'),
+                  ),
+              ],
+            ),
             const SizedBox(height: 16),
             _row(context, 'Contact', contactName),
             _row(context, 'Direction', debt.direction == 'owed' ? 'They owe you' : 'You owe them'),

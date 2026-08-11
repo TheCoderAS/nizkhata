@@ -14,14 +14,14 @@ import '../state/workspace_controller.dart';
 /// a header (date / account / contact / note) plus a dynamic list of typed
 /// lines. The signed header total and validation are derived from the same
 /// primitives as the web app (computeTotal + the txn.ts rules).
-Future<void> showSplitTransactionForm(BuildContext context) {
+Future<void> showSplitTransactionForm(BuildContext context, {Txn? existing}) {
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     showDragHandle: true,
     builder: (_) => Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-      child: const _SplitTransactionForm(),
+      child: _SplitTransactionForm(existing: existing),
     ),
   );
 }
@@ -55,17 +55,70 @@ bool _needsToAccount(String type) => type == 'transfer_in';
 
 bool _needsDebt(String type) => type == 'borrow' || type == 'lend' || type == 'repayment';
 
+/// Line types that may carry a tax block (mirrors CAN_TAX in the web form).
+bool _canTax(String type) => type == 'income' || type == 'interest_income';
+
+/// Render a stored amount into an editable text field (drops a trailing `.0`).
+String _amountText(double v) {
+  if (v == 0) return '';
+  return v == v.roundToDouble() ? v.toInt().toString() : v.toString();
+}
+
+/// Tax head keys + labels, in display order (mirrors src/lib/taxHeads.ts).
+const _kTaxHeads = <String, String>{
+  'salary': 'Salary',
+  'bonus': 'Bonus',
+  'overtime': 'Overtime',
+  'reimbursement': 'Reimbursement',
+  'perquisite': 'Perquisite',
+  'commission': 'Commission',
+  'professional_fees': 'Professional fees',
+  'rent': 'Rent',
+  'interest': 'Interest',
+  'dividend': 'Dividend',
+  'capital_gains': 'Capital gains',
+  'business': 'Business / profession',
+  'other': 'Other',
+  'exempt': 'Exempt',
+};
+
 class _LineRow {
   String type;
   final TextEditingController amount = TextEditingController();
   String? categoryId;
   String? toAccountId;
   String? debtId;
-  _LineRow({this.type = 'expense'});
+  // Preserved line id when editing an existing transaction (null for new lines).
+  String? lineId;
+  // Per-line tax entry (only meaningful for income / interest_income lines).
+  bool taxable = false;
+  String taxHead = 'other';
+  final TextEditingController tds = TextEditingController();
+  bool taxInclusive = false;
+  _LineRow({this.type = 'expense', this.lineId});
+
+  factory _LineRow.fromLine(TxnLine l) {
+    final row = _LineRow(type: l.type, lineId: l.lineId);
+    row.amount.text = _amountText(l.amount);
+    row.categoryId = l.categoryId;
+    row.toAccountId = l.toAccountId;
+    row.debtId = l.debtId;
+    final tax = l.tax;
+    if (tax != null) {
+      row.taxable = tax['taxable'] == true;
+      final h = tax['head'];
+      if (h is String && h.isNotEmpty) row.taxHead = h;
+      final tdsAmt = tax['tdsAmount'];
+      if (tdsAmt is num && tdsAmt != 0) row.tds.text = _amountText(tdsAmt.toDouble());
+      row.taxInclusive = tax['taxInclusive'] == true;
+    }
+    return row;
+  }
 }
 
 class _SplitTransactionForm extends StatefulWidget {
-  const _SplitTransactionForm();
+  final Txn? existing;
+  const _SplitTransactionForm({this.existing});
   @override
   State<_SplitTransactionForm> createState() => _SplitTransactionFormState();
 }
@@ -75,14 +128,33 @@ class _SplitTransactionFormState extends State<_SplitTransactionForm> {
   String? _accountId;
   String? _contactId;
   final _note = TextEditingController();
-  final List<_LineRow> _lines = [_LineRow(type: 'expense'), _LineRow(type: 'income')];
+  late final List<_LineRow> _lines;
   bool _busy = false;
+
+  bool get _isEditing => widget.existing != null;
+
+  @override
+  void initState() {
+    super.initState();
+    final txn = widget.existing;
+    if (txn != null) {
+      _date = txn.date;
+      _accountId = txn.accountId;
+      _contactId = txn.contactId;
+      _note.text = txn.note ?? '';
+      _lines = [for (final l in txn.lines) _LineRow.fromLine(l)];
+      if (_lines.isEmpty) _lines.add(_LineRow(type: 'expense'));
+    } else {
+      _lines = [_LineRow(type: 'expense'), _LineRow(type: 'income')];
+    }
+  }
 
   @override
   void dispose() {
     _note.dispose();
     for (final l in _lines) {
       l.amount.dispose();
+      l.tds.dispose();
     }
     super.dispose();
   }
@@ -92,11 +164,25 @@ class _SplitTransactionFormState extends State<_SplitTransactionForm> {
   void _removeLine(int i) {
     if (_lines.length <= 1) return;
     setState(() {
-      _lines.removeAt(i).amount.dispose();
+      final removed = _lines.removeAt(i);
+      removed.amount.dispose();
+      removed.tds.dispose();
     });
   }
 
   double _amountOf(_LineRow r) => double.tryParse(r.amount.text.trim()) ?? 0;
+
+  /// Build the {taxable, head, tdsAmount, taxInclusive} map for a line, or null
+  /// when the line can't/doesn't carry tax. Mirrors the web TaxBlock output.
+  Map<String, dynamic>? _taxOf(_LineRow r) {
+    if (!_canTax(r.type) || !r.taxable) return null;
+    return {
+      'taxable': true,
+      'head': r.taxHead,
+      'tdsAmount': double.tryParse(r.tds.text.trim()) ?? 0,
+      'taxInclusive': r.taxInclusive,
+    };
+  }
 
   /// Build the engine's TxnLine objects from the current rows so we can call
   /// computeTotal / the validation rules against the same primitives as the web.
@@ -111,6 +197,7 @@ class _SplitTransactionFormState extends State<_SplitTransactionForm> {
         categoryId: _needsCategory(r.type) ? r.categoryId : null,
         toAccountId: _needsToAccount(r.type) ? r.toAccountId : null,
         debtId: _needsDebt(r.type) ? r.debtId : null,
+        tax: _taxOf(r),
       ));
     }
     return out;
@@ -159,13 +246,15 @@ class _SplitTransactionFormState extends State<_SplitTransactionForm> {
     final lines = <Map<String, dynamic>>[];
     for (var i = 0; i < _lines.length; i++) {
       final r = _lines[i];
+      final tax = _taxOf(r);
       lines.add({
-        'lineId': 'l${i}_$micros',
+        'lineId': r.lineId ?? 'l${i}_$micros',
         'type': r.type,
         'amount': _amountOf(r),
         if (_needsCategory(r.type)) 'categoryId': r.categoryId,
         if (_needsToAccount(r.type)) 'toAccountId': r.toAccountId,
         if (_needsDebt(r.type)) 'debtId': r.debtId,
+        if (tax != null) 'tax': tax,
       });
     }
 
@@ -186,19 +275,34 @@ class _SplitTransactionFormState extends State<_SplitTransactionForm> {
     try {
       final m = Mutations(Actor.fromUser(user));
       final note = _note.text.trim().isEmpty ? null : _note.text.trim();
-      await m.createTransaction(
-        ws,
-        date: _date,
-        note: note,
-        accountId: _accountId!,
-        contactId: contactId,
-        totalAmount: total,
-        financialYear: financialYearOf(_date, fyStart),
-        lines: lines,
-      );
+      if (widget.existing != null) {
+        await m.updateTransaction(
+          ws,
+          widget.existing!.id,
+          date: _date,
+          note: note,
+          accountId: _accountId!,
+          contactId: contactId,
+          totalAmount: total,
+          financialYear: financialYearOf(_date, fyStart),
+          lines: lines,
+        );
+      } else {
+        await m.createTransaction(
+          ws,
+          date: _date,
+          note: note,
+          accountId: _accountId!,
+          contactId: contactId,
+          totalAmount: total,
+          financialYear: financialYearOf(_date, fyStart),
+          lines: lines,
+        );
+      }
       if (mounted) {
         Navigator.of(context).pop();
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Transaction added')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(_isEditing ? 'Transaction updated' : 'Transaction added')));
       }
     } catch (e) {
       if (mounted) {
@@ -228,7 +332,8 @@ class _SplitTransactionFormState extends State<_SplitTransactionForm> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Split transaction', style: Theme.of(context).textTheme.titleLarge),
+            Text(_isEditing ? 'Edit split transaction' : 'Split transaction',
+                style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 16),
             // Date
             InkWell(
@@ -415,8 +520,76 @@ class _SplitTransactionFormState extends State<_SplitTransactionForm> {
                       style: TextStyle(fontSize: 12, color: Colors.orange)),
                 ),
             ],
+            if (_canTax(r.type)) ...[
+              const SizedBox(height: 8),
+              _taxBlock(i),
+            ],
           ],
         ),
+      ),
+    );
+  }
+
+  /// Compact per-line tax entry for income / interest_income lines. Mirrors the
+  /// web TaxBlock: a "Tax info" toggle that reveals head / TDS / tax-inclusive.
+  Widget _taxBlock(int i) {
+    final r = _lines[i];
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: cs.surfaceContainerHigh.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Checkbox(
+                value: r.taxable,
+                visualDensity: VisualDensity.compact,
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                onChanged: (v) => setState(() => r.taxable = v ?? false),
+              ),
+              const Text('Tax info', style: TextStyle(fontSize: 13)),
+            ],
+          ),
+          if (r.taxable) ...[
+            const SizedBox(height: 4),
+            DropdownButtonFormField<String>(
+              value: r.taxHead,
+              isDense: true,
+              decoration: const InputDecoration(labelText: 'Head'),
+              items: [
+                for (final e in _kTaxHeads.entries)
+                  DropdownMenuItem(value: e.key, child: Text(e.value)),
+              ],
+              onChanged: (v) => setState(() => r.taxHead = v ?? 'other'),
+            ),
+            const SizedBox(height: 8),
+            TextFormField(
+              controller: r.tds,
+              decoration: const InputDecoration(labelText: 'TDS', prefixText: '₹ '),
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            ),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                Checkbox(
+                  value: r.taxInclusive,
+                  visualDensity: VisualDensity.compact,
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  onChanged: (v) => setState(() => r.taxInclusive = v ?? false),
+                ),
+                const Expanded(
+                  child: Text('Amount is tax-inclusive', style: TextStyle(fontSize: 13)),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+          ],
+        ],
       ),
     );
   }

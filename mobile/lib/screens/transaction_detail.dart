@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../core/format.dart';
@@ -8,6 +9,7 @@ import '../data/mutations.dart';
 import '../state/auth_controller.dart';
 import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
+import 'split_transaction_form.dart';
 import 'transaction_form.dart';
 
 /// Read-only detail sheet for a transaction. Lists each line and the total,
@@ -67,7 +69,9 @@ class _TransactionDetail extends StatelessWidget {
             _row(context, 'Date', formatDate(txn.date)),
             _row(context, 'Account', account),
             if (contact != null) _row(context, 'Contact', contact),
+            _row(context, 'Financial year', txn.financialYear),
             if (txn.note?.isNotEmpty == true) _row(context, 'Note', txn.note!),
+            _linkedRow(context, data),
             const SizedBox(height: 12),
             const Divider(height: 1),
             const SizedBox(height: 12),
@@ -92,18 +96,22 @@ class _TransactionDetail extends StatelessWidget {
             const SizedBox(height: 20),
             Row(
               children: [
-                if (canEdit && txn.lines.length == 1)
+                if (canEdit)
                   Expanded(
                     child: FilledButton.tonalIcon(
                       onPressed: () {
                         Navigator.of(context).pop();
-                        showTransactionForm(context, existing: txn);
+                        if (txn.lines.length == 1) {
+                          showTransactionForm(context, existing: txn);
+                        } else {
+                          showSplitTransactionForm(context, existing: txn);
+                        }
                       },
                       icon: const Icon(Icons.edit_outlined),
                       label: const Text('Edit'),
                     ),
                   ),
-                if (canEdit && txn.lines.length == 1 && canDelete) const SizedBox(width: 12),
+                if (canEdit && canDelete) const SizedBox(width: 12),
                 if (canDelete)
                   Expanded(
                     child: FilledButton.icon(
@@ -117,6 +125,69 @@ class _TransactionDetail extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  /// "Linked to" chips: a linked due (→ /dues) and any debts referenced by the
+  /// lines (→ /debts). Mirrors the web detail's linked-entity navigation.
+  Widget _linkedRow(BuildContext context, DataController data) {
+    final cs = Theme.of(context).colorScheme;
+    final chips = <Widget>[];
+
+    if (txn.dueId != null) {
+      Due? due;
+      for (final d in data.dues) {
+        if (d.id == txn.dueId) {
+          due = d;
+          break;
+        }
+      }
+      chips.add(_linkChip(
+        context,
+        'Due · ${due?.title ?? '—'}',
+        () => context.push('/dues'),
+      ));
+    }
+    final debtIds = <String>{
+      for (final l in txn.lines)
+        if (l.debtId != null) l.debtId!,
+    };
+    for (final id in debtIds) {
+      final debt = data.debtsById[id];
+      final label = debt?.label ?? (debt != null ? data.contactsById[debt.contactId]?.name : null) ?? '—';
+      chips.add(_linkChip(context, 'Debt · $label', () => context.push('/debts')));
+    }
+
+    if (chips.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(width: 90, child: Text('Linked to', style: TextStyle(color: cs.onSurfaceVariant))),
+          Expanded(child: Wrap(spacing: 6, runSpacing: 6, children: chips)),
+        ],
+      ),
+    );
+  }
+
+  Widget _linkChip(BuildContext context, String label, VoidCallback onTap) {
+    final cs = Theme.of(context).colorScheme;
+    return InkWell(
+      borderRadius: BorderRadius.circular(8),
+      onTap: () {
+        Navigator.of(context).pop(); // close the detail sheet before navigating
+        onTap();
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: cs.secondaryContainer,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Text(label,
+            style: TextStyle(fontSize: 12, color: cs.onSecondaryContainer)),
       ),
     );
   }
@@ -143,7 +214,12 @@ class _TransactionDetail extends StatelessWidget {
     } else if (line.debtId != null) {
       final debt = data.debtsById[line.debtId];
       detail = debt?.label ?? (debt != null ? data.contactsById[debt.contactId]?.name : null);
+    } else if (line.toAccountId != null) {
+      // transfer_in carries the counter (destination) account.
+      final to = data.accountsById[line.toAccountId]?.name;
+      if (to != null) detail = '→ $to';
     }
+    final isTaxable = line.tax?['taxable'] == true;
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Row(
@@ -153,7 +229,19 @@ class _TransactionDetail extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(_lineLabel(line.type)),
+                Row(
+                  children: [
+                    Flexible(child: Text(_lineLabel(line.type))),
+                    if (line.external) ...[
+                      const SizedBox(width: 6),
+                      _badge(context, 'external'),
+                    ],
+                    if (isTaxable) ...[
+                      const SizedBox(width: 6),
+                      _badge(context, 'tax'),
+                    ],
+                  ],
+                ),
                 if (detail != null)
                   Text(detail, style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
               ],
@@ -163,6 +251,20 @@ class _TransactionDetail extends StatelessWidget {
               style: const TextStyle(fontWeight: FontWeight.w600)),
         ],
       ),
+    );
+  }
+
+  Widget _badge(BuildContext context, String label) {
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+      decoration: BoxDecoration(
+        color: cs.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: cs.outlineVariant),
+      ),
+      child: Text(label,
+          style: TextStyle(fontSize: 10, color: cs.onSurfaceVariant, fontWeight: FontWeight.w500)),
     );
   }
 }
