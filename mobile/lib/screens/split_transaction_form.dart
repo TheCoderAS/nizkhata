@@ -329,14 +329,17 @@ class _SplitTransactionFormState extends State<_SplitTransactionForm> {
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
-      child: SingleChildScrollView(
-        child: Column(
+      child: SafeArea(
+        top: false,
+        child: SingleChildScrollView(
+          child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(_isEditing ? 'Edit split transaction' : 'Split transaction',
                 style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 16),
+            _sectionLabel('Details'),
             // Date
             InkWell(
               onTap: () async {
@@ -353,7 +356,7 @@ class _SplitTransactionFormState extends State<_SplitTransactionForm> {
                 child: Text(formatDate(_date)),
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 14),
             DropdownButtonFormField<String>(
               // Guard stale ids (deleted account) → null, else the form blanks.
               value: accounts.any((a) => a.id == _accountId) ? _accountId : null,
@@ -361,7 +364,7 @@ class _SplitTransactionFormState extends State<_SplitTransactionForm> {
               items: [for (final a in accounts) DropdownMenuItem(value: a.id, child: Text(a.name))],
               onChanged: (v) => setState(() => _accountId = v),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 14),
             DropdownButtonFormField<String>(
               value: contacts.any((c) => c.id == _contactId) ? _contactId : null,
               decoration: const InputDecoration(labelText: 'Contact (optional)'),
@@ -371,7 +374,7 @@ class _SplitTransactionFormState extends State<_SplitTransactionForm> {
               ],
               onChanged: (v) => setState(() => _contactId = v),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 14),
             TextFormField(
               controller: _note,
               decoration: const InputDecoration(labelText: 'Note (optional)'),
@@ -380,7 +383,7 @@ class _SplitTransactionFormState extends State<_SplitTransactionForm> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('Lines', style: Theme.of(context).textTheme.titleMedium),
+                Text('Lines'.toUpperCase(), style: _sectionLabelStyle),
                 TextButton.icon(
                   onPressed: _addLine,
                   icon: const Icon(Icons.add, size: 18),
@@ -390,7 +393,7 @@ class _SplitTransactionFormState extends State<_SplitTransactionForm> {
             ),
             const SizedBox(height: 4),
             for (var i = 0; i < _lines.length; i++) _lineCard(i, data, accounts, debts),
-            const SizedBox(height: 12),
+            const SizedBox(height: 14),
             // Live computed total.
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -432,10 +435,24 @@ class _SplitTransactionFormState extends State<_SplitTransactionForm> {
               ),
             ),
           ],
+          ),
         ),
       ),
     );
   }
+
+  /// Muted, spaced-out label for grouping a set of related fields.
+  TextStyle? get _sectionLabelStyle => Theme.of(context).textTheme.titleSmall?.copyWith(
+        fontSize: 12,
+        letterSpacing: 0.4,
+        fontWeight: FontWeight.w600,
+        color: Theme.of(context).colorScheme.onSurfaceVariant,
+      );
+
+  Widget _sectionLabel(String text) => Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Text(text.toUpperCase(), style: _sectionLabelStyle),
+      );
 
   Widget _lineCard(int i, DataController data, List<Account> accounts, List<Debt> debts) {
     final r = _lines[i];

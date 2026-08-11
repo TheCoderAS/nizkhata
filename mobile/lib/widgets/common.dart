@@ -14,6 +14,10 @@ class StatCard extends StatelessWidget {
   final String? hint;
   final IconData? icon;
   final StatTone tone;
+
+  /// Optional inline chart (e.g. a sparkline) rendered INSIDE the card, below
+  /// the value — so trend graphs sit within the card, not floating beneath it.
+  final Widget? chart;
   const StatCard({
     super.key,
     required this.label,
@@ -22,6 +26,7 @@ class StatCard extends StatelessWidget {
     this.hint,
     this.icon,
     this.tone = StatTone.neutral,
+    this.chart,
   });
 
   @override
@@ -84,6 +89,10 @@ class StatCard extends StatelessWidget {
               const SizedBox(height: 4),
               Text(hint!, style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant)),
             ],
+            if (chart != null) ...[
+              const SizedBox(height: 10),
+              SizedBox(height: 30, child: chart),
+            ],
           ],
         ),
       ),
@@ -123,10 +132,12 @@ class SectionCard extends StatelessWidget {
   final String title;
   final Widget child;
   final Widget? trailing;
-  const SectionCard({super.key, required this.title, required this.child, this.trailing});
+  final IconData? icon;
+  const SectionCard({super.key, required this.title, required this.child, this.trailing, this.icon});
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -136,7 +147,21 @@ class SectionCard extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                Expanded(
+                  child: Row(
+                    children: [
+                      if (icon != null) ...[
+                        Icon(icon, size: 17, color: cs.primary),
+                        const SizedBox(width: 8),
+                      ],
+                      Flexible(
+                        child: Text(title,
+                            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                            overflow: TextOverflow.ellipsis),
+                      ),
+                    ],
+                  ),
+                ),
                 if (trailing != null) trailing!,
               ],
             ),

@@ -82,7 +82,8 @@ class _BudgetFormState extends State<_BudgetForm> {
         : expenseCats.where((c) => !budgetedIds.contains(c.id)).toList();
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
+      padding: EdgeInsets.fromLTRB(
+          20, 4, 20, 20 + MediaQuery.of(context).padding.bottom),
       child: SingleChildScrollView(
         child: Form(
           key: _formKey,
@@ -116,7 +117,7 @@ class _BudgetFormState extends State<_BudgetForm> {
                 onChanged: editing ? null : (v) => setState(() => _categoryId = v),
                 validator: (v) => (v == null || v.isEmpty) ? 'Category is required' : null,
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
               SegmentedButton<String>(
                 segments: const [
                   ButtonSegment(value: 'monthly', label: Text('Monthly')),
@@ -125,7 +126,7 @@ class _BudgetFormState extends State<_BudgetForm> {
                 selected: {_period},
                 onSelectionChanged: (s) => setState(() => _period = s.first),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
               TextFormField(
                 controller: _amount,
                 decoration: InputDecoration(labelText: _period == 'yearly' ? 'Yearly limit' : 'Monthly limit'),

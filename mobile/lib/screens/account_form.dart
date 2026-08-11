@@ -100,10 +100,24 @@ class _AccountFormState extends State<_AccountForm> {
     }
   }
 
+  Widget _sectionLabel(String text) => Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: Text(
+          text.toUpperCase(),
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.4,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
+      );
+
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
+      padding: EdgeInsets.fromLTRB(
+          20, 4, 20, 20 + MediaQuery.of(context).padding.bottom),
       child: SingleChildScrollView(
         child: Form(
           key: _formKey,
@@ -113,13 +127,14 @@ class _AccountFormState extends State<_AccountForm> {
             children: [
               Text(widget.existing == null ? 'New account' : 'Edit account',
                   style: Theme.of(context).textTheme.titleLarge),
-              const SizedBox(height: 16),
+              const SizedBox(height: 20),
+              _sectionLabel('Account'),
               TextFormField(
                 controller: _name,
                 decoration: const InputDecoration(labelText: 'Name'),
                 validator: (v) => (v == null || v.trim().isEmpty) ? 'Name is required' : null,
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
               DropdownButtonFormField<String>(
                 value: _type,
                 decoration: const InputDecoration(labelText: 'Type'),
@@ -130,43 +145,45 @@ class _AccountFormState extends State<_AccountForm> {
                 ],
                 onChanged: (v) => setState(() => _type = v ?? 'bank'),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
               TextFormField(
                 controller: _opening,
                 decoration: const InputDecoration(labelText: 'Opening balance'),
                 keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
               TextFormField(
                 controller: _code,
                 decoration: const InputDecoration(labelText: 'Code / nickname (optional)'),
               ),
               if (_type == 'bank') ...[
-                const SizedBox(height: 12),
+                const SizedBox(height: 22),
+                _sectionLabel('Bank details'),
                 TextFormField(controller: _accountNumber, decoration: const InputDecoration(labelText: 'Account number')),
-                const SizedBox(height: 12),
+                const SizedBox(height: 14),
                 TextFormField(controller: _cif, decoration: const InputDecoration(labelText: 'CIF')),
-                const SizedBox(height: 12),
+                const SizedBox(height: 14),
                 TextFormField(
                   controller: _ifsc,
                   decoration: const InputDecoration(labelText: 'IFSC'),
                   textCapitalization: TextCapitalization.characters,
                   inputFormatters: [UpperCaseTextFormatter()],
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 14),
                 TextFormField(controller: _branchName, decoration: const InputDecoration(labelText: 'Branch')),
               ],
               if (_type == 'credit_card') ...[
-                const SizedBox(height: 12),
+                const SizedBox(height: 22),
+                _sectionLabel('Card details'),
                 TextFormField(controller: _nameOnCard, decoration: const InputDecoration(labelText: 'Name on card')),
-                const SizedBox(height: 12),
+                const SizedBox(height: 14),
                 TextFormField(
                   controller: _cardLast4,
                   decoration: const InputDecoration(labelText: 'Card last 4'),
                   keyboardType: TextInputType.number,
                   maxLength: 4,
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 14),
                 TextFormField(
                   controller: _cardExpiry,
                   decoration: const InputDecoration(labelText: 'Expiry (MM/YY)'),
@@ -183,7 +200,8 @@ class _AccountFormState extends State<_AccountForm> {
                   ),
                 ),
               ],
-              const SizedBox(height: 12),
+              const SizedBox(height: 22),
+              _sectionLabel('Notes'),
               TextFormField(
                 controller: _description,
                 decoration: const InputDecoration(labelText: 'Notes (optional)'),

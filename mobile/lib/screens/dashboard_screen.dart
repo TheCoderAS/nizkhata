@@ -83,57 +83,69 @@ class _DashboardScreenState extends State<DashboardScreen> {
         const SizedBox(height: 12),
         _NetWorthHero(current: current, delta: delta, pct: nwPct, series: nwSeries, currency: currency),
         const SizedBox(height: 12),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: _trendStat(
-                label: 'Income',
-                amount: trend.income,
-                currency: currency,
-                tone: StatTone.success,
-                icon: Icons.arrow_upward,
-                spark: [for (final b in trend.buckets) b.income],
-                sparkColor: AppColors.accent2,
+        IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                child: _trendStat(
+                  label: 'Income',
+                  amount: trend.income,
+                  currency: currency,
+                  tone: StatTone.success,
+                  icon: Icons.arrow_upward,
+                  spark: [for (final b in trend.buckets) b.income],
+                  sparkColor: AppColors.accent2,
+                ),
               ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _trendStat(
-                label: 'Expense',
-                amount: trend.expense,
-                currency: currency,
-                tone: StatTone.danger,
-                icon: Icons.arrow_downward,
-                spark: [for (final b in trend.buckets) b.expense],
-                sparkColor: AppColors.danger,
+              const SizedBox(width: 12),
+              Expanded(
+                child: _trendStat(
+                  label: 'Expense',
+                  amount: trend.expense,
+                  currency: currency,
+                  tone: StatTone.danger,
+                  icon: Icons.arrow_downward,
+                  spark: [for (final b in trend.buckets) b.expense],
+                  sparkColor: AppColors.danger,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
         const SizedBox(height: 12),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: _trendStat(
-                label: 'Net',
-                amount: trend.net,
-                currency: currency,
-                tone: trend.net >= 0 ? StatTone.success : StatTone.danger,
-                spark: [for (final b in trend.buckets) b.net],
-                sparkColor: trend.net >= 0 ? AppColors.accent2 : AppColors.danger,
+        IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                child: _trendStat(
+                  label: 'Net',
+                  amount: trend.net,
+                  currency: currency,
+                  tone: trend.net >= 0 ? StatTone.success : StatTone.danger,
+                  spark: [for (final b in trend.buckets) b.net],
+                  sparkColor: trend.net >= 0 ? AppColors.accent2 : AppColors.danger,
+                ),
               ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(child: StatCard(label: 'In accounts', amount: totalInAccounts, currency: currency, icon: Icons.account_balance_wallet_outlined)),
-          ],
+              const SizedBox(width: 12),
+              Expanded(
+                child: StatCard(
+                  label: 'In accounts',
+                  amount: totalInAccounts,
+                  currency: currency,
+                  icon: Icons.account_balance_wallet_outlined,
+                ),
+              ),
+            ],
+          ),
         ),
         const SizedBox(height: 12),
         StatCard(label: 'Held for others (Custodial)', amount: held, currency: currency, icon: Icons.people_outline),
         const SizedBox(height: 12),
         SectionCard(
           title: 'Upcoming dues',
+          icon: Icons.event_note_outlined,
           trailing: _seeAll('/dues'),
           child: upcomingTop.isEmpty
               ? Text('Nothing due.', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant))
@@ -147,6 +159,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         if (budgetRows.isNotEmpty) ...[
           SectionCard(
             title: 'Budgets',
+            icon: Icons.pie_chart_outline,
             trailing: _seeAll('/budgets'),
             child: Column(
               children: [
@@ -158,6 +171,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ],
         SectionCard(
           title: 'Spend by category',
+          icon: Icons.donut_small_outlined,
           trailing: _seeAll('/reports'),
           child: topSpend.isEmpty
               ? Text('No spend recorded.', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant))
@@ -176,6 +190,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         const SizedBox(height: 12),
         SectionCard(
           title: 'Recent transactions',
+          icon: Icons.receipt_long_outlined,
           trailing: _seeAll('/transactions'),
           child: recentTop.isEmpty
               ? Text('No transactions yet.', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant))
@@ -305,20 +320,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
     required Color sparkColor,
     IconData? icon,
   }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        StatCard(label: label, amount: amount, currency: currency, tone: tone, icon: icon),
-        const SizedBox(height: 6),
-        _sparkline(spark, sparkColor),
-      ],
+    return StatCard(
+      label: label,
+      amount: amount,
+      currency: currency,
+      tone: tone,
+      icon: icon,
+      chart: _sparkline(spark, sparkColor),
     );
   }
 
   Widget _sparkline(List<double> values, Color color) {
-    if (values.length < 2) return const SizedBox(height: 28);
+    if (values.length < 2) return const SizedBox.shrink();
     return SizedBox(
-      height: 28,
+      height: 30,
       child: LineChart(
         LineChartData(
           gridData: const FlGridData(show: false),

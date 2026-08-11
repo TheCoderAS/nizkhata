@@ -109,6 +109,19 @@ class _DebtFormState extends State<_DebtForm> {
     }
   }
 
+  Widget _sectionLabel(String text) => Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: Text(
+          text.toUpperCase(),
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.4,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
+      );
+
   @override
   Widget build(BuildContext context) {
     final data = context.watch<DataController>();
@@ -116,7 +129,8 @@ class _DebtFormState extends State<_DebtForm> {
     final accounts = data.accounts;
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
+      padding: EdgeInsets.fromLTRB(
+          20, 4, 20, 20 + MediaQuery.of(context).padding.bottom),
       child: SingleChildScrollView(
         child: Form(
           key: _formKey,
@@ -126,7 +140,8 @@ class _DebtFormState extends State<_DebtForm> {
             children: [
               Text(_isEdit ? 'Edit debt' : 'New debt',
                   style: Theme.of(context).textTheme.titleLarge),
-              const SizedBox(height: 16),
+              const SizedBox(height: 20),
+              _sectionLabel('Terms'),
               DropdownButtonFormField<String>(
                 value: _contactId,
                 decoration: const InputDecoration(labelText: 'Contact'),
@@ -134,7 +149,7 @@ class _DebtFormState extends State<_DebtForm> {
                 onChanged: _isEdit ? null : (v) => setState(() => _contactId = v),
                 validator: (v) => v == null ? 'Pick a contact' : null,
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
               DropdownButtonFormField<String>(
                 value: _direction,
                 decoration: const InputDecoration(labelText: 'Direction'),
@@ -144,7 +159,7 @@ class _DebtFormState extends State<_DebtForm> {
                 ],
                 onChanged: _isEdit ? null : (v) => setState(() => _direction = v ?? 'owe'),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
               DropdownButtonFormField<String>(
                 value: _purpose,
                 decoration: const InputDecoration(labelText: 'Purpose'),
@@ -154,19 +169,20 @@ class _DebtFormState extends State<_DebtForm> {
                 ],
                 onChanged: _isEdit ? null : (v) => setState(() => _purpose = v ?? 'loan'),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 22),
+              _sectionLabel('Amount & notes'),
               TextFormField(
                 controller: _label,
                 decoration: const InputDecoration(labelText: 'Label'),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
               TextFormField(
                 controller: _opening,
                 decoration: const InputDecoration(labelText: 'Opening amount', prefixText: '₹ '),
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
               ),
               if (_isEdit) ...[
-                const SizedBox(height: 12),
+                const SizedBox(height: 14),
                 DropdownButtonFormField<String>(
                   value: _status,
                   decoration: const InputDecoration(labelText: 'Status'),
@@ -177,7 +193,7 @@ class _DebtFormState extends State<_DebtForm> {
                   onChanged: (v) => setState(() => _status = v ?? 'open'),
                 ),
               ] else ...[
-                const SizedBox(height: 12),
+                const SizedBox(height: 14),
                 DropdownButtonFormField<String>(
                   value: _accountId,
                   decoration: const InputDecoration(labelText: 'Account'),
@@ -188,7 +204,7 @@ class _DebtFormState extends State<_DebtForm> {
                   onChanged: (v) => setState(() => _accountId = v),
                 ),
               ],
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
               TextFormField(
                 controller: _note,
                 decoration: const InputDecoration(labelText: 'Note (optional)'),
