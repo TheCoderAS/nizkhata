@@ -5,6 +5,7 @@ import 'dart:io';
 
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
@@ -44,6 +45,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
     final currency = ws.activeWorkspace?.baseCurrency ?? 'INR';
     final fyStart = ws.activeWorkspace?.fyStartMonth ?? 4;
     final canExport = ws.can('reports.export');
+    final canViewTxns = ws.can('transactions.view');
 
     // Distinct FYs present in the data, plus the current one, sorted desc.
     final fySet = <String>{financialYearOf(DateTime.now(), fyStart)};
@@ -118,6 +120,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                     fy: fy,
                     currency: currency,
                     canExport: canExport,
+                    canViewTxns: canViewTxns,
                   ),
                   _ContactTab(
                     txns: fyTxns,
@@ -125,6 +128,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                     fy: fy,
                     currency: currency,
                     canExport: canExport,
+                    canViewTxns: canViewTxns,
                   ),
                 ],
               ),
@@ -229,6 +233,7 @@ class _InsightsTab extends StatelessWidget {
 
     final nwSeries = netWorthSeries(accounts, debts, allTxns, range.start, range.end);
     final trend = trendSeries(allTxns, range.start, range.end);
+    final catTrend = _categoryTrendSeries(allTxns, categories, range.start, range.end);
 
     // Top movers: per-category spend change vs the prior FY. The prior range is
     // the current FY range shifted back one year.
@@ -292,6 +297,44 @@ class _InsightsTab extends StatelessWidget {
           child: trend.buckets.length > 1
               ? SizedBox(height: 180, child: _TrendChart(buckets: trend.buckets))
               : Text('Not enough data to plot the trend.',
+                  style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+        ),
+        const SizedBox(height: 12),
+        SectionCard(
+          title: 'Spend by category over time',
+          child: (catTrend.keys.isNotEmpty && catTrend.buckets.isNotEmpty)
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SizedBox(height: 200, child: _CategoryTrendChart(trend: catTrend)),
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 12,
+                      runSpacing: 6,
+                      children: [
+                        for (var i = 0; i < catTrend.keys.length; i++)
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                width: 10,
+                                height: 10,
+                                decoration: BoxDecoration(
+                                  color: _donutColors[i % _donutColors.length],
+                                  borderRadius: BorderRadius.circular(3),
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Text(catTrend.keys[i],
+                                  style: TextStyle(
+                                      fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                            ],
+                          ),
+                      ],
+                    ),
+                  ],
+                )
+              : Text('Not enough data to plot category spend.',
                   style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
         ),
         const SizedBox(height: 12),
@@ -422,6 +465,144 @@ class _TrendChart extends StatelessWidget {
             barWidth: 2,
             dotData: const FlDotData(show: false),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+// ---- Spend by category over time -------------------------------------------
+
+const _monthShort = <String>[
+  '', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+];
+
+class _CatTrendBucket {
+  final String label;
+  final Map<String, double> values;
+  _CatTrendBucket(this.label, this.values);
+}
+
+class _CategoryTrend {
+  final List<_CatTrendBucket> buckets;
+  final List<String> keys;
+  _CategoryTrend(this.buckets, this.keys);
+}
+
+// Monthly stacked spend per category (top N + Other). Local port of web
+// categoryTrendSeries — computed here so derive.dart stays untouched.
+_CategoryTrend _categoryTrendSeries(
+    List<Txn> txns, List<AppCategory> categories, DateTime start, DateTime end,
+    {int topN = 5}) {
+  bool isExpense(String type) =>
+      type == 'expense' || type == 'interest_expense' || type == 'fee' || type == 'tax';
+  final nameById = {for (final c in categories) c.id: c.name};
+
+  // Overall spend per category over the whole range decides the top-N.
+  final overall = <String, double>{};
+  for (final t in txns) {
+    if (t.date.isBefore(start) || !t.date.isBefore(end)) continue;
+    for (final line in t.lines) {
+      if (isExpense(line.type) && line.categoryId != null) {
+        overall[line.categoryId!] = (overall[line.categoryId!] ?? 0) + line.amount;
+      }
+    }
+  }
+  final ranked = overall.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+  final topIds = ranked.take(topN).map((e) => e.key).toSet();
+  final hasOther = ranked.length > topN;
+  final keys = <String>[
+    for (final e in ranked.take(topN)) nameById[e.key] ?? 'Uncategorized',
+    if (hasOther) 'Other',
+  ];
+
+  // Month buckets across the range.
+  final buckets = <_CatTrendBucket>[];
+  final index = <String, int>{};
+  var cursor = DateTime(start.year, start.month, 1);
+  while (cursor.isBefore(end)) {
+    index['${cursor.year}-${cursor.month}'] = buckets.length;
+    buckets.add(_CatTrendBucket(_monthShort[cursor.month], {for (final k in keys) k: 0.0}));
+    cursor = DateTime(cursor.year, cursor.month + 1, 1);
+  }
+
+  for (final t in txns) {
+    if (t.date.isBefore(start) || !t.date.isBefore(end)) continue;
+    final bi = index['${t.date.year}-${t.date.month}'];
+    if (bi == null) continue;
+    for (final line in t.lines) {
+      if (!isExpense(line.type) || line.categoryId == null) continue;
+      String? key;
+      if (topIds.contains(line.categoryId)) {
+        key = nameById[line.categoryId] ?? 'Uncategorized';
+      } else if (hasOther) {
+        key = 'Other';
+      }
+      if (key == null) continue;
+      buckets[bi].values[key] = (buckets[bi].values[key] ?? 0) + line.amount;
+    }
+  }
+  for (final b in buckets) {
+    for (final k in keys) {
+      b.values[k] = roundMoney(b.values[k] ?? 0);
+    }
+  }
+  return _CategoryTrend(buckets, keys);
+}
+
+// Stacked bar chart: one bar per month, stacked by top-N category.
+class _CategoryTrendChart extends StatelessWidget {
+  final _CategoryTrend trend;
+  const _CategoryTrendChart({required this.trend});
+
+  BarChartRodData _rod(_CatTrendBucket bucket) {
+    var running = 0.0;
+    final items = <BarChartRodStackItem>[];
+    for (var k = 0; k < trend.keys.length; k++) {
+      final v = bucket.values[trend.keys[k]] ?? 0;
+      if (v <= 0) continue;
+      items.add(BarChartRodStackItem(running, running + v, _donutColors[k % _donutColors.length]));
+      running += v;
+    }
+    return BarChartRodData(
+      toY: running,
+      width: 14,
+      rodStackItems: items,
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(3)),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return BarChart(
+      BarChartData(
+        gridData: const FlGridData(show: false),
+        borderData: FlBorderData(show: false),
+        barTouchData: BarTouchData(enabled: false),
+        titlesData: FlTitlesData(
+          leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          bottomTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 22,
+              getTitlesWidget: (value, meta) {
+                final i = value.toInt();
+                if (i < 0 || i >= trend.buckets.length) return const SizedBox.shrink();
+                return Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(trend.buckets[i].label,
+                      style: TextStyle(fontSize: 10, color: cs.onSurfaceVariant)),
+                );
+              },
+            ),
+          ),
+        ),
+        barGroups: [
+          for (var i = 0; i < trend.buckets.length; i++)
+            BarChartGroupData(x: i, barRods: [_rod(trend.buckets[i])]),
         ],
       ),
     );
@@ -614,6 +795,7 @@ class _CategoryTab extends StatelessWidget {
   final String fy;
   final String currency;
   final bool canExport;
+  final bool canViewTxns;
   const _CategoryTab({
     required this.txns,
     required this.categories,
@@ -621,6 +803,7 @@ class _CategoryTab extends StatelessWidget {
     required this.fy,
     required this.currency,
     required this.canExport,
+    required this.canViewTxns,
   });
 
   @override
@@ -669,6 +852,9 @@ class _CategoryTab extends StatelessWidget {
                   title: Text(c.name),
                   trailing: Text(formatMoney(c.amount, currency),
                       style: const TextStyle(fontWeight: FontWeight.w600)),
+                  onTap: canViewTxns
+                      ? () => context.push('/transactions?category=${c.id}')
+                      : null,
                 ),
             ],
           ),
@@ -687,12 +873,14 @@ class _ContactTab extends StatelessWidget {
   final String fy;
   final String currency;
   final bool canExport;
+  final bool canViewTxns;
   const _ContactTab({
     required this.txns,
     required this.contactsById,
     required this.fy,
     required this.currency,
     required this.canExport,
+    required this.canViewTxns,
   });
 
   @override
@@ -764,6 +952,7 @@ class _ContactTab extends StatelessWidget {
                 ListTile(
                   contentPadding: EdgeInsets.zero,
                   title: Text(nameOf(id)),
+                  onTap: canViewTxns ? () => context.push('/transactions?contact=$id') : null,
                   trailing: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.end,
