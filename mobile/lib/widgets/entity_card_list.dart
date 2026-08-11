@@ -21,6 +21,11 @@ class CardField<T> {
   /// Custom widget for the field (e.g. a coloured amount). Overrides [text].
   final Widget Function(T row)? widget;
 
+  /// Icon shown INSTEAD of the text label on meta fields (cards read cleaner
+  /// with a small glyph than a repeated word). The [label] is still used for
+  /// the show/hide "Fields" menu and as the icon's long-press tooltip.
+  final IconData? icon;
+
   /// Optional value used when this field is the active sort key.
   final Comparable Function(T row)? sortValue;
 
@@ -35,6 +40,7 @@ class CardField<T> {
     required this.label,
     this.text,
     this.widget,
+    this.icon,
     this.sortValue,
     this.role = CardRole.meta,
     this.locked = false,
@@ -333,16 +339,26 @@ class _EntityCardListState<T> extends State<EntityCardList<T>> {
                         runSpacing: 6,
                         children: [
                           for (final f in metaFields)
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text('${f.label}  ',
-                                    style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
-                                DefaultTextStyle.merge(
-                                  style: TextStyle(fontSize: 12.5, color: cs.onSurface),
-                                  child: fieldValue(f),
-                                ),
-                              ],
+                            Tooltip(
+                              message: f.label,
+                              waitDuration: const Duration(milliseconds: 500),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (f.icon != null)
+                                    Padding(
+                                      padding: const EdgeInsets.only(right: 5),
+                                      child: Icon(f.icon, size: 14, color: cs.onSurfaceVariant),
+                                    )
+                                  else
+                                    Text('${f.label}  ',
+                                        style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
+                                  DefaultTextStyle.merge(
+                                    style: TextStyle(fontSize: 12.5, color: cs.onSurface),
+                                    child: fieldValue(f),
+                                  ),
+                                ],
+                              ),
                             ),
                         ],
                       ),

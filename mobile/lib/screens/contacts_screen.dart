@@ -135,6 +135,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
                       CardField<Contact>(
                         key: 'type',
                         label: 'Type',
+                        icon: Icons.label_outline,
                         sortValue: (c) => c.type,
                         text: (c) => c.type == 'business' ? 'Business' : 'Person',
                       ),

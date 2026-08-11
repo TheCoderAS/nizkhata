@@ -74,6 +74,7 @@ class AccountsScreen extends StatelessWidget {
                 CardField<Account>(
                   key: 'number',
                   label: 'Number',
+                  icon: Icons.tag,
                   sortValue: (a) => _masked(a),
                   text: (a) {
                     final masked = _masked(a);
@@ -83,12 +84,14 @@ class AccountsScreen extends StatelessWidget {
                 CardField<Account>(
                   key: 'type',
                   label: 'Type',
+                  icon: Icons.label_outline,
                   sortValue: (a) => _typeLabel(a.type),
                   text: (a) => _typeLabel(a.type),
                 ),
                 CardField<Account>(
                   key: 'opening',
                   label: 'Opening',
+                  icon: Icons.savings_outlined,
                   defaultVisible: false,
                   sortValue: (a) => a.openingBalance,
                   text: (a) => formatMoney(a.openingBalance, currency),

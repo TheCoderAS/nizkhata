@@ -136,12 +136,14 @@ class _DebtsScreenState extends State<DebtsScreen> {
                       CardField<Debt>(
                         key: 'contact',
                         label: 'Contact',
+                        icon: Icons.person_outline,
                         sortValue: (d) => data.contactsById[d.contactId]?.name ?? '',
                         text: (d) => data.contactsById[d.contactId]?.name ?? '—',
                       ),
                       CardField<Debt>(
                         key: 'direction',
                         label: 'Direction',
+                        icon: Icons.swap_vert,
                         defaultVisible: false,
                         sortValue: (d) => d.direction,
                         text: (d) => d.direction == 'owed' ? 'They owe you' : 'You owe',
@@ -149,6 +151,7 @@ class _DebtsScreenState extends State<DebtsScreen> {
                       CardField<Debt>(
                         key: 'purpose',
                         label: 'Purpose',
+                        icon: Icons.sell_outlined,
                         defaultVisible: false,
                         sortValue: (d) => _kPurposeLabels[d.purpose] ?? d.purpose,
                         text: (d) => _kPurposeLabels[d.purpose] ?? d.purpose,
@@ -156,6 +159,7 @@ class _DebtsScreenState extends State<DebtsScreen> {
                       CardField<Debt>(
                         key: 'status',
                         label: 'Status',
+                        icon: Icons.flag_outlined,
                         sortValue: (d) => d.status,
                         text: (d) => d.status,
                       ),

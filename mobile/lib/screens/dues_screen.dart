@@ -284,6 +284,7 @@ class _DuesScreenState extends State<DuesScreen> {
                       CardField<Due>(
                         key: 'direction',
                         label: 'Direction',
+                        icon: Icons.swap_vert,
                         defaultVisible: false,
                         sortValue: (d) => d.direction,
                         text: (d) => d.direction == 'receivable' ? 'Receivable' : 'Payable',
@@ -291,6 +292,7 @@ class _DuesScreenState extends State<DuesScreen> {
                       CardField<Due>(
                         key: 'contact',
                         label: 'Contact',
+                        icon: Icons.person_outline,
                         defaultVisible: false,
                         sortValue: (d) => d.contactId != null ? data.contactsById[d.contactId]?.name ?? '' : '',
                         text: (d) => d.contactId != null ? data.contactsById[d.contactId]?.name ?? '—' : '—',
@@ -298,6 +300,7 @@ class _DuesScreenState extends State<DuesScreen> {
                       CardField<Due>(
                         key: 'dueDate',
                         label: 'Due date',
+                        icon: Icons.event,
                         sortValue: (d) => d.dueDate,
                         text: (d) => formatDate(d.dueDate),
                       ),
@@ -316,6 +319,7 @@ class _DuesScreenState extends State<DuesScreen> {
                       CardField<Due>(
                         key: 'settled',
                         label: 'Settled',
+                        icon: Icons.check_circle_outline,
                         defaultVisible: false,
                         sortValue: (d) => data.settledOf(d.id),
                         text: (d) => formatMoney(data.settledOf(d.id), currency),
@@ -323,6 +327,7 @@ class _DuesScreenState extends State<DuesScreen> {
                       CardField<Due>(
                         key: 'status',
                         label: 'Status',
+                        icon: Icons.flag_outlined,
                         sortValue: (d) => dueStatusFromSettled(d, data.settledOf(d.id)),
                         text: (d) => dueStatusFromSettled(d, data.settledOf(d.id)),
                       ),

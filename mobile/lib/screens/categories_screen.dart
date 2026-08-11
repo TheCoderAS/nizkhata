@@ -239,6 +239,7 @@ class _CategoryList extends StatelessWidget {
         CardField<AppCategory>(
           key: 'source',
           label: 'Source',
+          icon: Icons.tune,
           sortValue: (c) => c.isSystem ? 'System' : 'Custom',
           widget: (c) {
             final cs = Theme.of(context).colorScheme;
