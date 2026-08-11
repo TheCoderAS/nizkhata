@@ -11,6 +11,7 @@ import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
 import '../widgets/common.dart';
 import '../widgets/data_table_view.dart';
+import '../widgets/revision_history.dart';
 import 'account_form.dart';
 
 class AccountsScreen extends StatelessWidget {
@@ -281,7 +282,11 @@ void showAccountDetail(BuildContext context, Account a) {
                   valueColor: balance < 0 ? AppColors.danger : null,
                 ),
                 for (final e in meta) _DetailRow(label: e.key, value: e.value),
-                const SizedBox(height: 20),
+                const SizedBox(height: 12),
+                const Divider(height: 1),
+                const SizedBox(height: 8),
+                RevisionHistory(entityType: 'accounts', entityId: a.id),
+                const SizedBox(height: 16),
                 Row(
                   children: [
                     if (canViewTxns)

@@ -6,6 +6,7 @@ import '../data/derive.dart';
 import '../data/models.dart';
 import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
+import '../widgets/revision_history.dart';
 import 'due_form.dart';
 
 /// Read-only detail sheet for a due. Shows direction, status, amounts and the
@@ -84,6 +85,10 @@ class _DueDetail extends StatelessWidget {
                   style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant))
             else
               for (final t in linked) _txnTile(context, data, t, currency),
+            const SizedBox(height: 12),
+            const Divider(height: 1),
+            const SizedBox(height: 8),
+            RevisionHistory(entityType: 'dues', entityId: due.id),
           ],
         ),
       ),

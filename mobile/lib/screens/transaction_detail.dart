@@ -9,6 +9,7 @@ import '../data/mutations.dart';
 import '../state/auth_controller.dart';
 import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
+import '../widgets/revision_history.dart';
 import 'split_transaction_form.dart';
 import 'transaction_form.dart';
 
@@ -93,7 +94,11 @@ class _TransactionDetail extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 12),
+            const Divider(height: 1),
+            const SizedBox(height: 8),
+            RevisionHistory(entityType: 'transactions', entityId: txn.id),
+            const SizedBox(height: 16),
             Row(
               children: [
                 if (canEdit)

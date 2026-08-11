@@ -5,6 +5,7 @@ import '../core/format.dart';
 import '../data/models.dart';
 import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
+import '../widgets/revision_history.dart';
 import 'debt_form.dart';
 
 const _kPurposeLabels = <String, String>{
@@ -93,6 +94,10 @@ class _DebtDetail extends StatelessWidget {
                   style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant))
             else
               for (final t in linked) _txnTile(context, data, t, currency),
+            const SizedBox(height: 12),
+            const Divider(height: 1),
+            const SizedBox(height: 8),
+            RevisionHistory(entityType: 'debts', entityId: debt.id),
           ],
         ),
       ),
