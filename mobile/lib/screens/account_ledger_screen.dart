@@ -129,9 +129,46 @@ class _AccountLedgerScreenState extends State<AccountLedgerScreen> {
     final balance = data.balanceOf(widget.accountId);
     final hasFilter = _from != null || _to != null;
 
+    final typeLabel = account.type == 'cash'
+        ? 'Cash'
+        : (account.type == 'credit_card' ? 'Credit card' : 'Bank');
+    final masked = account.cardLast4 != null && account.cardLast4!.isNotEmpty
+        ? '···· ${account.cardLast4}'
+        : (account.accountNumber != null && account.accountNumber!.length >= 4
+            ? '····${account.accountNumber!.substring(account.accountNumber!.length - 4)}'
+            : '');
+    final cs = Theme.of(context).colorScheme;
+
     return Scaffold(
       appBar: AppBar(
-        title: Text('${account.name} · ledger'),
+        title: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(account.name, overflow: TextOverflow.ellipsis),
+            const SizedBox(height: 2),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: cs.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    typeLabel,
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: cs.onSurfaceVariant),
+                  ),
+                ),
+                if (masked.isNotEmpty) ...[
+                  const SizedBox(width: 8),
+                  Text(masked, style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
+                ],
+              ],
+            ),
+          ],
+        ),
         actions: [
           if (canExport && filtered.isNotEmpty)
             IconButton(

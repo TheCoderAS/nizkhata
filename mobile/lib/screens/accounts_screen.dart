@@ -22,6 +22,7 @@ class AccountsScreen extends StatelessWidget {
     final ws = context.watch<WorkspaceController>();
     final currency = ws.activeWorkspace?.baseCurrency ?? 'INR';
     final canManage = ws.can('accounts.manage');
+    final canViewTxns = ws.can('transactions.view');
     final accounts = [...data.accounts]..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
 
     return Scaffold(
@@ -45,15 +46,17 @@ class AccountsScreen extends StatelessWidget {
           : DataTableView<Account>(
               tableId: 'accounts',
               rows: accounts,
-              onRowTap: canManage ? (a) => showAccountForm(context, existing: a) : null,
+              onRowTap: (a) => showAccountDetail(context, a),
               trailing: (a) => PopupMenuButton<String>(
                 onSelected: (v) {
                   if (v == 'ledger') context.push('/accounts/${a.id}/ledger');
+                  if (v == 'transactions') context.push('/transactions?account=${a.id}');
                   if (v == 'edit') showAccountForm(context, existing: a);
                   if (v == 'delete') _confirmDelete(context, a);
                 },
                 itemBuilder: (_) => [
                   const PopupMenuItem(value: 'ledger', child: Text('View ledger')),
+                  if (canViewTxns) const PopupMenuItem(value: 'transactions', child: Text('View transactions')),
                   if (canManage) const PopupMenuItem(value: 'edit', child: Text('Edit')),
                   if (canManage) const PopupMenuItem(value: 'delete', child: Text('Delete')),
                 ],
@@ -129,6 +132,14 @@ class AccountsScreen extends StatelessWidget {
   static String _typeLabel(String t) =>
       t == 'cash' ? 'Cash' : (t == 'credit_card' ? 'Credit card' : 'Bank');
 
+  static String _masked(Account a) {
+    if (a.cardLast4 != null && a.cardLast4!.isNotEmpty) return '···· ${a.cardLast4}';
+    if (a.accountNumber != null && a.accountNumber!.length >= 4) {
+      return '····${a.accountNumber!.substring(a.accountNumber!.length - 4)}';
+    }
+    return '';
+  }
+
   void _confirmDelete(BuildContext context, Account a) {
     final ws = context.read<WorkspaceController>().activeWorkspaceId;
     final user = context.read<AuthController>().user;
@@ -156,6 +167,181 @@ class AccountsScreen extends StatelessWidget {
               }
             },
             child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// Read-only account detail sheet. Mirrors the web AccountDetail dialog
+// (src/pages/Accounts.tsx): type, opening/current balance, masked identifier and
+// any populated metadata, with Edit / View-transactions actions by permission.
+// Note: the mobile Account model does not carry audit fields (createdBy/At,
+// updatedBy/At), so the web's audit block is omitted here.
+void showAccountDetail(BuildContext context, Account a) {
+  final data = context.read<DataController>();
+  final ws = context.read<WorkspaceController>();
+  final currency = ws.activeWorkspace?.baseCurrency ?? 'INR';
+  final canManage = ws.can('accounts.manage');
+  final canViewTxns = ws.can('transactions.view');
+  final balance = data.balanceOf(a.id);
+
+  // Populated metadata fields, in the same display order the web uses per type.
+  const orderByType = <String, List<String>>{
+    'cash': ['code', 'description'],
+    'bank': ['accountNumber', 'ifsc', 'cif', 'branchName', 'code', 'description'],
+    'credit_card': ['nameOnCard', 'cardLast4', 'cardExpiry', 'code', 'description'],
+  };
+  const labels = <String, String>{
+    'accountNumber': 'Account number',
+    'ifsc': 'IFSC code',
+    'cif': 'CIF number',
+    'branchName': 'Branch name',
+    'nameOnCard': 'Name on card',
+    'cardLast4': 'Card (last 4)',
+    'cardExpiry': 'Expiry',
+    'code': 'Code',
+    'description': 'Description',
+  };
+  String? valueOf(String key) {
+    switch (key) {
+      case 'accountNumber':
+        return a.accountNumber;
+      case 'ifsc':
+        return a.ifsc;
+      case 'cif':
+        return a.cif;
+      case 'branchName':
+        return a.branchName;
+      case 'nameOnCard':
+        return a.nameOnCard;
+      case 'cardLast4':
+        return a.cardLast4;
+      case 'cardExpiry':
+        return a.cardExpiry;
+      case 'code':
+        return a.code;
+      case 'description':
+        return a.description;
+      default:
+        return null;
+    }
+  }
+
+  final meta = <MapEntry<String, String>>[];
+  for (final key in orderByType[a.type] ?? const <String>[]) {
+    final v = valueOf(key);
+    if (v != null && v.trim().isNotEmpty) meta.add(MapEntry(labels[key]!, v.trim()));
+  }
+  final masked = AccountsScreen._masked(a);
+
+  showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    showDragHandle: true,
+    builder: (sheetCtx) {
+      final cs = Theme.of(sheetCtx).colorScheme;
+      return SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Expanded(
+                      child: Text(a.name, style: Theme.of(sheetCtx).textTheme.titleLarge),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: cs.surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        AccountsScreen._typeLabel(a.type),
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: cs.onSurfaceVariant),
+                      ),
+                    ),
+                  ],
+                ),
+                if (masked.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(masked, style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant)),
+                ],
+                const SizedBox(height: 16),
+                _DetailRow(label: 'Opening balance', value: formatMoney(a.openingBalance, currency)),
+                _DetailRow(
+                  label: 'Current balance',
+                  value: accountBalanceLabel(a.type, balance, currency),
+                  valueColor: balance < 0 ? AppColors.danger : null,
+                ),
+                for (final e in meta) _DetailRow(label: e.key, value: e.value),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    if (canViewTxns)
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          icon: const Icon(Icons.swap_horiz, size: 18),
+                          label: const Text('Transactions'),
+                          onPressed: () {
+                            Navigator.of(sheetCtx).pop();
+                            context.push('/transactions?account=${a.id}');
+                          },
+                        ),
+                      ),
+                    if (canViewTxns && canManage) const SizedBox(width: 12),
+                    if (canManage)
+                      Expanded(
+                        child: FilledButton.icon(
+                          icon: const Icon(Icons.edit, size: 18),
+                          label: const Text('Edit'),
+                          onPressed: () {
+                            Navigator.of(sheetCtx).pop();
+                            showAccountForm(context, existing: a);
+                          },
+                        ),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    },
+  );
+}
+
+class _DetailRow extends StatelessWidget {
+  final String label;
+  final String value;
+  final Color? valueColor;
+  const _DetailRow({required this.label, required this.value, this.valueColor});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 140,
+            child: Text(label, style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant)),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              value,
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: valueColor),
+            ),
           ),
         ],
       ),

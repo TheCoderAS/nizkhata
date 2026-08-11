@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../core/format.dart';
@@ -21,25 +22,62 @@ class CategoriesScreen extends StatefulWidget {
 }
 
 class _CategoriesScreenState extends State<CategoriesScreen> {
-  // The Net column reflects the chosen range: week / month / year / financial year.
+  // The Net column reflects the chosen range: week / month / year / financial
+  // year / custom (a user-picked From/To window).
   PeriodKind _period = PeriodKind.fy;
+  DateTime? _customFrom;
+  DateTime? _customTo;
 
   static const _periodOptions = [
     PeriodKind.week,
     PeriodKind.month,
     PeriodKind.year,
     PeriodKind.fy,
+    PeriodKind.custom,
   ];
+
+  Future<void> _pickCustom(bool isFrom) async {
+    final now = DateTime.now();
+    final initial = isFrom
+        ? (_customFrom ?? DateTime(now.year, now.month, 1))
+        : (_customTo ?? now);
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+    );
+    if (picked != null) {
+      setState(() {
+        final d = DateTime(picked.year, picked.month, picked.day);
+        if (isFrom) {
+          _customFrom = d;
+        } else {
+          _customTo = d;
+        }
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final data = context.watch<DataController>();
     final ws = context.watch<WorkspaceController>();
     final canManage = ws.can('categories.manage');
+    final canViewTxns = ws.can('transactions.view');
     final currency = ws.activeWorkspace?.baseCurrency ?? 'INR';
     final fyStartMonth = ws.activeWorkspace?.fyStartMonth ?? 4;
 
-    final range = resolvePeriod(_period, DateTime.now(), fyStartMonth);
+    final now = DateTime.now();
+    final ({DateTime start, DateTime end}) range;
+    if (_period == PeriodKind.custom) {
+      final start = _customFrom ?? DateTime(now.year, now.month, 1);
+      final toDay = _customTo ?? DateTime(now.year, now.month, now.day);
+      // End is exclusive; include the whole To-day by advancing one day.
+      range = (start: start, end: toDay.add(const Duration(days: 1)));
+    } else {
+      range = resolvePeriod(_period, now, fyStartMonth);
+    }
 
     // Net amount per category within the selected range — the sum of line
     // amounts tagged with it (total spent for expense categories, earned for
@@ -93,21 +131,58 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
                 label: const Text('Category'),
               )
             : null,
-        body: TabBarView(
+        body: Column(
           children: [
-            _CategoryList(
-              kind: 'expense',
-              categories: data.categories,
-              canManage: canManage,
-              amountByCategory: amountByCategory,
-              currency: currency,
-            ),
-            _CategoryList(
-              kind: 'income',
-              categories: data.categories,
-              canManage: canManage,
-              amountByCategory: amountByCategory,
-              currency: currency,
+            if (_period == PeriodKind.custom)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        icon: const Icon(Icons.event, size: 18),
+                        label: Text(
+                          _customFrom != null ? formatDate(_customFrom!) : 'From',
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        onPressed: () => _pickCustom(true),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        icon: const Icon(Icons.event, size: 18),
+                        label: Text(
+                          _customTo != null ? formatDate(_customTo!) : 'To',
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        onPressed: () => _pickCustom(false),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            Expanded(
+              child: TabBarView(
+                children: [
+                  _CategoryList(
+                    kind: 'expense',
+                    categories: data.categories,
+                    canManage: canManage,
+                    canViewTxns: canViewTxns,
+                    amountByCategory: amountByCategory,
+                    currency: currency,
+                  ),
+                  _CategoryList(
+                    kind: 'income',
+                    categories: data.categories,
+                    canManage: canManage,
+                    canViewTxns: canViewTxns,
+                    amountByCategory: amountByCategory,
+                    currency: currency,
+                  ),
+                ],
+              ),
             ),
           ],
         ),
@@ -120,12 +195,14 @@ class _CategoryList extends StatelessWidget {
   final String kind;
   final List<AppCategory> categories;
   final bool canManage;
+  final bool canViewTxns;
   final Map<String, double> amountByCategory;
   final String currency;
   const _CategoryList({
     required this.kind,
     required this.categories,
     required this.canManage,
+    required this.canViewTxns,
     required this.amountByCategory,
     required this.currency,
   });
@@ -195,15 +272,20 @@ class _CategoryList extends StatelessWidget {
           },
         ),
       ],
-      trailing: canManage
+      trailing: (canManage || canViewTxns)
           ? (c) => PopupMenuButton<String>(
                 onSelected: (v) {
+                  if (v == 'transactions') context.push('/transactions?category=${c.id}');
                   if (v == 'edit') showCategoryForm(context, existing: c);
                   if (v == 'delete') _confirmDelete(context, c);
                 },
                 itemBuilder: (_) => [
-                  PopupMenuItem(value: 'edit', enabled: !c.isSystem, child: const Text('Edit')),
-                  PopupMenuItem(value: 'delete', enabled: !c.isSystem, child: const Text('Delete')),
+                  if (canViewTxns)
+                    const PopupMenuItem(value: 'transactions', child: Text('View transactions')),
+                  if (canManage)
+                    PopupMenuItem(value: 'edit', enabled: !c.isSystem, child: const Text('Edit')),
+                  if (canManage)
+                    PopupMenuItem(value: 'delete', enabled: !c.isSystem, child: const Text('Delete')),
                 ],
               )
           : null,
