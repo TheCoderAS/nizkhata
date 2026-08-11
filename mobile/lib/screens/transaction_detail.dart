@@ -21,8 +21,11 @@ Future<void> showTransactionDetail(BuildContext context, Txn txn) {
     context: context,
     isScrollControlled: true,
     showDragHandle: true,
-    builder: (_) => Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+    // Use the sheet's OWN context (ctx) for MediaQuery — not the caller's, which
+    // may already be unmounted (e.g. when re-opened right after another sheet
+    // pops), which would blank the sheet.
+    builder: (ctx) => Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
       child: _TransactionDetail(txn: txn),
     ),
   );
@@ -105,11 +108,16 @@ class _TransactionDetail extends StatelessWidget {
                   Expanded(
                     child: FilledButton.tonalIcon(
                       onPressed: () {
-                        Navigator.of(context).pop();
+                        // Pop this sheet, then open the edit form on the still-
+                        // mounted navigator context (not this sheet's, which is
+                        // being disposed) so the form never opens off a dead context.
+                        final nav = Navigator.of(context);
+                        final rootContext = nav.context;
+                        nav.pop();
                         if (txn.lines.length == 1) {
-                          showTransactionForm(context, existing: txn);
+                          showTransactionForm(rootContext, existing: txn);
                         } else {
-                          showSplitTransactionForm(context, existing: txn);
+                          showSplitTransactionForm(rootContext, existing: txn);
                         }
                       },
                       icon: const Icon(Icons.edit_outlined),
