@@ -18,17 +18,70 @@ import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
 import '../widgets/common.dart';
 
+// Human-readable labels for transaction line types (mirrors src/lib/lineTypes.ts).
+const lineTypeLabel = <String, String>{
+  'income': 'Income',
+  'expense': 'Expense',
+  'transfer_out': 'Transfer out',
+  'transfer_in': 'Transfer in',
+  'borrow': 'Borrow',
+  'lend': 'Lend',
+  'repayment': 'Repayment',
+  'fee': 'Fee',
+  'interest_income': 'Interest income',
+  'interest_expense': 'Interest expense',
+  'tax': 'Tax / GST',
+};
+
+String _labelFor(String type) => lineTypeLabel[type] ?? type;
+
 class _LedgerRow {
   final DateTime date;
   final String description;
+  final String types;
   final double delta;
   final double balance;
-  _LedgerRow(this.date, this.description, this.delta, this.balance);
+  _LedgerRow(this.date, this.description, this.types, this.delta, this.balance);
 }
 
-class AccountLedgerScreen extends StatelessWidget {
+class AccountLedgerScreen extends StatefulWidget {
   final String accountId;
   const AccountLedgerScreen({super.key, required this.accountId});
+
+  @override
+  State<AccountLedgerScreen> createState() => _AccountLedgerScreenState();
+}
+
+class _AccountLedgerScreenState extends State<AccountLedgerScreen> {
+  DateTime? _from;
+  DateTime? _to;
+
+  Future<void> _pickFrom() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _from ?? DateTime.now(),
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+    );
+    if (picked != null) setState(() => _from = DateTime(picked.year, picked.month, picked.day));
+  }
+
+  Future<void> _pickTo() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _to ?? DateTime.now(),
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+    );
+    if (picked != null) setState(() => _to = DateTime(picked.year, picked.month, picked.day));
+  }
+
+  bool _inRange(DateTime date) {
+    if (_from != null && date.isBefore(_from!)) return false;
+    // To-date inclusive: keep everything strictly before the next day.
+    if (_to != null && !date.isBefore(_to!.add(const Duration(days: 1)))) return false;
+    return true;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -36,7 +89,7 @@ class AccountLedgerScreen extends StatelessWidget {
     final ws = context.watch<WorkspaceController>();
     final currency = ws.activeWorkspace?.baseCurrency ?? 'INR';
     final canExport = ws.can('reports.export');
-    final account = data.accountsById[accountId];
+    final account = data.accountsById[widget.accountId];
 
     if (account == null) {
       return Scaffold(
@@ -46,36 +99,45 @@ class AccountLedgerScreen extends StatelessWidget {
     }
 
     // Build the running-balance statement: only transactions that move this
-    // account, oldest first, accruing from the opening balance. Displayed
-    // newest first (the balance stays computed from the oldest-first pass).
+    // account, oldest first, accruing from the opening balance over ALL of them.
+    // The date filter is applied only for display so the balance stays correct.
     final byDebt = data.debtsById;
     final mine = <MapEntry<double, Txn>>[];
     for (final t in data.transactions) {
-      final delta = accountDeltas(t, byDebt)[accountId];
+      final delta = accountDeltas(t, byDebt)[widget.accountId];
       if (delta == null || delta == 0) continue;
       mine.add(MapEntry(delta, t));
     }
     mine.sort((a, b) => a.value.date.compareTo(b.value.date)); // oldest first
 
     var running = account.openingBalance;
-    final rows = <_LedgerRow>[];
+    final filtered = <_LedgerRow>[]; // chronological, within the date filter
     for (final e in mine) {
       running = roundMoney(running + e.key);
-      rows.add(_LedgerRow(e.value.date, e.value.note?.isNotEmpty == true ? e.value.note! : '—', e.key, running));
+      if (!_inRange(e.value.date)) continue;
+      final types = <String>{for (final l in e.value.lines) _labelFor(l.type)}.join(', ');
+      filtered.add(_LedgerRow(
+        e.value.date,
+        e.value.note?.isNotEmpty == true ? e.value.note! : '—',
+        types,
+        e.key,
+        running,
+      ));
     }
-    final display = rows.reversed.toList(); // newest first
+    final display = filtered.reversed.toList(); // newest first
 
-    final balance = data.balanceOf(accountId);
+    final balance = data.balanceOf(widget.accountId);
+    final hasFilter = _from != null || _to != null;
 
     return Scaffold(
       appBar: AppBar(
         title: Text('${account.name} · ledger'),
         actions: [
-          if (canExport)
+          if (canExport && filtered.isNotEmpty)
             IconButton(
               icon: const Icon(Icons.download),
               tooltip: 'Export CSV',
-              onPressed: () => _exportCsv(context, account.name, rows),
+              onPressed: () => _exportCsv(context, account.name, filtered),
             ),
         ],
       ),
@@ -100,11 +162,43 @@ class AccountLedgerScreen extends StatelessWidget {
               ],
             ),
           ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.event, size: 18),
+                    label: Text(_from != null ? formatDate(_from!) : 'From', overflow: TextOverflow.ellipsis),
+                    onPressed: _pickFrom,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.event, size: 18),
+                    label: Text(_to != null ? formatDate(_to!) : 'To', overflow: TextOverflow.ellipsis),
+                    onPressed: _pickTo,
+                  ),
+                ),
+                if (hasFilter)
+                  TextButton(
+                    onPressed: () => setState(() {
+                      _from = null;
+                      _to = null;
+                    }),
+                    child: const Text('Clear'),
+                  ),
+              ],
+            ),
+          ),
           Expanded(
             child: display.isEmpty
-                ? const EmptyView(
+                ? EmptyView(
                     title: 'No entries',
-                    hint: 'Transactions that move this account will appear here.',
+                    hint: hasFilter
+                        ? 'No transactions in this date range.'
+                        : 'Transactions that move this account will appear here.',
                   )
                 : ListView.separated(
                     padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
@@ -112,10 +206,21 @@ class AccountLedgerScreen extends StatelessWidget {
                     separatorBuilder: (_, __) => const Divider(height: 1),
                     itemBuilder: (context, i) {
                       final r = display[i];
+                      final cs = Theme.of(context).colorScheme;
                       return ListTile(
                         contentPadding: const EdgeInsets.symmetric(vertical: 2),
                         title: Text(r.description),
-                        subtitle: Text(formatDate(r.date)),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(formatDate(r.date)),
+                            if (r.types.isNotEmpty)
+                              Text(
+                                r.types,
+                                style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
+                              ),
+                          ],
+                        ),
                         trailing: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           crossAxisAlignment: CrossAxisAlignment.end,
@@ -129,10 +234,7 @@ class AccountLedgerScreen extends StatelessWidget {
                             ),
                             Text(
                               formatMoney(r.balance, currency),
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Theme.of(context).colorScheme.onSurfaceVariant,
-                              ),
+                              style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
                             ),
                           ],
                         ),
@@ -147,11 +249,12 @@ class AccountLedgerScreen extends StatelessWidget {
 
   Future<void> _exportCsv(BuildContext context, String accountName, List<_LedgerRow> rows) async {
     // CSV in chronological order (oldest first) reads like a statement.
-    final buf = StringBuffer('Date,Description,Amount,Balance\n');
+    final buf = StringBuffer('Date,Description,Type,Amount,Balance\n');
     for (final r in rows) {
       buf.writeln([
         formatDate(r.date),
         r.description,
+        r.types,
         r.delta.toString(),
         r.balance.toString(),
       ].map(_csvField).join(','));

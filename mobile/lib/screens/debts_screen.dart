@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../core/format.dart';
@@ -9,6 +10,7 @@ import '../state/auth_controller.dart';
 import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
 import '../widgets/common.dart';
+import 'debt_detail.dart';
 import 'debt_form.dart';
 
 class DebtsScreen extends StatelessWidget {
@@ -21,6 +23,8 @@ class DebtsScreen extends StatelessWidget {
     final currency = ws.activeWorkspace?.baseCurrency ?? 'INR';
     final canManage = ws.can('debts.manage');
     final canTxn = ws.can('transactions.create');
+    final canViewContacts = ws.can('contacts.view');
+    final canViewTxns = ws.can('transactions.view');
 
     final visible = data.debts.where((d) => d.purpose != 'shared').toList();
     var theyOwe = 0.0;
@@ -62,8 +66,8 @@ class DebtsScreen extends StatelessWidget {
           if (visible.isEmpty)
             const Padding(padding: EdgeInsets.only(top: 40), child: EmptyView(title: 'No debts yet'))
           else ...[
-            if (owed.isNotEmpty) _group(context, 'They owe you', owed, data, currency, canManage, canTxn),
-            if (owe.isNotEmpty) _group(context, 'You owe', owe, data, currency, canManage, canTxn),
+            if (owed.isNotEmpty) _group(context, 'They owe you', owed, data, currency, canManage, canTxn, canViewContacts, canViewTxns),
+            if (owe.isNotEmpty) _group(context, 'You owe', owe, data, currency, canManage, canTxn, canViewContacts, canViewTxns),
           ],
         ],
       ),
@@ -71,7 +75,7 @@ class DebtsScreen extends StatelessWidget {
   }
 
   Widget _group(BuildContext context, String title, List<Debt> debts, DataController data,
-      String currency, bool canManage, bool canTxn) {
+      String currency, bool canManage, bool canTxn, bool canViewContacts, bool canViewTxns) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -83,6 +87,7 @@ class DebtsScreen extends StatelessWidget {
           Card(
             margin: const EdgeInsets.only(bottom: 8),
             child: ListTile(
+              onTap: () => showDebtDetail(context, d),
               title: Text(d.label ?? data.contactsById[d.contactId]?.name ?? 'Debt'),
               subtitle: Text(data.contactsById[d.contactId]?.name ?? '—'),
               trailing: Row(
@@ -90,7 +95,14 @@ class DebtsScreen extends StatelessWidget {
                 children: [
                   Text(formatMoney(data.outstandingOf(d.id), currency),
                       style: const TextStyle(fontWeight: FontWeight.w600)),
-                  if (canManage || canTxn) _DebtMenu(debt: d, canManage: canManage, canTxn: canTxn),
+                  if (canManage || canTxn || canViewContacts || canViewTxns)
+                    _DebtMenu(
+                      debt: d,
+                      canManage: canManage,
+                      canTxn: canTxn,
+                      canViewContacts: canViewContacts,
+                      canViewTxns: canViewTxns,
+                    ),
                 ],
               ),
             ),
@@ -104,7 +116,15 @@ class _DebtMenu extends StatelessWidget {
   final Debt debt;
   final bool canManage;
   final bool canTxn;
-  const _DebtMenu({required this.debt, required this.canManage, required this.canTxn});
+  final bool canViewContacts;
+  final bool canViewTxns;
+  const _DebtMenu({
+    required this.debt,
+    required this.canManage,
+    required this.canTxn,
+    required this.canViewContacts,
+    required this.canViewTxns,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -112,11 +132,18 @@ class _DebtMenu extends StatelessWidget {
     final outstanding = data.outstandingOf(debt.id);
     final settleable = debt.status == 'open' && outstanding > 0;
     final settleLabel = debt.direction == 'owed' ? 'Record receipt' : 'Record repayment';
+    final hasContact = debt.contactId.isNotEmpty;
     return PopupMenuButton<String>(
       onSelected: (v) {
         switch (v) {
           case 'settle':
             _showDebtPayment(context, debt);
+            break;
+          case 'contact':
+            if (hasContact) context.push('/contacts/${debt.contactId}');
+            break;
+          case 'txns':
+            if (hasContact) context.push('/contacts/${debt.contactId}');
             break;
           case 'edit':
             showDebtForm(context, existing: debt);
@@ -128,6 +155,8 @@ class _DebtMenu extends StatelessWidget {
       },
       itemBuilder: (_) => [
         if (canTxn && settleable) PopupMenuItem(value: 'settle', child: Text(settleLabel)),
+        if (canViewContacts && hasContact) const PopupMenuItem(value: 'contact', child: Text('View contact')),
+        if (canViewTxns && hasContact) const PopupMenuItem(value: 'txns', child: Text('View transactions')),
         if (canManage) const PopupMenuItem(value: 'edit', child: Text('Edit')),
         if (canManage) const PopupMenuItem(value: 'delete', child: Text('Delete')),
       ],

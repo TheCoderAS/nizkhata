@@ -9,6 +9,15 @@ import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
 import '../widgets/common.dart';
 
+const _purposeLabels = <String, String>{
+  'loan': 'Loans',
+  'custodial_savings': 'Custodial savings',
+  'lending': 'Lendings',
+  'reimbursable': 'Reimbursable',
+  'informal': 'Informal',
+  'shared': 'Shared',
+};
+
 class ContactDetailScreen extends StatelessWidget {
   final String contactId;
   const ContactDetailScreen({super.key, required this.contactId});
@@ -37,6 +46,11 @@ class ContactDetailScreen extends StatelessWidget {
         ? StatTone.success
         : (position.net < -0.005 ? StatTone.danger : StatTone.neutral);
 
+    final infoBits = [contact.phone, contact.email, contact.address]
+        .where((s) => s != null && s.isNotEmpty)
+        .cast<String>()
+        .toList();
+
     return DefaultTabController(
       length: 3,
       child: Scaffold(
@@ -44,7 +58,33 @@ class ContactDetailScreen extends StatelessWidget {
         body: Column(
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 6,
+                    children: [
+                      _Badge(contact.type == 'business' ? 'Business' : 'Person'),
+                      if (contact.relationship == 'family') _Badge('Family'),
+                    ],
+                  ),
+                  if (infoBits.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      infoBits.join(' · '),
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
               child: Row(
                 children: [
                   Expanded(
@@ -90,7 +130,7 @@ class ContactDetailScreen extends StatelessWidget {
               child: TabBarView(
                 children: [
                   _transactionsTab(context, data, contactTxns, currency),
-                  _debtsTab(data, contactDebts, currency),
+                  _debtsTab(context, data, contactDebts, currency),
                   _reportTab(context, position, contactTxns.length, contactDebts, currency),
                 ],
               ),
@@ -128,25 +168,67 @@ class ContactDetailScreen extends StatelessWidget {
     );
   }
 
-  Widget _debtsTab(DataController data, List<Debt> debts, String currency) {
+  Widget _debtsTab(BuildContext context, DataController data, List<Debt> debts, String currency) {
     if (debts.isEmpty) {
       return const EmptyView(title: 'No debts with this contact');
     }
-    return ListView.separated(
+    // Group the contact's debts by purpose, preserving first-seen order.
+    final byPurpose = <String, List<Debt>>{};
+    for (final d in debts) {
+      byPurpose.putIfAbsent(d.purpose, () => []).add(d);
+    }
+
+    return ListView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-      itemCount: debts.length,
-      separatorBuilder: (_, __) => const Divider(height: 1),
-      itemBuilder: (context, i) {
-        final d = debts[i];
-        return ListTile(
-          title: Text(d.label ?? data.contactsById[d.contactId]?.name ?? 'Debt'),
-          subtitle: Text(data.contactsById[d.contactId]?.name ?? '—'),
-          trailing: Text(
-            formatMoney(data.outstandingOf(d.id), currency),
-            style: const TextStyle(fontWeight: FontWeight.w600),
+      children: [
+        for (final entry in byPurpose.entries) ...[
+          Padding(
+            padding: const EdgeInsets.only(top: 8, bottom: 4),
+            child: Text(
+              _purposeLabels[entry.key] ?? entry.key,
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+            ),
           ),
-        );
-      },
+          for (final d in entry.value)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          d.label ?? _purposeLabels[d.purpose] ?? 'Debt',
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        const SizedBox(height: 6),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          children: [
+                            _Badge(
+                              d.direction == 'owed' ? 'They owe you' : 'You owe',
+                              color: d.direction == 'owed' ? AppColors.accent2 : AppColors.danger,
+                            ),
+                            _Badge(d.status),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    formatMoney(data.outstandingOf(d.id), currency),
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                ],
+              ),
+            ),
+          const SizedBox(height: 8),
+        ],
+      ],
     );
   }
 
@@ -190,4 +272,28 @@ class ContactDetailScreen extends StatelessWidget {
           ],
         ),
       );
+}
+
+class _Badge extends StatelessWidget {
+  final String text;
+  final Color? color;
+  const _Badge(this.text, {this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final fg = color ?? cs.onSurfaceVariant;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: (color ?? cs.outlineVariant).withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: (color ?? cs.outlineVariant).withValues(alpha: 0.5)),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: fg),
+      ),
+    );
+  }
 }

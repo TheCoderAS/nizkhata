@@ -18,6 +18,10 @@ const _kLineTypeLabels = <String, String>{
   'borrow': 'Borrow',
   'lend': 'Lend',
   'repayment': 'Repayment',
+  'fee': 'Fee',
+  'interest_income': 'Interest income',
+  'interest_expense': 'Interest expense',
+  'tax': 'Tax',
 };
 
 class TransactionsScreen extends StatefulWidget {
@@ -31,14 +35,23 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   String? _accountFilter;
   String? _contactFilter;
   String? _typeFilter;
+  String? _categoryFilter;
+  bool _splitOnly = false;
+  String _search = '';
 
   int get _activeFilterCount =>
-      (_accountFilter != null ? 1 : 0) + (_contactFilter != null ? 1 : 0) + (_typeFilter != null ? 1 : 0);
+      (_accountFilter != null ? 1 : 0) +
+      (_contactFilter != null ? 1 : 0) +
+      (_typeFilter != null ? 1 : 0) +
+      (_categoryFilter != null ? 1 : 0) +
+      (_splitOnly ? 1 : 0);
 
   void _clearFilters() => setState(() {
         _accountFilter = null;
         _contactFilter = null;
         _typeFilter = null;
+        _categoryFilter = null;
+        _splitOnly = false;
       });
 
   Future<void> _openAddMenu(BuildContext context) async {
@@ -118,6 +131,16 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
+                    value: _categoryFilter,
+                    decoration: const InputDecoration(labelText: 'Category'),
+                    items: [
+                      const DropdownMenuItem(value: null, child: Text('All categories')),
+                      for (final c in data.categories) DropdownMenuItem(value: c.id, child: Text(c.name)),
+                    ],
+                    onChanged: (v) => update(() => _categoryFilter = v),
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
                     value: _typeFilter,
                     decoration: const InputDecoration(labelText: 'Type'),
                     items: [
@@ -127,7 +150,14 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                     ],
                     onChanged: (v) => update(() => _typeFilter = v),
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 4),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Split transactions only'),
+                    value: _splitOnly,
+                    onChanged: (v) => update(() => _splitOnly = v),
+                  ),
+                  const SizedBox(height: 12),
                   Row(
                     children: [
                       Expanded(
@@ -137,6 +167,8 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                               _accountFilter = null;
                               _contactFilter = null;
                               _typeFilter = null;
+                              _categoryFilter = null;
+                              _splitOnly = false;
                             });
                           },
                           child: const Text('Clear all'),
@@ -167,10 +199,18 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     final currency = ws.activeWorkspace?.baseCurrency ?? 'INR';
     final canCreate = ws.can('transactions.create');
     final all = [...data.transactions]..sort((a, b) => b.date.compareTo(a.date));
+    final query = _search.trim().toLowerCase();
     final txns = all.where((t) {
       if (_accountFilter != null && t.accountId != _accountFilter) return false;
       if (_contactFilter != null && t.contactId != _contactFilter) return false;
+      if (_categoryFilter != null && !t.lines.any((l) => l.categoryId == _categoryFilter)) return false;
+      if (_splitOnly && !t.hasSplit) return false;
       if (_typeFilter != null && !t.lines.any((l) => l.type == _typeFilter)) return false;
+      if (query.isNotEmpty) {
+        final contactName = t.contactId != null ? data.contactsById[t.contactId]?.name ?? '' : '';
+        final hay = '${t.note ?? ''} $contactName'.toLowerCase();
+        if (!hay.contains(query)) return false;
+      }
       return true;
     }).toList();
 
@@ -186,6 +226,17 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+            child: TextField(
+              onChanged: (v) => setState(() => _search = v),
+              decoration: const InputDecoration(
+                hintText: 'Search note / contact…',
+                prefixIcon: Icon(Icons.search, size: 20),
+                isDense: true,
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
             child: Row(
               children: [
                 OutlinedButton.icon(
@@ -205,9 +256,13 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                       if (_contactFilter != null)
                         _chip('Contact: ${data.contactsById[_contactFilter]?.name ?? 'Unknown'}',
                             () => setState(() => _contactFilter = null)),
+                      if (_categoryFilter != null)
+                        _chip('Category: ${data.categoriesById[_categoryFilter]?.name ?? 'Unknown'}',
+                            () => setState(() => _categoryFilter = null)),
                       if (_typeFilter != null)
                         _chip('Type: ${_kLineTypeLabels[_typeFilter] ?? _typeFilter}',
                             () => setState(() => _typeFilter = null)),
+                      if (_splitOnly) _chip('Split only', () => setState(() => _splitOnly = false)),
                     ],
                   ),
                 ),

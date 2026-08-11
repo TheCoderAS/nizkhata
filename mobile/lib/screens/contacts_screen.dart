@@ -12,8 +12,22 @@ import '../state/workspace_controller.dart';
 import '../widgets/common.dart';
 import 'contact_form.dart';
 
-class ContactsScreen extends StatelessWidget {
+class ContactsScreen extends StatefulWidget {
   const ContactsScreen({super.key});
+
+  @override
+  State<ContactsScreen> createState() => _ContactsScreenState();
+}
+
+class _ContactsScreenState extends State<ContactsScreen> {
+  final _searchController = TextEditingController();
+  String _search = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -21,7 +35,10 @@ class ContactsScreen extends StatelessWidget {
     final ws = context.watch<WorkspaceController>();
     final currency = ws.activeWorkspace?.baseCurrency ?? 'INR';
     final canManage = ws.can('contacts.manage');
-    final contacts = data.contacts.where((c) => c.connectionUid == null).toList()
+    final query = _search.trim().toLowerCase();
+    final contacts = data.contacts
+        .where((c) => c.connectionUid == null && c.name.toLowerCase().contains(query))
+        .toList()
       ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
 
     return Scaffold(
@@ -32,53 +49,93 @@ class ContactsScreen extends StatelessWidget {
               label: const Text('Contact'),
             )
           : null,
-      body: contacts.isEmpty
-          ? EmptyView(
-              title: 'No contacts',
-              hint: 'People and businesses you transact with appear here.',
-              action: canManage
-                  ? FilledButton(onPressed: () => showContactForm(context), child: const Text('New contact'))
-                  : null,
-            )
-          : ListView.separated(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 88),
-              itemCount: contacts.length,
-              separatorBuilder: (_, __) => const Divider(height: 1),
-              itemBuilder: (context, i) {
-                final c = contacts[i];
-                final net = data.positionOf(c.id).net;
-                return ListTile(
-                  leading: EntityAvatar(name: c.name),
-                  title: Text(c.name),
-                  subtitle: Text(c.type == 'business' ? 'Business' : 'Person'),
-                  onTap: () => context.push('/contacts/${c.id}'),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (net.abs() >= 0.005)
-                        Text(
-                          formatMoney(net, currency),
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            color: net > 0 ? AppColors.accent2 : AppColors.danger,
-                          ),
-                        ),
-                      if (canManage)
-                        PopupMenuButton<String>(
-                          onSelected: (v) {
-                            if (v == 'edit') showContactForm(context, existing: c);
-                            if (v == 'delete') _confirmDelete(context, c);
-                          },
-                          itemBuilder: (_) => const [
-                            PopupMenuItem(value: 'edit', child: Text('Edit')),
-                            PopupMenuItem(value: 'delete', child: Text('Delete')),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            child: TextField(
+              controller: _searchController,
+              onChanged: (v) => setState(() => _search = v),
+              decoration: InputDecoration(
+                hintText: 'Search contacts…',
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: _search.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear),
+                        onPressed: () {
+                          _searchController.clear();
+                          setState(() => _search = '');
+                        },
+                      )
+                    : null,
+              ),
+            ),
+          ),
+          Expanded(
+            child: contacts.isEmpty
+                ? EmptyView(
+                    title: query.isNotEmpty ? 'No matches' : 'No contacts',
+                    hint: query.isNotEmpty
+                        ? null
+                        : 'People and businesses you transact with appear here.',
+                    action: canManage && query.isEmpty
+                        ? FilledButton(
+                            onPressed: () => showContactForm(context),
+                            child: const Text('New contact'),
+                          )
+                        : null,
+                  )
+                : ListView.separated(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 88),
+                    itemCount: contacts.length,
+                    separatorBuilder: (_, __) => const Divider(height: 1),
+                    itemBuilder: (context, i) {
+                      final c = contacts[i];
+                      final net = data.positionOf(c.id).net;
+                      final isFamily = c.relationship == 'family';
+                      return ListTile(
+                        leading: EntityAvatar(name: c.name),
+                        title: Row(
+                          children: [
+                            Flexible(child: Text(c.name, overflow: TextOverflow.ellipsis)),
+                            if (isFamily) ...[
+                              const SizedBox(width: 8),
+                              _FamilyBadge(),
+                            ],
                           ],
                         ),
-                    ],
+                        subtitle: Text(c.type == 'business' ? 'Business' : 'Person'),
+                        onTap: () => context.push('/contacts/${c.id}'),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (net.abs() >= 0.005)
+                              Text(
+                                formatMoney(net, currency),
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  color: net > 0 ? AppColors.accent2 : AppColors.danger,
+                                ),
+                              ),
+                            if (canManage)
+                              PopupMenuButton<String>(
+                                onSelected: (v) {
+                                  if (v == 'edit') showContactForm(context, existing: c);
+                                  if (v == 'delete') _confirmDelete(context, c);
+                                },
+                                itemBuilder: (_) => const [
+                                  PopupMenuItem(value: 'edit', child: Text('Edit')),
+                                  PopupMenuItem(value: 'delete', child: Text('Delete')),
+                                ],
+                              ),
+                          ],
+                        ),
+                      );
+                    },
                   ),
-                );
-              },
-            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -112,6 +169,25 @@ class ContactsScreen extends StatelessWidget {
             child: const Text('Delete'),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _FamilyBadge extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: cs.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: cs.outlineVariant),
+      ),
+      child: Text(
+        'Family',
+        style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: cs.onSurfaceVariant),
       ),
     );
   }

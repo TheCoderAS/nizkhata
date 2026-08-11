@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../core/format.dart';
 import '../core/theme.dart';
 import '../data/derive.dart';
+import '../data/models.dart';
 import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
 import '../widgets/common.dart';
@@ -44,6 +45,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final topSpend =
         spendByCategoryInRange(data.transactions, data.categories, range.start, range.end).take(6).toList();
 
+    // Upcoming dues within the selected period (open/partial), soonest first.
+    final upcoming = data.dues.where((d) {
+      final status = dueStatusFromSettled(d, data.settledOf(d.id));
+      if (status != 'open' && status != 'partial') return false;
+      final dd = d.dueDate;
+      return !dd.isBefore(range.start) && dd.isBefore(range.end);
+    }).toList()
+      ..sort((a, b) => a.dueDate.compareTo(b.dueDate));
+    final upcomingTop = upcoming.take(5).toList();
+
+    final budgetRows =
+        budgetProgress(data.budgets, data.transactions, data.categoriesById, fyStart).take(4).toList();
+
     final recent = [...data.transactions]..sort((a, b) => b.date.compareTo(a.date));
     final recentTop = recent.take(6).toList();
 
@@ -55,16 +69,47 @@ class _DashboardScreenState extends State<DashboardScreen> {
         _NetWorthHero(current: current, delta: delta, pct: nwPct, series: nwSeries, currency: currency),
         const SizedBox(height: 12),
         Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(child: StatCard(label: 'Income', amount: trend.income, currency: currency, tone: StatTone.success, icon: Icons.arrow_upward)),
+            Expanded(
+              child: _trendStat(
+                label: 'Income',
+                amount: trend.income,
+                currency: currency,
+                tone: StatTone.success,
+                icon: Icons.arrow_upward,
+                spark: [for (final b in trend.buckets) b.income],
+                sparkColor: AppColors.accent2,
+              ),
+            ),
             const SizedBox(width: 12),
-            Expanded(child: StatCard(label: 'Expense', amount: trend.expense, currency: currency, tone: StatTone.danger, icon: Icons.arrow_downward)),
+            Expanded(
+              child: _trendStat(
+                label: 'Expense',
+                amount: trend.expense,
+                currency: currency,
+                tone: StatTone.danger,
+                icon: Icons.arrow_downward,
+                spark: [for (final b in trend.buckets) b.expense],
+                sparkColor: AppColors.danger,
+              ),
+            ),
           ],
         ),
         const SizedBox(height: 12),
         Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(child: StatCard(label: 'Net', amount: trend.net, currency: currency, tone: trend.net >= 0 ? StatTone.success : StatTone.danger)),
+            Expanded(
+              child: _trendStat(
+                label: 'Net',
+                amount: trend.net,
+                currency: currency,
+                tone: trend.net >= 0 ? StatTone.success : StatTone.danger,
+                spark: [for (final b in trend.buckets) b.net],
+                sparkColor: trend.net >= 0 ? AppColors.accent2 : AppColors.danger,
+              ),
+            ),
             const SizedBox(width: 12),
             Expanded(child: StatCard(label: 'In accounts', amount: totalInAccounts, currency: currency, icon: Icons.account_balance_wallet_outlined)),
           ],
@@ -72,6 +117,28 @@ class _DashboardScreenState extends State<DashboardScreen> {
         const SizedBox(height: 12),
         StatCard(label: 'Held for others (Custodial)', amount: held, currency: currency, icon: Icons.people_outline),
         const SizedBox(height: 12),
+        SectionCard(
+          title: 'Upcoming dues',
+          child: upcomingTop.isEmpty
+              ? Text('Nothing due.', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant))
+              : Column(
+                  children: [
+                    for (final d in upcomingTop) _dueRow(d, currency),
+                  ],
+                ),
+        ),
+        const SizedBox(height: 12),
+        if (budgetRows.isNotEmpty) ...[
+          SectionCard(
+            title: 'Budgets',
+            child: Column(
+              children: [
+                for (final p in budgetRows) _budgetRow(p, currency),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
         SectionCard(
           title: 'Spend by category',
           child: topSpend.isEmpty
@@ -134,6 +201,129 @@ class _DashboardScreenState extends State<DashboardScreen> {
             DropdownMenuItem(value: p, child: Text(periodLabels[p]!)),
         ],
         onChanged: (v) => setState(() => period = v ?? PeriodKind.month),
+      ),
+    );
+  }
+
+  Widget _trendStat({
+    required String label,
+    required double amount,
+    required String currency,
+    required StatTone tone,
+    required List<double> spark,
+    required Color sparkColor,
+    IconData? icon,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        StatCard(label: label, amount: amount, currency: currency, tone: tone, icon: icon),
+        const SizedBox(height: 6),
+        _sparkline(spark, sparkColor),
+      ],
+    );
+  }
+
+  Widget _sparkline(List<double> values, Color color) {
+    if (values.length < 2) return const SizedBox(height: 28);
+    return SizedBox(
+      height: 28,
+      child: LineChart(
+        LineChartData(
+          gridData: const FlGridData(show: false),
+          titlesData: const FlTitlesData(show: false),
+          borderData: FlBorderData(show: false),
+          lineTouchData: const LineTouchData(enabled: false),
+          lineBarsData: [
+            LineChartBarData(
+              spots: [for (var i = 0; i < values.length; i++) FlSpot(i.toDouble(), values[i])],
+              isCurved: true,
+              color: color,
+              barWidth: 2,
+              dotData: const FlDotData(show: false),
+              belowBarData: BarAreaData(show: true, color: color.withValues(alpha: 0.15)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _dueRow(Due d, String currency) {
+    final cs = Theme.of(context).colorScheme;
+    final receivable = d.direction == 'receivable';
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(d.title.isNotEmpty ? d.title : 'Due',
+                          maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w500)),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: (receivable ? AppColors.accent2 : AppColors.danger).withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        d.direction,
+                        style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                            color: receivable ? AppColors.accent2 : AppColors.danger),
+                      ),
+                    ),
+                  ],
+                ),
+                Text(formatDate(d.dueDate), style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
+              ],
+            ),
+          ),
+          Text(formatMoney(d.amount, currency), style: const TextStyle(fontWeight: FontWeight.w600)),
+        ],
+      ),
+    );
+  }
+
+  Widget _budgetRow(BudgetProgress p, String currency) {
+    final cs = Theme.of(context).colorScheme;
+    final Color barColor =
+        p.ratio > 1 ? AppColors.danger : (p.ratio > 0.8 ? Colors.orange : cs.primary);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(child: Text(p.categoryName, maxLines: 1, overflow: TextOverflow.ellipsis)),
+              Text(
+                '${formatMoney(p.spent, currency)} / ${formatMoney(p.limit, currency)}',
+                style: TextStyle(
+                    fontWeight: FontWeight.w500,
+                    color: p.ratio > 1 ? AppColors.danger : cs.onSurfaceVariant),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: LinearProgressIndicator(
+              value: p.ratio.clamp(0.0, 1.0).toDouble(),
+              minHeight: 7,
+              color: barColor,
+            ),
+          ),
+        ],
       ),
     );
   }

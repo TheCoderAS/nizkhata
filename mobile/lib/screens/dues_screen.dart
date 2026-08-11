@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../core/format.dart';
@@ -9,10 +10,115 @@ import '../state/auth_controller.dart';
 import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
 import '../widgets/common.dart';
+import 'due_detail.dart';
 import 'due_form.dart';
 
-class DuesScreen extends StatelessWidget {
+// Status filter values map to sentinels; '__unsettled' is the default view
+// (open + partial), '__all' shows every status. Others match a single status.
+const _kDueStatusFilters = <String, String>{
+  '__unsettled': 'Unsettled',
+  'open': 'Open',
+  'partial': 'Partial',
+  'settled': 'Settled',
+  'cancelled': 'Cancelled',
+  '__all': 'All statuses',
+};
+
+const _kDueDirectionFilters = <String, String>{
+  '__all': 'All directions',
+  'payable': 'Payable',
+  'receivable': 'Receivable',
+};
+
+class DuesScreen extends StatefulWidget {
   const DuesScreen({super.key});
+
+  @override
+  State<DuesScreen> createState() => _DuesScreenState();
+}
+
+class _DuesScreenState extends State<DuesScreen> {
+  String _statusFilter = '__unsettled';
+  String _directionFilter = '__all';
+
+  int get _activeFilterCount =>
+      (_statusFilter != '__unsettled' ? 1 : 0) + (_directionFilter != '__all' ? 1 : 0);
+
+  void _clearFilters() => setState(() {
+        _statusFilter = '__unsettled';
+        _directionFilter = '__all';
+      });
+
+  Future<void> _openFilters(BuildContext context) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+        child: StatefulBuilder(
+          builder: (ctx, setSheet) {
+            void update(VoidCallback fn) {
+              setSheet(fn);
+              setState(fn);
+            }
+
+            return Padding(
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Filters', style: Theme.of(ctx).textTheme.titleLarge),
+                  const SizedBox(height: 16),
+                  DropdownButtonFormField<String>(
+                    value: _statusFilter,
+                    decoration: const InputDecoration(labelText: 'Status'),
+                    items: [
+                      for (final e in _kDueStatusFilters.entries)
+                        DropdownMenuItem(value: e.key, child: Text(e.value)),
+                    ],
+                    onChanged: (v) => update(() => _statusFilter = v ?? '__unsettled'),
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    value: _directionFilter,
+                    decoration: const InputDecoration(labelText: 'Direction'),
+                    items: [
+                      for (final e in _kDueDirectionFilters.entries)
+                        DropdownMenuItem(value: e.key, child: Text(e.value)),
+                    ],
+                    onChanged: (v) => update(() => _directionFilter = v ?? '__all'),
+                  ),
+                  const SizedBox(height: 20),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => update(() {
+                            _statusFilter = '__unsettled';
+                            _directionFilter = '__all';
+                          }),
+                          child: const Text('Clear all'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: FilledButton(
+                          onPressed: () => Navigator.of(ctx).pop(),
+                          child: const Text('Done'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -21,6 +127,8 @@ class DuesScreen extends StatelessWidget {
     final currency = ws.activeWorkspace?.baseCurrency ?? 'INR';
     final canManage = ws.can('dues.manage');
     final canTxn = ws.can('transactions.create');
+    final canViewContacts = ws.can('contacts.view');
+    final canViewTxns = ws.can('transactions.view');
 
     var receivable = 0.0;
     var payable = 0.0;
@@ -35,10 +143,19 @@ class DuesScreen extends StatelessWidget {
       }
     }
 
-    // Default view: unsettled (open + partial).
-    final unsettled = data.dues.where((d) {
-      final st = dueStatusFromSettled(d, data.settledOf(d.id));
-      return st == 'open' || st == 'partial';
+    // Apply status + direction filters. Default view is unsettled (open +
+    // partial); status derives from the settled amount.
+    final filtered = data.dues.where((d) {
+      if (_directionFilter != '__all' && d.direction != _directionFilter) return false;
+      if (_statusFilter != '__all') {
+        final st = dueStatusFromSettled(d, data.settledOf(d.id));
+        if (_statusFilter == '__unsettled') {
+          if (st != 'open' && st != 'partial') return false;
+        } else if (st != _statusFilter) {
+          return false;
+        }
+      }
+      return true;
     }).toList()
       ..sort((a, b) => a.dueDate.compareTo(b.dueDate));
 
@@ -64,13 +181,47 @@ class DuesScreen extends StatelessWidget {
               ],
             ),
           const SizedBox(height: 12),
-          if (unsettled.isEmpty)
-            const Padding(padding: EdgeInsets.only(top: 40), child: EmptyView(title: 'No unsettled dues'))
+          Row(
+            children: [
+              OutlinedButton.icon(
+                onPressed: () => _openFilters(context),
+                icon: const Icon(Icons.filter_list, size: 18),
+                label: Text(_activeFilterCount > 0 ? 'Filters ($_activeFilterCount)' : 'Filters'),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    if (_statusFilter != '__unsettled')
+                      _chip('Status: ${_kDueStatusFilters[_statusFilter]}',
+                          () => setState(() => _statusFilter = '__unsettled')),
+                    if (_directionFilter != '__all')
+                      _chip('Direction: ${_kDueDirectionFilters[_directionFilter]}',
+                          () => setState(() => _directionFilter = '__all')),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          if (filtered.isEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 40),
+              child: EmptyView(
+                title: _activeFilterCount > 0 ? 'No dues match the filter' : 'No unsettled dues',
+                action: _activeFilterCount > 0
+                    ? FilledButton(onPressed: _clearFilters, child: const Text('Clear filters'))
+                    : null,
+              ),
+            )
           else
-            for (final d in unsettled)
+            for (final d in filtered)
               Card(
                 margin: const EdgeInsets.only(bottom: 8),
                 child: ListTile(
+                  onTap: () => showDueDetail(context, d),
                   title: Text(d.title),
                   subtitle: Text('${d.direction == 'receivable' ? 'Receivable' : 'Payable'} · due ${formatDate(d.dueDate)}'),
                   trailing: Row(
@@ -78,7 +229,14 @@ class DuesScreen extends StatelessWidget {
                     children: [
                       Text(formatMoney(d.amount - data.settledOf(d.id), currency),
                           style: const TextStyle(fontWeight: FontWeight.w600)),
-                      if (canManage || canTxn) _DueMenu(due: d, canManage: canManage, canTxn: canTxn),
+                      if (canManage || canTxn || canViewContacts || canViewTxns)
+                        _DueMenu(
+                          due: d,
+                          canManage: canManage,
+                          canTxn: canTxn,
+                          canViewContacts: canViewContacts,
+                          canViewTxns: canViewTxns,
+                        ),
                     ],
                   ),
                 ),
@@ -87,13 +245,29 @@ class DuesScreen extends StatelessWidget {
       ),
     );
   }
+
+  Widget _chip(String label, VoidCallback onClear) {
+    return InputChip(
+      label: Text(label),
+      onDeleted: onClear,
+      deleteIcon: const Icon(Icons.close, size: 16),
+    );
+  }
 }
 
 class _DueMenu extends StatelessWidget {
   final Due due;
   final bool canManage;
   final bool canTxn;
-  const _DueMenu({required this.due, required this.canManage, required this.canTxn});
+  final bool canViewContacts;
+  final bool canViewTxns;
+  const _DueMenu({
+    required this.due,
+    required this.canManage,
+    required this.canTxn,
+    required this.canViewContacts,
+    required this.canViewTxns,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -101,11 +275,18 @@ class _DueMenu extends StatelessWidget {
     final status = dueStatusFromSettled(due, data.settledOf(due.id));
     final settleable = status == 'open' || status == 'partial';
     final canCancel = status != 'settled' && status != 'cancelled';
+    final hasContact = due.contactId != null;
     return PopupMenuButton<String>(
       onSelected: (v) {
         switch (v) {
           case 'pay':
             _showDuePayment(context, due);
+            break;
+          case 'contact':
+            if (due.contactId != null) context.push('/contacts/${due.contactId}');
+            break;
+          case 'txns':
+            if (due.contactId != null) context.push('/contacts/${due.contactId}');
             break;
           case 'edit':
             showDueForm(context, existing: due);
@@ -120,6 +301,8 @@ class _DueMenu extends StatelessWidget {
       },
       itemBuilder: (_) => [
         if (canTxn && settleable) const PopupMenuItem(value: 'pay', child: Text('Record payment')),
+        if (canViewContacts && hasContact) const PopupMenuItem(value: 'contact', child: Text('View contact')),
+        if (canViewTxns && hasContact) const PopupMenuItem(value: 'txns', child: Text('View transactions')),
         if (canManage) const PopupMenuItem(value: 'edit', child: Text('Edit')),
         if (canManage && canCancel) const PopupMenuItem(value: 'cancel', child: Text('Cancel due')),
         if (canManage) const PopupMenuItem(value: 'delete', child: Text('Delete')),

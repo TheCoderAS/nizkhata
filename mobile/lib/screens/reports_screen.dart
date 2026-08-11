@@ -59,6 +59,13 @@ class _ReportsScreenState extends State<ReportsScreen> {
 
     final fyTxns = data.transactions.where((t) => t.financialYear == fy).toList();
 
+    // Prior FY string (one year before the selected FY) for period-over-period
+    // deltas + top movers. Mirrors web `prevFy`.
+    final prevStartYear = startYear - 1;
+    final prevFy = fyStart == 1
+        ? '$prevStartYear'
+        : '$prevStartYear-${((prevStartYear + 1) % 100).toString().padLeft(2, '0')}';
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Reports'),
@@ -97,8 +104,10 @@ class _ReportsScreenState extends State<ReportsScreen> {
                     txns: fyTxns,
                     accounts: data.accounts,
                     debts: data.debts,
+                    categories: data.categories,
                     allTxns: data.transactions,
                     range: range,
+                    prevFy: prevFy,
                     currency: currency,
                   ),
                   _TaxTab(txns: fyTxns, fy: fy, currency: currency, canExport: canExport),
@@ -166,20 +175,24 @@ class _InsightsTab extends StatelessWidget {
   final List<Txn> txns;
   final List<Account> accounts;
   final List<Debt> debts;
+  final List<AppCategory> categories;
   final List<Txn> allTxns;
   final ({DateTime start, DateTime end}) range;
+  final String prevFy;
   final String currency;
   const _InsightsTab({
     required this.txns,
     required this.accounts,
     required this.debts,
+    required this.categories,
     required this.allTxns,
     required this.range,
+    required this.prevFy,
     required this.currency,
   });
 
-  @override
-  Widget build(BuildContext context) {
+  // Income/expense/net totals for a set of FY-scoped transactions.
+  static ({double income, double expense, double net}) _totals(List<Txn> txns) {
     var income = 0.0;
     var expense = 0.0;
     for (final t in txns) {
@@ -200,26 +213,67 @@ class _InsightsTab extends StatelessWidget {
     }
     income = roundMoney(income);
     expense = roundMoney(expense);
-    final net = roundMoney(income - expense);
+    return (income: income, expense: expense, net: roundMoney(income - expense));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cur = _totals(txns);
+    final income = cur.income;
+    final expense = cur.expense;
+    final net = cur.net;
     final savingsRate = income > 0 ? (net / income * 100).round() : 0;
 
+    // Prior-FY totals for period-over-period %-deltas (filter by stored FY).
+    final prev = _totals(allTxns.where((t) => t.financialYear == prevFy).toList());
+
     final nwSeries = netWorthSeries(accounts, debts, allTxns, range.start, range.end);
+    final trend = trendSeries(allTxns, range.start, range.end);
+
+    // Top movers: per-category spend change vs the prior FY. The prior range is
+    // the current FY range shifted back one year.
+    final curCat = spendByCategoryInRange(allTxns, categories, range.start, range.end);
+    final prevRange = (
+      start: DateTime(range.start.year - 1, range.start.month, 1),
+      end: DateTime(range.end.year - 1, range.end.month, 1),
+    );
+    final prevCat = spendByCategoryInRange(allTxns, categories, prevRange.start, prevRange.end);
+    final movers = _topMovers(curCat, prevCat, 6);
 
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
         Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(child: StatCard(label: 'Income', amount: income, currency: currency, tone: StatTone.success, icon: Icons.arrow_upward)),
+            Expanded(
+              child: _StatWithDelta(
+                delta: _pctDelta(income, prev.income),
+                higherIsGood: true,
+                child: StatCard(label: 'Income', amount: income, currency: currency, tone: StatTone.success, icon: Icons.arrow_upward),
+              ),
+            ),
             const SizedBox(width: 12),
-            Expanded(child: StatCard(label: 'Expense', amount: expense, currency: currency, tone: StatTone.danger, icon: Icons.arrow_downward)),
+            Expanded(
+              child: _StatWithDelta(
+                delta: _pctDelta(expense, prev.expense),
+                higherIsGood: false,
+                child: StatCard(label: 'Expense', amount: expense, currency: currency, tone: StatTone.danger, icon: Icons.arrow_downward),
+              ),
+            ),
           ],
         ),
         const SizedBox(height: 12),
         Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(child: StatCard(label: 'Net', amount: net, currency: currency, tone: net >= 0 ? StatTone.success : StatTone.danger)),
+            Expanded(
+              child: _StatWithDelta(
+                delta: _pctDelta(net, prev.net),
+                higherIsGood: true,
+                child: StatCard(label: 'Net', amount: net, currency: currency, tone: net >= 0 ? StatTone.success : StatTone.danger),
+              ),
+            ),
             const SizedBox(width: 12),
             Expanded(child: _PlainStatCard(label: 'Savings rate', value: '$savingsRate%')),
           ],
@@ -232,8 +286,144 @@ class _InsightsTab extends StatelessWidget {
               : Text('Not enough data to plot net worth.',
                   style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
         ),
+        const SizedBox(height: 12),
+        SectionCard(
+          title: 'Income vs expense',
+          child: trend.buckets.length > 1
+              ? SizedBox(height: 180, child: _TrendChart(buckets: trend.buckets))
+              : Text('Not enough data to plot the trend.',
+                  style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+        ),
+        const SizedBox(height: 12),
+        SectionCard(
+          title: 'Top movers',
+          child: movers.isEmpty
+              ? Text('Not enough history to compare.',
+                  style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant))
+              : Column(
+                  children: [
+                    for (final m in movers)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 6),
+                        child: Row(
+                          children: [
+                            Expanded(child: Text(m.name, overflow: TextOverflow.ellipsis)),
+                            const SizedBox(width: 8),
+                            Text(
+                              '${formatMoney(m.previous, currency)} → ${formatMoney(m.current, currency)}',
+                              style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              '${m.delta > 0 ? '+' : '−'}${formatMoney(m.delta.abs(), currency)}',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                color: m.delta > 0 ? AppColors.danger : AppColors.accent2,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+        ),
         const SizedBox(height: 24),
       ],
+    );
+  }
+}
+
+// Percentage change vs a prior value. null when there's no baseline (prev == 0).
+int? _pctDelta(double current, double previous) {
+  if (previous == 0) return null;
+  return ((current - previous) / previous.abs() * 100).round();
+}
+
+// Biggest category spend changes vs the prior FY. Mirrors web `topMovers`:
+// unions current + previous categories, keeps non-zero deltas, sorts by |delta|.
+List<({String id, String name, double current, double previous, double delta})> _topMovers(
+    List<CategorySpend> current, List<CategorySpend> previous, int limit) {
+  final prevById = {for (final c in previous) c.id: c};
+  final seen = <String>{};
+  final movers = <({String id, String name, double current, double previous, double delta})>[];
+  for (final c in current) {
+    seen.add(c.id);
+    final prev = prevById[c.id]?.amount ?? 0;
+    movers.add((id: c.id, name: c.name, current: c.amount, previous: prev, delta: roundMoney(c.amount - prev)));
+  }
+  for (final c in previous) {
+    if (seen.contains(c.id)) continue;
+    movers.add((id: c.id, name: c.name, current: 0, previous: c.amount, delta: roundMoney(-c.amount)));
+  }
+  final out = movers.where((m) => m.delta != 0).toList()
+    ..sort((a, b) => b.delta.abs().compareTo(a.delta.abs()));
+  return out.take(limit).toList();
+}
+
+// A stat card with a coloured prior-FY %-delta badge underneath.
+class _StatWithDelta extends StatelessWidget {
+  final Widget child;
+  final int? delta;
+  final bool higherIsGood;
+  const _StatWithDelta({required this.child, required this.delta, required this.higherIsGood});
+
+  @override
+  Widget build(BuildContext context) {
+    final d = delta;
+    if (d == null || d == 0) return child;
+    final up = d > 0;
+    final good = up == higherIsGood;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        child,
+        const SizedBox(height: 4),
+        Padding(
+          padding: const EdgeInsets.only(left: 4),
+          child: Text(
+            '${up ? '▲' : '▼'} ${d.abs()}% vs last FY',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: good ? AppColors.accent2 : AppColors.danger,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// Income (green) vs expense (red) per bucket over the FY.
+class _TrendChart extends StatelessWidget {
+  final List<TrendBucket> buckets;
+  const _TrendChart({required this.buckets});
+
+  @override
+  Widget build(BuildContext context) {
+    return LineChart(
+      LineChartData(
+        gridData: const FlGridData(show: false),
+        titlesData: const FlTitlesData(show: false),
+        borderData: FlBorderData(show: false),
+        lineTouchData: const LineTouchData(enabled: false),
+        lineBarsData: [
+          LineChartBarData(
+            spots: [for (var i = 0; i < buckets.length; i++) FlSpot(i.toDouble(), buckets[i].income)],
+            isCurved: true,
+            color: AppColors.accent2,
+            barWidth: 2,
+            dotData: const FlDotData(show: false),
+          ),
+          LineChartBarData(
+            spots: [for (var i = 0; i < buckets.length; i++) FlSpot(i.toDouble(), buckets[i].expense)],
+            isCurved: true,
+            color: AppColors.danger,
+            barWidth: 2,
+            dotData: const FlDotData(show: false),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -294,6 +484,32 @@ class _NetWorthChart extends StatelessWidget {
 
 // ---- Tax --------------------------------------------------------------------
 
+// Human-readable labels for tax heads (mirrors src/lib/taxHeads.ts). Falls back
+// to Title-cased key for anything unknown.
+const _taxHeadLabels = <String, String>{
+  'salary': 'Salary',
+  'bonus': 'Bonus',
+  'overtime': 'Overtime',
+  'reimbursement': 'Reimbursement',
+  'perquisite': 'Perquisite',
+  'commission': 'Commission',
+  'professional_fees': 'Professional fees',
+  'rent': 'Rent',
+  'interest': 'Interest',
+  'dividend': 'Dividend',
+  'capital_gains': 'Capital gains',
+  'business': 'Business / profession',
+  'other': 'Other',
+  'exempt': 'Exempt',
+};
+
+String _taxHeadLabel(String head) {
+  final known = _taxHeadLabels[head];
+  if (known != null) return known;
+  if (head.isEmpty) return head;
+  return head[0].toUpperCase() + head.substring(1).replaceAll('_', ' ');
+}
+
 class _TaxTab extends StatelessWidget {
   final List<Txn> txns;
   final String fy;
@@ -303,9 +519,9 @@ class _TaxTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final heads = <String>[];
     final taxableByHead = <String, double>{};
     final tdsByHead = <String, double>{};
+    final linesByHead = <String, int>{};
     var totalTaxable = 0.0;
     var totalTds = 0.0;
 
@@ -315,15 +531,19 @@ class _TaxTab extends StatelessWidget {
         if (tax == null || tax['taxable'] != true) continue;
         final head = (tax['head'] as String?) ?? 'other';
         final tds = (tax['tdsAmount'] is num) ? (tax['tdsAmount'] as num).toDouble() : 0.0;
-        if (!taxableByHead.containsKey(head)) heads.add(head);
         taxableByHead[head] = (taxableByHead[head] ?? 0) + line.amount;
         tdsByHead[head] = (tdsByHead[head] ?? 0) + tds;
+        linesByHead[head] = (linesByHead[head] ?? 0) + 1;
         totalTaxable += line.amount;
         totalTds += tds;
       }
     }
     totalTaxable = roundMoney(totalTaxable);
     totalTds = roundMoney(totalTds);
+
+    // Sort heads by taxable amount desc (mirrors web fyTaxSummary).
+    final heads = taxableByHead.keys.toList()
+      ..sort((a, b) => (taxableByHead[b] ?? 0).compareTo(taxableByHead[a] ?? 0));
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -345,10 +565,15 @@ class _TaxTab extends StatelessWidget {
           if (canExport) ...[
             _exportButton(() => _exportCsv(
                   'tax-summary-$fy.csv',
-                  const ['head', 'taxableAmount', 'tdsAmount'],
+                  const ['Head', 'Taxable', 'TDS', 'Lines'],
                   [
                     for (final h in heads)
-                      [h, roundMoney(taxableByHead[h] ?? 0), roundMoney(tdsByHead[h] ?? 0)],
+                      [
+                        _taxHeadLabel(h),
+                        roundMoney(taxableByHead[h] ?? 0),
+                        roundMoney(tdsByHead[h] ?? 0),
+                        linesByHead[h] ?? 0,
+                      ],
                   ],
                 )),
             const SizedBox(height: 8),
@@ -360,8 +585,11 @@ class _TaxTab extends StatelessWidget {
                 for (final h in heads)
                   ListTile(
                     contentPadding: EdgeInsets.zero,
-                    title: Text(h, style: const TextStyle(fontWeight: FontWeight.w500)),
-                    subtitle: Text('TDS ${formatMoney(roundMoney(tdsByHead[h] ?? 0), currency)}'),
+                    title: Text(_taxHeadLabel(h), style: const TextStyle(fontWeight: FontWeight.w500)),
+                    subtitle: Text(
+                      'TDS ${formatMoney(roundMoney(tdsByHead[h] ?? 0), currency)}'
+                      ' · ${linesByHead[h] ?? 0} line${(linesByHead[h] ?? 0) == 1 ? '' : 's'}',
+                    ),
                     trailing: Text(
                       formatMoney(roundMoney(taxableByHead[h] ?? 0), currency),
                       style: const TextStyle(fontWeight: FontWeight.w600),
@@ -496,6 +724,17 @@ class _ContactTab extends StatelessWidget {
 
     String nameOf(String id) => contactsById[id]?.name ?? '—';
 
+    // Donut of money paid out per contact (top 6 + Other), mirrors web contactDonut.
+    final paidRanked = order.where((id) => (paid[id] ?? 0) > 0).toList()
+      ..sort((a, b) => paid[b]!.compareTo(paid[a]!));
+    final paidTop = paidRanked.take(6).toList();
+    final paidRest = paidRanked.skip(6).fold<double>(0, (s, id) => s + paid[id]!);
+    final paidSlices = <({String name, double value})>[
+      for (final id in paidTop) (name: nameOf(id), value: roundMoney(paid[id]!)),
+      if (paidRest > 0) (name: 'Other', value: roundMoney(paidRest)),
+    ];
+    final totalPaid = roundMoney(paidRanked.fold<double>(0, (s, id) => s + paid[id]!));
+
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -509,6 +748,13 @@ class _ContactTab extends StatelessWidget {
                 ],
               )),
           const SizedBox(height: 8),
+        ],
+        if (paidSlices.isNotEmpty) ...[
+          SectionCard(
+            title: 'Paid by contact',
+            child: _Donut(slices: paidSlices, total: totalPaid, centerLabel: 'Total paid', currency: currency),
+          ),
+          const SizedBox(height: 12),
         ],
         SectionCard(
           title: 'By contact',
