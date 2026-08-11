@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../core/format.dart';
+import '../core/theme.dart';
 import '../data/derive.dart';
 import '../data/models.dart';
 import '../data/mutations.dart';
@@ -10,7 +11,7 @@ import '../state/auth_controller.dart';
 import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
 import '../widgets/common.dart';
-import '../widgets/data_table_view.dart';
+import '../widgets/entity_card_list.dart';
 import 'debt_detail.dart';
 import 'debt_form.dart';
 
@@ -110,8 +111,8 @@ class _DebtsScreenState extends State<DebtsScreen> {
                       icon: query.isNotEmpty ? Icons.filter_alt_off : Icons.credit_card_outlined,
                     ),
                   )
-                : DataTableView<Debt>(
-                    tableId: 'debts',
+                : EntityCardList<Debt>(
+                    listId: 'debts',
                     rows: visible,
                     onRowTap: (d) => showDebtDetail(context, d),
                     trailing: (d) => (canManage || canTxn || canViewContacts || canViewTxns)
@@ -123,57 +124,52 @@ class _DebtsScreenState extends State<DebtsScreen> {
                             canViewTxns: canViewTxns,
                           )
                         : const SizedBox.shrink(),
-                    columns: [
-                      DataColumn2<Debt>(
+                    fields: [
+                      CardField<Debt>(
                         key: 'label',
                         label: 'Label',
+                        role: CardRole.title,
                         locked: true,
-                        defaultWidth: 170,
                         sortValue: (d) => d.label ?? data.contactsById[d.contactId]?.name ?? 'Debt',
-                        cell: (d) => Text(d.label ?? data.contactsById[d.contactId]?.name ?? 'Debt',
-                            overflow: TextOverflow.ellipsis),
+                        text: (d) => d.label ?? data.contactsById[d.contactId]?.name ?? 'Debt',
                       ),
-                      DataColumn2<Debt>(
+                      CardField<Debt>(
                         key: 'contact',
                         label: 'Contact',
-                        defaultWidth: 150,
                         sortValue: (d) => data.contactsById[d.contactId]?.name ?? '',
-                        cell: (d) => Text(data.contactsById[d.contactId]?.name ?? '—',
-                            overflow: TextOverflow.ellipsis),
+                        text: (d) => data.contactsById[d.contactId]?.name ?? '—',
                       ),
-                      DataColumn2<Debt>(
+                      CardField<Debt>(
                         key: 'direction',
                         label: 'Direction',
                         defaultVisible: false,
-                        defaultWidth: 130,
                         sortValue: (d) => d.direction,
-                        cell: (d) => Text(d.direction == 'owed' ? 'They owe you' : 'You owe',
-                            overflow: TextOverflow.ellipsis),
+                        text: (d) => d.direction == 'owed' ? 'They owe you' : 'You owe',
                       ),
-                      DataColumn2<Debt>(
+                      CardField<Debt>(
                         key: 'purpose',
                         label: 'Purpose',
                         defaultVisible: false,
-                        defaultWidth: 140,
                         sortValue: (d) => _kPurposeLabels[d.purpose] ?? d.purpose,
-                        cell: (d) => Text(_kPurposeLabels[d.purpose] ?? d.purpose,
-                            overflow: TextOverflow.ellipsis),
+                        text: (d) => _kPurposeLabels[d.purpose] ?? d.purpose,
                       ),
-                      DataColumn2<Debt>(
+                      CardField<Debt>(
                         key: 'status',
                         label: 'Status',
-                        defaultWidth: 100,
                         sortValue: (d) => d.status,
-                        cell: (d) => Text(d.status),
+                        text: (d) => d.status,
                       ),
-                      DataColumn2<Debt>(
+                      CardField<Debt>(
                         key: 'outstanding',
                         label: 'Outstanding',
-                        numeric: true,
-                        defaultWidth: 130,
+                        role: CardRole.amount,
                         sortValue: (d) => data.outstandingOf(d.id),
-                        cell: (d) => Text(formatMoney(data.outstandingOf(d.id), currency),
-                            style: const TextStyle(fontWeight: FontWeight.w600)),
+                        widget: (d) => Text(
+                          formatMoney(data.outstandingOf(d.id), currency),
+                          style: TextStyle(
+                            color: d.direction == 'owed' ? AppColors.accent2 : AppColors.danger,
+                          ),
+                        ),
                       ),
                     ],
                   ),

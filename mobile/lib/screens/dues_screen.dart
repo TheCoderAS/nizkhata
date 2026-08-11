@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../core/format.dart';
+import '../core/theme.dart';
 import '../data/derive.dart';
 import '../data/models.dart';
 import '../data/mutations.dart';
@@ -10,7 +11,7 @@ import '../state/auth_controller.dart';
 import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
 import '../widgets/common.dart';
-import '../widgets/data_table_view.dart';
+import '../widgets/entity_card_list.dart';
 import 'due_detail.dart';
 import 'due_form.dart';
 
@@ -196,39 +197,49 @@ class _DuesScreenState extends State<DuesScreen> {
                   ),
                   const SizedBox(height: 12),
                 ],
-                TextField(
-                  onChanged: (v) => setState(() => _search = v),
-                  decoration: const InputDecoration(
-                    hintText: 'Search dues…',
-                    prefixIcon: Icon(Icons.search, size: 20),
-                    isDense: true,
-                  ),
-                ),
-                const SizedBox(height: 8),
                 Row(
                   children: [
-                    OutlinedButton.icon(
-                      onPressed: () => _openFilters(context),
-                      icon: const Icon(Icons.filter_list, size: 18),
-                      label: Text(_activeFilterCount > 0 ? 'Filters ($_activeFilterCount)' : 'Filters'),
-                    ),
-                    const SizedBox(width: 8),
                     Expanded(
-                      child: Wrap(
-                        spacing: 6,
-                        runSpacing: 6,
-                        children: [
-                          if (_statusFilter != '__unsettled')
-                            _chip('Status: ${_kDueStatusFilters[_statusFilter]}',
-                                () => setState(() => _statusFilter = '__unsettled')),
-                          if (_directionFilter != '__all')
-                            _chip('Direction: ${_kDueDirectionFilters[_directionFilter]}',
-                                () => setState(() => _directionFilter = '__all')),
-                        ],
+                      child: TextField(
+                        onChanged: (v) => setState(() => _search = v),
+                        decoration: const InputDecoration(
+                          hintText: 'Search dues…',
+                          prefixIcon: Icon(Icons.search, size: 20),
+                          isDense: true,
+                        ),
+                      ),
+                    ),
+                    Gap.sm,
+                    Badge(
+                      isLabelVisible: _activeFilterCount > 0,
+                      label: Text('$_activeFilterCount'),
+                      child: IconButton.filledTonal(
+                        tooltip: 'Filters',
+                        onPressed: () => _openFilters(context),
+                        icon: const Icon(Icons.tune),
                       ),
                     ),
                   ],
                 ),
+                if (_activeFilterCount > 0) ...[
+                  Gap.sm,
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        if (_statusFilter != '__unsettled')
+                          Padding(
+                            padding: const EdgeInsets.only(right: 6),
+                            child: _chip('Status: ${_kDueStatusFilters[_statusFilter]}',
+                                () => setState(() => _statusFilter = '__unsettled')),
+                          ),
+                        if (_directionFilter != '__all')
+                          _chip('Direction: ${_kDueDirectionFilters[_directionFilter]}',
+                              () => setState(() => _directionFilter = '__all')),
+                      ],
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -248,8 +259,8 @@ class _DuesScreenState extends State<DuesScreen> {
                           : null,
                     ),
                   )
-                : DataTableView<Due>(
-                    tableId: 'dues',
+                : EntityCardList<Due>(
+                    listId: 'dues',
                     rows: filtered,
                     onRowTap: (d) => showDueDetail(context, d),
                     trailing: (d) => (canManage || canTxn || canViewContacts || canViewTxns)
@@ -261,64 +272,59 @@ class _DuesScreenState extends State<DuesScreen> {
                             canViewTxns: canViewTxns,
                           )
                         : const SizedBox.shrink(),
-                    columns: [
-                      DataColumn2<Due>(
+                    fields: [
+                      CardField<Due>(
                         key: 'title',
                         label: 'Title',
+                        role: CardRole.title,
                         locked: true,
-                        defaultWidth: 160,
                         sortValue: (d) => d.title,
-                        cell: (d) => Text(d.title, overflow: TextOverflow.ellipsis),
+                        text: (d) => d.title,
                       ),
-                      DataColumn2<Due>(
+                      CardField<Due>(
                         key: 'direction',
                         label: 'Direction',
                         defaultVisible: false,
-                        defaultWidth: 110,
                         sortValue: (d) => d.direction,
-                        cell: (d) => Text(d.direction == 'receivable' ? 'Receivable' : 'Payable'),
+                        text: (d) => d.direction == 'receivable' ? 'Receivable' : 'Payable',
                       ),
-                      DataColumn2<Due>(
+                      CardField<Due>(
                         key: 'contact',
                         label: 'Contact',
                         defaultVisible: false,
-                        defaultWidth: 140,
                         sortValue: (d) => d.contactId != null ? data.contactsById[d.contactId]?.name ?? '' : '',
-                        cell: (d) => Text(
-                            d.contactId != null ? data.contactsById[d.contactId]?.name ?? '—' : '—',
-                            overflow: TextOverflow.ellipsis),
+                        text: (d) => d.contactId != null ? data.contactsById[d.contactId]?.name ?? '—' : '—',
                       ),
-                      DataColumn2<Due>(
+                      CardField<Due>(
                         key: 'dueDate',
                         label: 'Due date',
-                        defaultWidth: 110,
                         sortValue: (d) => d.dueDate,
-                        cell: (d) => Text(formatDate(d.dueDate)),
+                        text: (d) => formatDate(d.dueDate),
                       ),
-                      DataColumn2<Due>(
+                      CardField<Due>(
                         key: 'amount',
                         label: 'Amount',
-                        numeric: true,
-                        defaultWidth: 120,
+                        role: CardRole.amount,
                         sortValue: (d) => d.amount,
-                        cell: (d) => Text(formatMoney(d.amount, currency),
-                            style: const TextStyle(fontWeight: FontWeight.w600)),
+                        widget: (d) => Text(
+                          formatMoney(d.amount, currency),
+                          style: TextStyle(
+                            color: d.direction == 'receivable' ? AppColors.accent2 : AppColors.danger,
+                          ),
+                        ),
                       ),
-                      DataColumn2<Due>(
+                      CardField<Due>(
                         key: 'settled',
                         label: 'Settled',
                         defaultVisible: false,
-                        numeric: true,
-                        defaultWidth: 120,
                         sortValue: (d) => data.settledOf(d.id),
-                        cell: (d) => Text(formatMoney(data.settledOf(d.id), currency)),
+                        text: (d) => formatMoney(data.settledOf(d.id), currency),
                       ),
-                      DataColumn2<Due>(
+                      CardField<Due>(
                         key: 'status',
                         label: 'Status',
-                        defaultWidth: 100,
                         sortValue: (d) => dueStatusFromSettled(d, data.settledOf(d.id)),
-                        cell: (d) => Text(dueStatusFromSettled(d, data.settledOf(d.id))),
+                        text: (d) => dueStatusFromSettled(d, data.settledOf(d.id)),
                       ),
                     ],
                   ),
