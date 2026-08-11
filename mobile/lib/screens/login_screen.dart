@@ -19,15 +19,7 @@ class LoginScreen extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(20),
-                  child: Image.asset(
-                    'assets/icon.png',
-                    width: 84,
-                    height: 84,
-                    fit: BoxFit.cover,
-                  ),
-                ),
+                Image.asset('assets/icon.png', width: 96, height: 96),
                 const SizedBox(height: 20),
                 Text('NizKhata', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800)),
                 const SizedBox(height: 6),
