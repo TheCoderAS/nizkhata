@@ -59,7 +59,7 @@ jobs:
           git checkout -- lib pubspec.yaml
           rm -f test/widget_test.dart
 
-      - name: Ensure INTERNET permission + app label + minSdk 31 (Android 12)
+      - name: Ensure INTERNET permission + app label + App Links + minSdk 31 (Android 12)
         run: |
           MANIFEST=android/app/src/main/AndroidManifest.xml
           python3 - "$MANIFEST" <<'PY'
@@ -77,6 +77,22 @@ jobs:
           if s2 != s:
               print('app label set to NizKhata')
               s = s2
+          # Verified Android App Links for https://nizkhata.web.app + enable
+          # Flutter's deep-link routing so go_router receives the incoming path.
+          if 'nizkhata.web.app' not in s:
+              applink = (
+                  '\n'
+                  '            <meta-data android:name="flutter_deeplinking_enabled" android:value="true" />\n'
+                  '            <intent-filter android:autoVerify="true">\n'
+                  '                <action android:name="android.intent.action.VIEW" />\n'
+                  '                <category android:name="android.intent.category.DEFAULT" />\n'
+                  '                <category android:name="android.intent.category.BROWSABLE" />\n'
+                  '                <data android:scheme="https" android:host="nizkhata.web.app" />\n'
+                  '            </intent-filter>\n'
+                  '        '
+              )
+              s = s.replace('</activity>', applink + '</activity>', 1)
+              print('App Links intent-filter added')
           open(p, 'w').write(s)
           PY
           # Minimum supported platform: Android 12 (API 31).
