@@ -209,8 +209,10 @@ class _TransactionFormState extends State<_TransactionForm> {
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
-      child: SingleChildScrollView(
-        child: Form(
+      child: SafeArea(
+        top: false,
+        child: SingleChildScrollView(
+          child: Form(
           key: _formKey,
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -231,14 +233,14 @@ class _TransactionFormState extends State<_TransactionForm> {
                   _debtId = null;
                 }),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
               TextFormField(
                 controller: _amount,
                 decoration: const InputDecoration(labelText: 'Amount', prefixText: '₹ '),
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 validator: (v) => (double.tryParse(v?.trim() ?? '') ?? 0) <= 0 ? 'Enter an amount' : null,
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
               // Date
               InkWell(
                 onTap: () async {
@@ -255,23 +257,23 @@ class _TransactionFormState extends State<_TransactionForm> {
                   child: Text(formatDate(_date)),
                 ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
               _accountDropdown('Account', _accountId, accounts, (v) => setState(() => _accountId = v)),
               if (_type == 'transfer') ...[
-                const SizedBox(height: 12),
+                const SizedBox(height: 14),
                 _accountDropdown('To account', _toAccountId,
                     accounts.where((a) => a.id != _accountId).toList(), (v) => setState(() => _toAccountId = v),
                     validator: (v) => v == null ? 'Pick a destination' : null),
               ],
               if (_type == 'expense' || _type == 'income') ...[
-                const SizedBox(height: 12),
+                const SizedBox(height: 14),
                 DropdownButtonFormField<String>(
                   value: cats.any((c) => c.id == _categoryId) ? _categoryId : null,
                   decoration: const InputDecoration(labelText: 'Category'),
                   items: [for (final c in cats) DropdownMenuItem(value: c.id, child: Text(c.name))],
                   onChanged: (v) => setState(() => _categoryId = v),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 14),
                 DropdownButtonFormField<String>(
                   value: contacts.any((c) => c.id == _contactId) ? _contactId : null,
                   decoration: const InputDecoration(labelText: 'Contact (optional)'),
@@ -283,7 +285,7 @@ class _TransactionFormState extends State<_TransactionForm> {
                 ),
               ],
               if (_isDebtType) ...[
-                const SizedBox(height: 12),
+                const SizedBox(height: 14),
                 DropdownButtonFormField<String>(
                   value: debts.any((d) => d.id == _debtId) ? _debtId : null,
                   decoration: const InputDecoration(labelText: 'Debt'),
@@ -305,7 +307,7 @@ class _TransactionFormState extends State<_TransactionForm> {
                         style: TextStyle(fontSize: 12, color: Colors.orange)),
                   ),
               ],
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
               TextFormField(
                 controller: _note,
                 decoration: const InputDecoration(labelText: 'Note (optional)'),
@@ -321,6 +323,7 @@ class _TransactionFormState extends State<_TransactionForm> {
                 ),
               ),
             ],
+          ),
           ),
         ),
       ),
