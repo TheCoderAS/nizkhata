@@ -60,14 +60,13 @@ class AccountsScreen extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        formatMoney(bal, currency),
+                        accountBalanceLabel(a.type, bal, currency),
                         style: TextStyle(
                           fontWeight: FontWeight.w600,
                           color: bal < 0 ? AppColors.danger : null,
                         ),
                       ),
-                      if (canManage)
-                        PopupMenuButton<String>(
+                      PopupMenuButton<String>(
                           onSelected: (v) {
                             if (v == 'ledger') context.push('/accounts/${a.id}/ledger');
                             if (v == 'edit') showAccountForm(context, existing: a);

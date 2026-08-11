@@ -44,6 +44,15 @@ String _currencySymbol(String code) {
   }
 }
 
+/// Balance label with credit-card "owed" treatment: a negative credit-card
+/// balance reads "₹1,000.00 owed" (matches the web), else plain formatMoney.
+String accountBalanceLabel(String accountType, num balance, [String currency = 'INR']) {
+  if (accountType == 'credit_card' && balance < 0) {
+    return '${formatMoney(-balance, currency)} owed';
+  }
+  return formatMoney(balance, currency);
+}
+
 /// Short readable date, e.g. "9 Aug 2026".
 String formatDate(DateTime date, [String locale = 'en_IN']) {
   return DateFormat('d MMM yyyy', locale).format(date);

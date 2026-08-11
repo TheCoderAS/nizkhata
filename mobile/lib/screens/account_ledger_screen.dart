@@ -93,6 +93,7 @@ class AccountLedgerScreen extends StatelessWidget {
                     label: 'Current balance',
                     amount: balance,
                     currency: currency,
+                    text: accountBalanceLabel(account.type, balance, currency),
                     color: balance < 0 ? AppColors.danger : null,
                   ),
                 ),
@@ -176,7 +177,9 @@ class _SummaryTile extends StatelessWidget {
   final double amount;
   final String currency;
   final Color? color;
-  const _SummaryTile({required this.label, required this.amount, required this.currency, this.color});
+  final String? text;
+  const _SummaryTile(
+      {required this.label, required this.amount, required this.currency, this.color, this.text});
 
   @override
   Widget build(BuildContext context) {
@@ -190,7 +193,7 @@ class _SummaryTile extends StatelessWidget {
             Text(label, style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant)),
             const SizedBox(height: 8),
             Text(
-              formatMoney(amount, currency),
+              text ?? formatMoney(amount, currency),
               style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: color ?? cs.onSurface),
             ),
           ],
