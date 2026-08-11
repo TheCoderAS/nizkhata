@@ -21,7 +21,8 @@ on:
     tags:
       - "v*"
     branches:
-      # Build on pushes to the app branch during development.
+      # Build on the mainline and on the app dev branch.
+      - "main"
       - "claude/android-app"
 
 permissions:
@@ -58,7 +59,7 @@ jobs:
           git checkout -- lib pubspec.yaml
           rm -f test/widget_test.dart
 
-      - name: Ensure INTERNET permission + minSdk 31 (Android 12)
+      - name: Ensure INTERNET permission + app label + minSdk 31 (Android 12)
         run: |
           MANIFEST=android/app/src/main/AndroidManifest.xml
           python3 - "$MANIFEST" <<'PY'
@@ -67,10 +68,16 @@ jobs:
           s = open(p).read()
           if 'android.permission.INTERNET' not in s:
               s = re.sub(r'(<manifest[^>]*>)', r'\1\n    <uses-permission android:name="android.permission.INTERNET"/>', s, count=1)
-              open(p, 'w').write(s)
               print('INTERNET permission added')
           else:
               print('INTERNET permission already present')
+          # Launcher name must be the branded, correctly-cased "NizKhata"
+          # (flutter create emits the lowercase project name by default).
+          s2 = re.sub(r'android:label="[^"]*"', 'android:label="NizKhata"', s, count=1)
+          if s2 != s:
+              print('app label set to NizKhata')
+              s = s2
+          open(p, 'w').write(s)
           PY
           # Minimum supported platform: Android 12 (API 31).
           for f in android/app/build.gradle android/app/build.gradle.kts; do
@@ -150,6 +157,9 @@ jobs:
       - name: Pub get
         run: flutter pub get
 
+      - name: Native splash screen (best effort)
+        run: dart run flutter_native_splash:create || echo "splash generation skipped"
+
       - name: Launcher icons (best effort)
         run: dart run flutter_launcher_icons || echo "icon generation skipped"
 
@@ -170,7 +180,7 @@ jobs:
       # can be downloaded/installed on a phone without unzipping an artifact.
       # The runner creates/updates the `android-latest` tag via its own token.
       - name: Publish APK to rolling pre-release
-        if: success() && github.ref == 'refs/heads/claude/android-app'
+        if: success() && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/claude/android-app')
         uses: softprops/action-gh-release@v2
         with:
           tag_name: android-latest

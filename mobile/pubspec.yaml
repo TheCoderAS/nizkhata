@@ -1,7 +1,7 @@
 name: nizkhata
 description: NizKhata — native Android app. Every rupee, accounted for.
 publish_to: "none"
-version: 1.0.0+1
+version: 1.0.1+2
 
 environment:
   sdk: ">=3.4.0 <4.0.0"
@@ -44,16 +44,31 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^5.0.0
   flutter_launcher_icons: ^0.14.1
+  flutter_native_splash: ^2.4.3
 
 flutter:
   uses-material-design: true
   assets:
     - assets/
 
-# App launcher icon generated from the existing PWA icon.
+# App launcher icon generated from the brand mark. The logo art sits on a dark
+# navy field (#141A2A), so the adaptive-icon background matches it — otherwise
+# the round/squircle mask would show a jarring border around the dark tile.
 flutter_launcher_icons:
   android: true
   ios: false
   image_path: "assets/icon.png"
-  adaptive_icon_background: "#4f46e5"
+  adaptive_icon_background: "#141A2A"
   adaptive_icon_foreground: "assets/icon.png"
+
+# Native splash screen shown while the engine boots. Dark navy field matching
+# the logo so the mark blends seamlessly; Android 12+ uses its own splash API.
+flutter_native_splash:
+  color: "#141A2A"
+  image: "assets/icon.png"
+  android_12:
+    color: "#141A2A"
+    image: "assets/icon.png"
+  android: true
+  ios: false
+  web: false
