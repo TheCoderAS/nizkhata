@@ -48,7 +48,11 @@ ThemeData _base(Brightness brightness, ColorScheme scheme) {
       scrolledUnderElevation: 2,
       backgroundColor: scaffoldBg,
       surfaceTintColor: scheme.surfaceTint,
-      titleTextStyle: textTheme.titleLarge?.copyWith(fontSize: 20),
+      // Explicit foreground so the title/icons stay legible in light mode
+      // (without this the title rendered near-invisible on the light surface).
+      foregroundColor: scheme.onSurface,
+      iconTheme: IconThemeData(color: scheme.onSurface),
+      titleTextStyle: textTheme.titleLarge?.copyWith(fontSize: 20, color: scheme.onSurface),
     ),
     cardTheme: CardThemeData(
       // Cards sit a step ABOVE the scaffold surface so they lift off the

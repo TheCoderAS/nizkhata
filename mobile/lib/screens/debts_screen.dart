@@ -33,6 +33,54 @@ class DebtsScreen extends StatefulWidget {
 
 class _DebtsScreenState extends State<DebtsScreen> {
   String _search = '';
+  String _status = 'outstanding'; // outstanding | settled | all (default outstanding)
+  String _direction = 'all'; // all | owe (you owe) | owed (they owe)
+
+  static const _statusLabels = {'outstanding': 'Outstanding', 'settled': 'Settled', 'all': 'All'};
+  static const _dirLabels = {'all': 'All', 'owed': 'They owe', 'owe': 'You owe'};
+
+  Widget _filterChip(
+    BuildContext context, {
+    required String label,
+    required String current,
+    required Map<String, String> labels,
+    required ValueChanged<String> onSelected,
+  }) {
+    final cs = Theme.of(context).colorScheme;
+    // Non-default selections read as "active" (tinted).
+    final isDefault = current == labels.keys.first;
+    return PopupMenuButton<String>(
+      onSelected: onSelected,
+      position: PopupMenuPosition.under,
+      itemBuilder: (_) => [
+        for (final e in labels.entries)
+          PopupMenuItem(value: e.key, child: Text(e.value)),
+      ],
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(
+          color: isDefault ? cs.surfaceContainerHighest.withValues(alpha: 0.5) : cs.primary.withValues(alpha: 0.14),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(
+            color: isDefault ? cs.outlineVariant : cs.primary.withValues(alpha: 0.5),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('$label: ',
+                style: TextStyle(fontSize: 12.5, color: cs.onSurfaceVariant)),
+            Text(labels[current] ?? current,
+                style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    color: isDefault ? cs.onSurface : cs.primary)),
+            Icon(Icons.arrow_drop_down, size: 18, color: isDefault ? cs.onSurfaceVariant : cs.primary),
+          ],
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -48,6 +96,9 @@ class _DebtsScreenState extends State<DebtsScreen> {
     final hasDebts = data.debts.any((d) => d.purpose != 'shared');
     final visible = data.debts.where((d) {
       if (d.purpose == 'shared') return false;
+      if (_status == 'outstanding' && d.status == 'settled') return false;
+      if (_status == 'settled' && d.status != 'settled') return false;
+      if (_direction != 'all' && d.direction != _direction) return false;
       if (query.isNotEmpty) {
         final contactName = data.contactsById[d.contactId]?.name ?? '';
         final purposeLabel = _kPurposeLabels[d.purpose] ?? d.purpose;
@@ -90,7 +141,7 @@ class _DebtsScreenState extends State<DebtsScreen> {
                 ],
               ),
             ),
-          if (hasDebts)
+          if (hasDebts) ...[
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
               child: TextField(
@@ -102,6 +153,31 @@ class _DebtsScreenState extends State<DebtsScreen> {
                 ),
               ),
             ),
+            SizedBox(
+              height: 40,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                children: [
+                  _filterChip(
+                    context,
+                    label: 'Status',
+                    current: _status,
+                    labels: _statusLabels,
+                    onSelected: (v) => setState(() => _status = v),
+                  ),
+                  const SizedBox(width: 8),
+                  _filterChip(
+                    context,
+                    label: 'Direction',
+                    current: _direction,
+                    labels: _dirLabels,
+                    onSelected: (v) => setState(() => _direction = v),
+                  ),
+                ],
+              ),
+            ),
+          ],
           Expanded(
             child: visible.isEmpty
                 ? Padding(
