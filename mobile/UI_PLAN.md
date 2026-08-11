@@ -27,7 +27,24 @@ presentation matching the web columns, keeping FABs/filters/detail-tap.
 - contextual EmptyView icons on every screen; shimmer loaders on shared/activity ✅
 - column_prefs moved to lib/core (fixed relative-lib import) ✅
 
-## Phase 4 — final sweep (in progress)
-flutter analyze 0 errors ✅ (36 info-level deprecations remain, non-blocking);
-deep action-by-action parity audit (web vs Flutter) → fix real gaps; ensure PR #48
-green; report.
+## Phase 4 — final sweep ✅ DONE
+flutter analyze 0 errors / 0 warnings ✅ (37 info-level deprecations remain, non-blocking).
+Deep action-by-action parity audit (web vs Flutter) across ALL domains → gaps fixed:
+- Foundation: `/transactions` route accepts initial filters → "View transactions"
+  cross-navigation wired from accounts, categories, contacts, budgets, dues, debts,
+  dashboard, reports. ✅
+- Transactions: split/multi-line txns now editable (HIGH); per-line tax entry;
+  linked due/debt chips; external/tax badges; financial-year field. ✅
+- Dues/Debts: search boxes; view-transactions action; detail-sheet Edit + Record
+  payment / receipt / repayment actions. ✅
+- Accounts: read-only detail sheet (metadata + type badge + masked id) for all users;
+  cc safety note; MM/YY expiry auto-format; ledger header badge. ✅
+- Categories: custom date-range period; view-transactions for viewers. ✅
+- Budgets: tappable cards → filtered txns; per-group totals; resolved period labels. ✅
+- Contacts: multiple labeled emails + validation; view-transactions; open-in-txns;
+  tappable chat-style transaction timeline. ✅
+- Dashboard: custom date range; tappable recent txns; spend drill-downs. ✅
+- Reports: spend-by-category-over-time stacked chart; row drill-downs. ✅
+- Activity: load-more pagination. ✅
+- Workspace: create-workspace action (More + Profile). ✅
+- Per-entity RevisionHistory (audit footer + timeline) on txn/due/debt/account detail. ✅
