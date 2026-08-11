@@ -19,12 +19,15 @@ budget/due validation; menu de-dup.
 Transactions, Dues, Debts, Contacts, Accounts, Categories — each gets a table
 presentation matching the web columns, keeping FABs/filters/detail-tap.
 
-## Phase 3 — design system polish (the #5 goal)
-- theme.dart: type scale, spacing tokens, tonal surfaces, elevation, button/input/chip
+## Phase 3 — design system polish (the #5 goal) ✅ DONE
+- theme.dart: type scale, spacing tokens, tonal surfaces, elevation, button/input/chip ✅
 - widgets/common.dart: refined Card, StatCard, SectionCard, EmptyView (with icon),
-  add ShimmerSkeleton loading, refined bottom nav (sliding indicator), app bars
-- apply consistent padding/rhythm + loading skeletons across all screens
+  Skeleton + ListSkeleton shimmer loaders, refined bottom nav (indicator + labels) ✅
+- dashboard: segmented period control + section "See all" navigation ✅
+- contextual EmptyView icons on every screen; shimmer loaders on shared/activity ✅
+- column_prefs moved to lib/core (fixed relative-lib import) ✅
 
-## Phase 4 — final sweep
-flutter analyze 0 errors; re-check reachability; update PARITY docs; ensure PR #48
+## Phase 4 — final sweep (in progress)
+flutter analyze 0 errors ✅ (36 info-level deprecations remain, non-blocking);
+deep action-by-action parity audit (web vs Flutter) → fix real gaps; ensure PR #48
 green; report.
