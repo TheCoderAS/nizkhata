@@ -93,6 +93,22 @@ class _BudgetFormState extends State<_BudgetForm> {
               Text(editing ? 'Edit budget' : 'New budget',
                   style: Theme.of(context).textTheme.titleLarge),
               const SizedBox(height: 16),
+              if (!editing && options.isEmpty)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  margin: const EdgeInsets.only(bottom: 12),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    expenseCats.isEmpty
+                        ? 'Add an expense category first, then set a budget for it.'
+                        : 'Every expense category already has a budget. Edit an existing one instead.',
+                    style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                  ),
+                ),
               DropdownButtonFormField<String>(
                 value: _categoryId,
                 decoration: const InputDecoration(labelText: 'Category'),

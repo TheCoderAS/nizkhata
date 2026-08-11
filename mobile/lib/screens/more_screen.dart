@@ -87,12 +87,18 @@ class MoreScreen extends StatelessWidget {
           child: Column(
             children: [
               _navTile(context, Icons.person_outline, 'Account', '/profile'),
-              const Divider(height: 1),
-              _navTile(context, Icons.group_outlined, 'Members', '/members'),
-              const Divider(height: 1),
-              _navTile(context, Icons.shield_outlined, 'Roles', '/roles'),
-              const Divider(height: 1),
-              _navTile(context, Icons.settings_outlined, 'Workspace settings', '/workspace-settings'),
+              if (ws.can('members.view')) ...[
+                const Divider(height: 1),
+                _navTile(context, Icons.group_outlined, 'Members', '/members'),
+              ],
+              if (ws.can('roles.view')) ...[
+                const Divider(height: 1),
+                _navTile(context, Icons.shield_outlined, 'Roles', '/roles'),
+              ],
+              if (ws.can('workspace.edit')) ...[
+                const Divider(height: 1),
+                _navTile(context, Icons.settings_outlined, 'Workspace settings', '/workspace-settings'),
+              ],
             ],
           ),
         ),

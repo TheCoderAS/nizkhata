@@ -285,9 +285,6 @@ class _DueMenu extends StatelessWidget {
           case 'contact':
             if (due.contactId != null) context.push('/contacts/${due.contactId}');
             break;
-          case 'txns':
-            if (due.contactId != null) context.push('/contacts/${due.contactId}');
-            break;
           case 'edit':
             showDueForm(context, existing: due);
             break;
@@ -302,7 +299,6 @@ class _DueMenu extends StatelessWidget {
       itemBuilder: (_) => [
         if (canTxn && settleable) const PopupMenuItem(value: 'pay', child: Text('Record payment')),
         if (canViewContacts && hasContact) const PopupMenuItem(value: 'contact', child: Text('View contact')),
-        if (canViewTxns && hasContact) const PopupMenuItem(value: 'txns', child: Text('View transactions')),
         if (canManage) const PopupMenuItem(value: 'edit', child: Text('Edit')),
         if (canManage && canCancel) const PopupMenuItem(value: 'cancel', child: Text('Cancel due')),
         if (canManage) const PopupMenuItem(value: 'delete', child: Text('Delete')),

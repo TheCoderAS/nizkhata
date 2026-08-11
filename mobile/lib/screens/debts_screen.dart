@@ -142,9 +142,6 @@ class _DebtMenu extends StatelessWidget {
           case 'contact':
             if (hasContact) context.push('/contacts/${debt.contactId}');
             break;
-          case 'txns':
-            if (hasContact) context.push('/contacts/${debt.contactId}');
-            break;
           case 'edit':
             showDebtForm(context, existing: debt);
             break;
@@ -156,7 +153,6 @@ class _DebtMenu extends StatelessWidget {
       itemBuilder: (_) => [
         if (canTxn && settleable) PopupMenuItem(value: 'settle', child: Text(settleLabel)),
         if (canViewContacts && hasContact) const PopupMenuItem(value: 'contact', child: Text('View contact')),
-        if (canViewTxns && hasContact) const PopupMenuItem(value: 'txns', child: Text('View transactions')),
         if (canManage) const PopupMenuItem(value: 'edit', child: Text('Edit')),
         if (canManage) const PopupMenuItem(value: 'delete', child: Text('Delete')),
       ],

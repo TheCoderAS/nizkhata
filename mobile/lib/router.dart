@@ -50,6 +50,7 @@ GoRouter buildRouter(AuthController auth) {
         path: '/accounts/:id/ledger',
         builder: (_, state) => AccountLedgerScreen(accountId: state.pathParameters['id']!),
       ),
+      GoRoute(path: '/contacts', builder: (_, __) => const ContactsScreen()),
       GoRoute(
         path: '/contacts/:id',
         builder: (_, state) => ContactDetailScreen(contactId: state.pathParameters['id']!),
@@ -61,7 +62,6 @@ GoRouter buildRouter(AuthController auth) {
           GoRoute(path: '/transactions', builder: (_, __) => const TransactionsScreen()),
           GoRoute(path: '/dues', builder: (_, __) => const DuesScreen()),
           GoRoute(path: '/debts', builder: (_, __) => const DebtsScreen()),
-          GoRoute(path: '/contacts', builder: (_, __) => const ContactsScreen()),
           GoRoute(path: '/more', builder: (_, __) => const MoreScreen()),
         ],
       ),

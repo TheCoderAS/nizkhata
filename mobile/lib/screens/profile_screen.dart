@@ -104,7 +104,7 @@ class ProfileScreen extends StatelessWidget {
               child: FilledButton.tonalIcon(
                 onPressed: () async {
                   await auth.signOut();
-                  if (context.mounted) context.go('/');
+                  if (context.mounted) context.go('/login');
                 },
                 icon: const Icon(Icons.logout),
                 label: const Text('Sign out'),

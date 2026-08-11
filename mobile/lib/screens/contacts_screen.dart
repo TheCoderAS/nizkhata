@@ -42,6 +42,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
       ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
 
     return Scaffold(
+      appBar: AppBar(title: const Text('Contacts')),
       floatingActionButton: canManage
           ? FloatingActionButton.extended(
               onPressed: () => showContactForm(context),

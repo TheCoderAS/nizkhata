@@ -63,6 +63,12 @@ class ActivityScreen extends StatelessWidget {
                   .limit(100)
                   .snapshots(),
               builder: (context, snapshot) {
+                if (snapshot.hasError) {
+                  return EmptyView(
+                    title: "Couldn't load activity",
+                    hint: '${snapshot.error}',
+                  );
+                }
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const LoadingView();
                 }

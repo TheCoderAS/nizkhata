@@ -118,6 +118,8 @@ class _DueFormState extends State<_DueForm> {
                 controller: _amount,
                 decoration: const InputDecoration(labelText: 'Amount', prefixText: '₹ '),
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                validator: (v) =>
+                    (double.tryParse(v?.trim() ?? '') ?? 0) <= 0 ? 'Enter an amount greater than 0' : null,
               ),
               const SizedBox(height: 12),
               InkWell(
