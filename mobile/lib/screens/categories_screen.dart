@@ -135,7 +135,7 @@ class _CategoryList extends StatelessWidget {
     final items = categories.where((c) => c.kind == kind).toList()
       ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
     if (items.isEmpty) {
-      return EmptyView(title: 'No $kind categories');
+      return EmptyView(icon: Icons.category_outlined, title: 'No $kind categories');
     }
     return DataTableView<AppCategory>(
       tableId: 'categories-$kind',

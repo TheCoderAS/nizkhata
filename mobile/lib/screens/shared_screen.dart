@@ -84,6 +84,7 @@ class SharedScreen extends StatelessWidget {
       return Scaffold(
         appBar: AppBar(title: const Text('Shared')),
         body: const EmptyView(
+          icon: Icons.lock_outline,
           title: 'No access',
           hint: "You don't have permission to view the shared ledger.",
         ),
@@ -91,12 +92,12 @@ class SharedScreen extends StatelessWidget {
     }
 
     if (shared.loading || ws.loading) {
-      return Scaffold(appBar: AppBar(title: const Text('Shared')), body: const LoadingView());
+      return Scaffold(appBar: AppBar(title: const Text('Shared')), body: const ListSkeleton());
     }
     if (shared.error != null) {
       return Scaffold(
         appBar: AppBar(title: const Text('Shared')),
-        body: EmptyView(title: 'Something went wrong', hint: shared.error),
+        body: EmptyView(icon: Icons.error_outline, title: 'Something went wrong', hint: shared.error),
       );
     }
 
@@ -242,6 +243,7 @@ class SharedScreen extends StatelessWidget {
                   ),
             child: partners.isEmpty
                 ? EmptyView(
+                    icon: Icons.groups_outlined,
                     title: 'No partners yet',
                     hint: 'Invite someone by email to start splitting expenses.',
                     action: canManage
@@ -270,7 +272,7 @@ class SharedScreen extends StatelessWidget {
           SectionCard(
             title: 'History',
             child: shared.entries.isEmpty
-                ? const EmptyView(title: 'Nothing shared yet', hint: 'Add a shared expense to start tracking who owes whom.')
+                ? const EmptyView(icon: Icons.receipt_long_outlined, title: 'Nothing shared yet', hint: 'Add a shared expense to start tracking who owes whom.')
                 : Column(
                     children: [
                       for (final e in shared.entries)

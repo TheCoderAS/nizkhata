@@ -73,7 +73,10 @@ class DebtsScreen extends StatelessWidget {
             ),
           Expanded(
             child: visible.isEmpty
-                ? const Padding(padding: EdgeInsets.only(top: 40), child: EmptyView(title: 'No debts yet'))
+                ? const Padding(
+                    padding: EdgeInsets.only(top: 40),
+                    child: EmptyView(title: 'No debts yet', icon: Icons.credit_card_outlined),
+                  )
                 : DataTableView<Debt>(
                     tableId: 'debts',
                     rows: visible,

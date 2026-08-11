@@ -54,7 +54,7 @@ class ActivityScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('Activity')),
       body: ws == null
-          ? const EmptyView(title: 'No activity yet')
+          ? const EmptyView(title: 'No activity yet', icon: Icons.history)
           : StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance
                   .collection('revisions')
@@ -65,16 +65,17 @@ class ActivityScreen extends StatelessWidget {
               builder: (context, snapshot) {
                 if (snapshot.hasError) {
                   return EmptyView(
+                    icon: Icons.error_outline,
                     title: "Couldn't load activity",
                     hint: '${snapshot.error}',
                   );
                 }
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const LoadingView();
+                  return const ListSkeleton();
                 }
                 final docs = snapshot.data?.docs ?? const [];
                 if (docs.isEmpty) {
-                  return const EmptyView(title: 'No activity yet');
+                  return const EmptyView(title: 'No activity yet', icon: Icons.history);
                 }
 
                 // Group revisions by day, preserving the query's desc order.

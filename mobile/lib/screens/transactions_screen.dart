@@ -274,6 +274,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
           Expanded(
             child: txns.isEmpty
                 ? EmptyView(
+                    icon: Icons.receipt_long_outlined,
                     title: 'No transactions',
                     hint: _activeFilterCount > 0
                         ? 'Try clearing filters.'

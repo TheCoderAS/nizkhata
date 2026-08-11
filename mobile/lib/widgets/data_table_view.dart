@@ -9,7 +9,7 @@
 
 import 'package:flutter/material.dart';
 
-import '../lib/column_prefs.dart';
+import '../core/column_prefs.dart';
 
 class DataColumn2<T> {
   final String key;

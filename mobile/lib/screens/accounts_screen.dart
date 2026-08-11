@@ -35,6 +35,7 @@ class AccountsScreen extends StatelessWidget {
           : null,
       body: accounts.isEmpty
           ? EmptyView(
+              icon: Icons.account_balance_wallet_outlined,
               title: 'No accounts',
               hint: 'Add a cash, bank or card account to record transactions against.',
               action: canManage

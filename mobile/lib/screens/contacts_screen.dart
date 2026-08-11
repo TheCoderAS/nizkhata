@@ -76,6 +76,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
           Expanded(
             child: contacts.isEmpty
                 ? EmptyView(
+                    icon: query.isNotEmpty ? Icons.search_off : Icons.people_outline,
                     title: query.isNotEmpty ? 'No matches' : 'No contacts',
                     hint: query.isNotEmpty
                         ? null

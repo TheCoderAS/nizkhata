@@ -1,5 +1,6 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../core/format.dart';
@@ -119,6 +120,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         const SizedBox(height: 12),
         SectionCard(
           title: 'Upcoming dues',
+          trailing: _seeAll('/dues'),
           child: upcomingTop.isEmpty
               ? Text('Nothing due.', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant))
               : Column(
@@ -131,6 +133,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         if (budgetRows.isNotEmpty) ...[
           SectionCard(
             title: 'Budgets',
+            trailing: _seeAll('/budgets'),
             child: Column(
               children: [
                 for (final p in budgetRows) _budgetRow(p, currency),
@@ -141,6 +144,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ],
         SectionCard(
           title: 'Spend by category',
+          trailing: _seeAll('/reports'),
           child: topSpend.isEmpty
               ? Text('No spend recorded.', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant))
               : Column(
@@ -152,6 +156,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         const SizedBox(height: 12),
         SectionCard(
           title: 'Recent transactions',
+          trailing: _seeAll('/transactions'),
           child: recentTop.isEmpty
               ? Text('No transactions yet.', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant))
               : Column(
@@ -190,17 +195,40 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  Widget _seeAll(String route) => TextButton(
+        onPressed: () => context.go(route),
+        style: TextButton.styleFrom(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          minimumSize: const Size(0, 32),
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          visualDensity: VisualDensity.compact,
+        ),
+        child: const Text('See all'),
+      );
+
   Widget _periodSelector() {
-    return Align(
-      alignment: Alignment.centerRight,
-      child: DropdownButton<PeriodKind>(
-        value: period,
-        underline: const SizedBox.shrink(),
-        items: [
+    const short = {
+      PeriodKind.week: 'Week',
+      PeriodKind.month: 'Month',
+      PeriodKind.year: 'Year',
+      PeriodKind.fy: 'FY',
+    };
+    return SizedBox(
+      width: double.infinity,
+      child: SegmentedButton<PeriodKind>(
+        showSelectedIcon: false,
+        style: ButtonStyle(
+          visualDensity: VisualDensity.compact,
+          textStyle: WidgetStatePropertyAll(
+            Theme.of(context).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
+          ),
+        ),
+        segments: [
           for (final p in [PeriodKind.week, PeriodKind.month, PeriodKind.year, PeriodKind.fy])
-            DropdownMenuItem(value: p, child: Text(periodLabels[p]!)),
+            ButtonSegment(value: p, label: Text(short[p]!)),
         ],
-        onChanged: (v) => setState(() => period = v ?? PeriodKind.month),
+        selected: {period},
+        onSelectionChanged: (s) => setState(() => period = s.first),
       ),
     );
   }

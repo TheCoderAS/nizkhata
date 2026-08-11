@@ -219,6 +219,7 @@ class _DuesScreenState extends State<DuesScreen> {
                 ? Padding(
                     padding: const EdgeInsets.only(top: 40),
                     child: EmptyView(
+                      icon: _activeFilterCount > 0 ? Icons.filter_alt_off : Icons.call_received,
                       title: _activeFilterCount > 0 ? 'No dues match the filter' : 'No unsettled dues',
                       action: _activeFilterCount > 0
                           ? FilledButton(onPressed: _clearFilters, child: const Text('Clear filters'))
