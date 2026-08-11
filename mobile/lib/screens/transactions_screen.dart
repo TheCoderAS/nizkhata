@@ -27,7 +27,19 @@ const _kLineTypeLabels = <String, String>{
 };
 
 class TransactionsScreen extends StatefulWidget {
-  const TransactionsScreen({super.key});
+  /// Optional initial filters — used when navigating in from another screen
+  /// (e.g. "View transactions" on an account, category or contact).
+  final String? initialAccount;
+  final String? initialContact;
+  final String? initialCategory;
+  final String? initialType;
+  const TransactionsScreen({
+    super.key,
+    this.initialAccount,
+    this.initialContact,
+    this.initialCategory,
+    this.initialType,
+  });
 
   @override
   State<TransactionsScreen> createState() => _TransactionsScreenState();
@@ -40,6 +52,15 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   String? _categoryFilter;
   bool _splitOnly = false;
   String _search = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _accountFilter = widget.initialAccount;
+    _contactFilter = widget.initialContact;
+    _categoryFilter = widget.initialCategory;
+    _typeFilter = widget.initialType;
+  }
 
   int get _activeFilterCount =>
       (_accountFilter != null ? 1 : 0) +
