@@ -3,9 +3,11 @@ import 'package:provider/provider.dart';
 
 import '../core/format.dart';
 import '../core/theme.dart';
+import '../data/models.dart';
 import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
 import '../widgets/common.dart';
+import '../widgets/data_table_view.dart';
 import 'split_transaction_form.dart';
 import 'transaction_detail.dart';
 import 'transaction_form.dart';
@@ -284,28 +286,65 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                                 child: const Text('Add transaction'))
                             : null),
                   )
-                : ListView.separated(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 88),
-                    itemCount: txns.length,
-                    separatorBuilder: (_, __) => const Divider(height: 1),
-                    itemBuilder: (context, i) {
-                      final t = txns[i];
-                      final account = data.accountsById[t.accountId]?.name ?? '—';
-                      final contact = t.contactId != null ? data.contactsById[t.contactId]?.name : null;
-                      return ListTile(
-                        contentPadding: const EdgeInsets.symmetric(vertical: 2),
-                        onTap: () => showTransactionDetail(context, t),
-                        title: Text(t.note?.isNotEmpty == true ? t.note! : account),
-                        subtitle: Text('${formatDate(t.date)} · $account${contact != null ? ' · $contact' : ''}'),
-                        trailing: Text(
+                : DataTableView<Txn>(
+                    tableId: 'transactions',
+                    rows: txns,
+                    onRowTap: (t) => showTransactionDetail(context, t),
+                    columns: [
+                      DataColumn2<Txn>(
+                        key: 'date',
+                        label: 'Date',
+                        locked: true,
+                        defaultWidth: 104,
+                        sortValue: (t) => t.date,
+                        cell: (t) => Text(formatDate(t.date)),
+                      ),
+                      DataColumn2<Txn>(
+                        key: 'account',
+                        label: 'Account',
+                        defaultWidth: 140,
+                        sortValue: (t) => data.accountsById[t.accountId]?.name ?? '',
+                        cell: (t) => Text(data.accountsById[t.accountId]?.name ?? '—', overflow: TextOverflow.ellipsis),
+                      ),
+                      DataColumn2<Txn>(
+                        key: 'contact',
+                        label: 'Contact',
+                        defaultVisible: false,
+                        defaultWidth: 140,
+                        cell: (t) => Text(
+                            t.contactId != null ? data.contactsById[t.contactId]?.name ?? '—' : '—',
+                            overflow: TextOverflow.ellipsis),
+                      ),
+                      DataColumn2<Txn>(
+                        key: 'lines',
+                        label: 'Lines',
+                        defaultVisible: false,
+                        numeric: true,
+                        defaultWidth: 68,
+                        cell: (t) => Text('${t.lines.length}'),
+                      ),
+                      DataColumn2<Txn>(
+                        key: 'note',
+                        label: 'Note',
+                        defaultVisible: false,
+                        defaultWidth: 170,
+                        cell: (t) => Text(t.note ?? '—', overflow: TextOverflow.ellipsis),
+                      ),
+                      DataColumn2<Txn>(
+                        key: 'amount',
+                        label: 'Amount',
+                        numeric: true,
+                        defaultWidth: 120,
+                        sortValue: (t) => t.totalAmount,
+                        cell: (t) => Text(
                           formatMoney(t.totalAmount, currency),
                           style: TextStyle(
                             fontWeight: FontWeight.w600,
                             color: t.totalAmount < 0 ? AppColors.danger : AppColors.accent2,
                           ),
                         ),
-                      );
-                    },
+                      ),
+                    ],
                   ),
           ),
         ],
