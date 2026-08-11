@@ -48,6 +48,7 @@ class AccountsScreen extends StatelessWidget {
               listId: 'accounts',
               rows: accounts,
               onRowTap: (a) => showAccountDetail(context, a),
+              leading: (a) => _AccountBadge(type: a.type),
               trailing: (a) => PopupMenuButton<String>(
                 onSelected: (v) {
                   if (v == 'ledger') context.push('/accounts/${a.id}/ledger');
@@ -337,6 +338,30 @@ class _DetailRow extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Colored, type-specific badge shown at the start of each account card.
+class _AccountBadge extends StatelessWidget {
+  final String type;
+  const _AccountBadge({required this.type});
+
+  @override
+  Widget build(BuildContext context) {
+    final (IconData icon, Color color) = switch (type) {
+      'cash' => (Icons.payments_outlined, AppColors.accent2),
+      'credit_card' => (Icons.credit_card, AppColors.brandTo),
+      _ => (Icons.account_balance_outlined, AppColors.brand),
+    };
+    return Container(
+      width: 42,
+      height: 42,
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Icon(icon, size: 21, color: color),
     );
   }
 }
