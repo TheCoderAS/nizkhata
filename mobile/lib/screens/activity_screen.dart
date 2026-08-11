@@ -3,8 +3,8 @@
 // Grouped by day; entity names resolved from live data where possible, falling
 // back to the revision snapshot for entities that have since been deleted.
 //
-// Known omission vs web: no infinite-scroll pagination — this keeps the single
-// live limit(100) query. Older activity beyond the newest 100 isn't shown.
+// Pagination: a "Load more" button raises the live query limit by a page (100)
+// and re-subscribes, so older activity beyond the newest 100 is reachable.
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -42,8 +42,16 @@ const _weekdays = <String>[
   '', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday',
 ];
 
-class ActivityScreen extends StatelessWidget {
+class ActivityScreen extends StatefulWidget {
   const ActivityScreen({super.key});
+
+  @override
+  State<ActivityScreen> createState() => _ActivityScreenState();
+}
+
+class _ActivityScreenState extends State<ActivityScreen> {
+  static const _pageSize = 100;
+  int _limit = _pageSize;
 
   @override
   Widget build(BuildContext context) {
@@ -54,21 +62,28 @@ class ActivityScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('Activity')),
       body: ws == null
-          ? const EmptyView(title: 'No activity yet')
+          ? const EmptyView(title: 'No activity yet', icon: Icons.history)
           : StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance
                   .collection('revisions')
                   .where('workspaceId', isEqualTo: ws)
                   .orderBy('at', descending: true)
-                  .limit(100)
+                  .limit(_limit)
                   .snapshots(),
               builder: (context, snapshot) {
+                if (snapshot.hasError) {
+                  return EmptyView(
+                    icon: Icons.error_outline,
+                    title: "Couldn't load activity",
+                    hint: '${snapshot.error}',
+                  );
+                }
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const LoadingView();
+                  return const ListSkeleton();
                 }
                 final docs = snapshot.data?.docs ?? const [];
                 if (docs.isEmpty) {
-                  return const EmptyView(title: 'No activity yet');
+                  return const EmptyView(title: 'No activity yet', icon: Icons.history);
                 }
 
                 // Group revisions by day, preserving the query's desc order.
@@ -120,6 +135,15 @@ class ActivityScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: 16),
                     ],
+                    // More may exist when the query filled the current limit.
+                    if (docs.length >= _limit)
+                      Center(
+                        child: OutlinedButton.icon(
+                          onPressed: () => setState(() => _limit += _pageSize),
+                          icon: const Icon(Icons.expand_more, size: 18),
+                          label: const Text('Load more'),
+                        ),
+                      ),
                   ],
                 );
               },

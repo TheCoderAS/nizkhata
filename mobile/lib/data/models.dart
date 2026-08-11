@@ -195,6 +195,21 @@ class Budget {
   }
 }
 
+/// A labelled email address. A contact may have several (personal/work/etc).
+/// Mirrors the web `ContactEmail` shape: `{ label, value }`.
+class ContactEmail {
+  final String value;
+  final String label; // Personal | Work | Other
+  const ContactEmail({required this.value, required this.label});
+
+  factory ContactEmail.fromMap(Map<String, dynamic> m) => ContactEmail(
+        value: (m['value'] ?? '').toString(),
+        label: (m['label'] ?? 'Other').toString(),
+      );
+
+  Map<String, dynamic> toMap() => {'value': value, 'label': label};
+}
+
 class Contact {
   final String id;
   final String workspaceId;
@@ -202,7 +217,8 @@ class Contact {
   final String type; // person | business
   final String? relationship; // external | family
   final String? phone;
-  final String? email;
+  final String? email; // legacy single email (derived from emails.first)
+  final List<ContactEmail> emails;
   final String? address;
   final String? notes;
   final String? connectionUid;
@@ -214,16 +230,28 @@ class Contact {
     this.relationship,
     this.phone,
     this.email,
+    this.emails = const [],
     this.address,
     this.notes,
     this.connectionUid,
   });
   factory Contact.fromDoc(DocumentSnapshot d) {
     final m = d.data() as Map<String, dynamic>;
-    String? firstEmail;
-    final emails = m['emails'];
-    if (emails is List && emails.isNotEmpty) {
-      firstEmail = (emails.first as Map)['value'];
+    final rawEmails = m['emails'];
+    final emails = <ContactEmail>[];
+    if (rawEmails is List) {
+      for (final e in rawEmails) {
+        if (e is Map) {
+          final ce = ContactEmail.fromMap(Map<String, dynamic>.from(e));
+          if (ce.value.isNotEmpty) emails.add(ce);
+        }
+      }
+    }
+    // Back-compat: fold a legacy single email into the array when present and
+    // not already covered.
+    final legacy = m['email'];
+    if ((legacy is String) && legacy.isNotEmpty && emails.isEmpty) {
+      emails.add(ContactEmail(value: legacy, label: 'Personal'));
     }
     return Contact(
       id: d.id,
@@ -232,7 +260,8 @@ class Contact {
       type: m['type'] ?? 'person',
       relationship: m['relationship'],
       phone: m['phone'],
-      email: m['email'] ?? firstEmail,
+      email: emails.isNotEmpty ? emails.first.value : (legacy is String ? legacy : null),
+      emails: emails,
       address: m['address'],
       notes: m['notes'],
       connectionUid: m['connectionUid'],

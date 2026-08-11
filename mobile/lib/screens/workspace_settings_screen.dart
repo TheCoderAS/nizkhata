@@ -137,6 +137,7 @@ class _WorkspaceSettingsScreenState extends State<WorkspaceSettingsScreen> {
 
     final user = context.read<AuthController>().user;
     final isOwner = user != null && user.uid == w.ownerId;
+    final canEdit = ws.can('workspace.edit');
     final canDelete = isOwner && ws.can('workspace.delete');
 
     return Scaffold(
@@ -151,6 +152,7 @@ class _WorkspaceSettingsScreenState extends State<WorkspaceSettingsScreen> {
               children: [
                 TextField(
                   controller: _name,
+                  enabled: canEdit,
                   decoration: const InputDecoration(labelText: 'Name'),
                   onChanged: (_) => setState(() {}),
                 ),
@@ -161,7 +163,7 @@ class _WorkspaceSettingsScreenState extends State<WorkspaceSettingsScreen> {
                   items: [
                     for (final c in _kCurrencies) DropdownMenuItem(value: c, child: Text(c)),
                   ],
-                  onChanged: (v) => setState(() => _currency = v ?? 'INR'),
+                  onChanged: canEdit ? (v) => setState(() => _currency = v ?? 'INR') : null,
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<int>(
@@ -170,15 +172,17 @@ class _WorkspaceSettingsScreenState extends State<WorkspaceSettingsScreen> {
                   items: [
                     for (var i = 1; i <= 12; i++) DropdownMenuItem(value: i, child: Text(_kMonths[i - 1])),
                   ],
-                  onChanged: (v) => setState(() => _fyStartMonth = v ?? 4),
+                  onChanged: canEdit ? (v) => setState(() => _fyStartMonth = v ?? 4) : null,
                 ),
-                const SizedBox(height: 20),
-                FilledButton(
-                  onPressed: (_busy || _name.text.trim().isEmpty) ? null : _save,
-                  child: _busy
-                      ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Text('Save changes'),
-                ),
+                if (canEdit) ...[
+                  const SizedBox(height: 20),
+                  FilledButton(
+                    onPressed: (_busy || _name.text.trim().isEmpty) ? null : _save,
+                    child: _busy
+                        ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Text('Save changes'),
+                  ),
+                ],
               ],
             ),
           ),

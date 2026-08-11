@@ -1,3 +1,4 @@
+import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 
 import 'screens/account_ledger_screen.dart';
@@ -50,6 +51,7 @@ GoRouter buildRouter(AuthController auth) {
         path: '/accounts/:id/ledger',
         builder: (_, state) => AccountLedgerScreen(accountId: state.pathParameters['id']!),
       ),
+      GoRoute(path: '/contacts', builder: (_, __) => const ContactsScreen()),
       GoRoute(
         path: '/contacts/:id',
         builder: (_, state) => ContactDetailScreen(contactId: state.pathParameters['id']!),
@@ -58,10 +60,21 @@ GoRouter buildRouter(AuthController auth) {
         builder: (context, state, child) => AppShell(state: state, child: child),
         routes: [
           GoRoute(path: '/dashboard', builder: (_, __) => const DashboardScreen()),
-          GoRoute(path: '/transactions', builder: (_, __) => const TransactionsScreen()),
+          GoRoute(
+            path: '/transactions',
+            builder: (_, state) {
+              final q = state.uri.queryParameters;
+              return TransactionsScreen(
+                key: ValueKey('txns-${q['account']}-${q['contact']}-${q['category']}-${q['type']}'),
+                initialAccount: q['account'],
+                initialContact: q['contact'],
+                initialCategory: q['category'],
+                initialType: q['type'],
+              );
+            },
+          ),
           GoRoute(path: '/dues', builder: (_, __) => const DuesScreen()),
           GoRoute(path: '/debts', builder: (_, __) => const DebtsScreen()),
-          GoRoute(path: '/contacts', builder: (_, __) => const ContactsScreen()),
           GoRoute(path: '/more', builder: (_, __) => const MoreScreen()),
         ],
       ),

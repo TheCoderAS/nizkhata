@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../core/format.dart';
@@ -21,6 +23,7 @@ class BudgetsScreen extends StatelessWidget {
     final currency = ws.activeWorkspace?.baseCurrency ?? 'INR';
     final fyStart = ws.activeWorkspace?.fyStartMonth ?? 4;
     final canManage = ws.can('categories.manage');
+    final canViewTxns = ws.can('transactions.view');
 
     final rows = budgetProgress(data.budgets, data.transactions, data.categoriesById, fyStart);
 
@@ -45,22 +48,82 @@ class BudgetsScreen extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 88),
               children: [
                 for (final period in const ['monthly', 'yearly'])
-                  ..._group(context, period, rows.where((r) => r.budget.period == period).toList(), currency, canManage),
+                  ..._group(
+                    context,
+                    period,
+                    rows.where((r) => r.budget.period == period).toList(),
+                    currency,
+                    canManage,
+                    canViewTxns,
+                    _resolvedPeriodLabel(period, fyStart),
+                  ),
               ],
             ),
     );
   }
 
+  // A specific, resolved window label for the group's period — e.g. "Aug 2026"
+  // for monthly or "FY 2026-27" for yearly (mirrors periodLabel in the web app,
+  // which the mobile BudgetProgress model does not carry).
+  static String _resolvedPeriodLabel(String period, int fyStart) {
+    final now = DateTime.now();
+    if (period == 'yearly') {
+      final fy = financialYearRange(now, fyStart);
+      final endYY = ((fy.start.year + 1) % 100).toString().padLeft(2, '0');
+      return 'FY ${fy.start.year}-$endYY';
+    }
+    return DateFormat('MMM yyyy').format(now);
+  }
+
   List<Widget> _group(
-      BuildContext context, String period, List<BudgetProgress> rows, String currency, bool canManage) {
+    BuildContext context,
+    String period,
+    List<BudgetProgress> rows,
+    String currency,
+    bool canManage,
+    bool canViewTxns,
+    String periodLabel,
+  ) {
     if (rows.isEmpty) return const [];
+    final cs = Theme.of(context).colorScheme;
     final label = period == 'yearly' ? 'Yearly budgets' : 'Monthly budgets';
+    final limit = rows.fold<double>(0, (s, p) => s + p.limit);
+    final spent = rows.fold<double>(0, (s, p) => s + p.spent);
+    final remaining = roundMoney(limit - spent);
     return [
       Padding(
         padding: const EdgeInsets.only(top: 8, bottom: 8),
-        child: Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Expanded(
+              child: Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
+            ),
+            Text.rich(
+              TextSpan(
+                style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
+                children: [
+                  TextSpan(text: '${formatMoney(spent, currency)} / ${formatMoney(limit, currency)}'),
+                  TextSpan(
+                    text: remaining < 0
+                        ? ' (over by ${formatMoney(-remaining, currency)})'
+                        : ' (${formatMoney(remaining, currency)} left)',
+                    style: TextStyle(color: remaining < 0 ? AppColors.danger : cs.onSurfaceVariant),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
-      for (final p in rows) _BudgetCard(progress: p, currency: currency, canManage: canManage),
+      for (final p in rows)
+        _BudgetCard(
+          progress: p,
+          currency: currency,
+          canManage: canManage,
+          canViewTxns: canViewTxns,
+          periodLabel: periodLabel,
+        ),
     ];
   }
 }
@@ -69,7 +132,15 @@ class _BudgetCard extends StatelessWidget {
   final BudgetProgress progress;
   final String currency;
   final bool canManage;
-  const _BudgetCard({required this.progress, required this.currency, required this.canManage});
+  final bool canViewTxns;
+  final String periodLabel;
+  const _BudgetCard({
+    required this.progress,
+    required this.currency,
+    required this.canManage,
+    required this.canViewTxns,
+    required this.periodLabel,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -77,7 +148,6 @@ class _BudgetCard extends StatelessWidget {
     final p = progress;
     final over = p.spent > p.limit + 0.005;
     final remaining = p.limit - p.spent;
-    final periodLabel = p.budget.period == 'yearly' ? 'Yearly' : 'Monthly';
     final barColor = p.ratio > 1
         ? AppColors.danger
         : p.ratio > 0.8
@@ -86,9 +156,14 @@ class _BudgetCard extends StatelessWidget {
 
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: canViewTxns
+            ? () => context.push('/transactions?category=${p.budget.categoryId}')
+            : null,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
@@ -151,6 +226,7 @@ class _BudgetCard extends StatelessWidget {
               style: TextStyle(fontSize: 12, color: over ? AppColors.danger : cs.onSurfaceVariant),
             ),
           ],
+          ),
         ),
       ),
     );

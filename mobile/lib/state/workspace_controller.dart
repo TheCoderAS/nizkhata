@@ -16,7 +16,8 @@ class WorkspaceController extends ChangeNotifier {
   String? _uid;
   bool loading = true;
   String? error;
-  List<Membership> memberships = [];
+  List<Membership> memberships = []; // the CURRENT USER's memberships (for the switcher)
+  List<Membership> workspaceMembers = []; // ALL members of the ACTIVE workspace (admin views)
   List<Workspace> workspaces = [];
   Map<String, Role> rolesById = {};
   String? activeWorkspaceId;
@@ -24,6 +25,7 @@ class WorkspaceController extends ChangeNotifier {
   StreamSubscription<QuerySnapshot>? _memSub;
   StreamSubscription<QuerySnapshot>? _wsSub;
   StreamSubscription<QuerySnapshot>? _rolesSub;
+  StreamSubscription<QuerySnapshot>? _wsMembersSub;
   SharedPreferences? _prefs;
 
   static const _prefKey = 'activeWorkspaceId';
@@ -73,6 +75,7 @@ class WorkspaceController extends ChangeNotifier {
         _resolveActive();
         _subscribeWorkspaces();
         _subscribeRoles();
+        _subscribeWorkspaceMembers();
         loading = false;
         notifyListeners();
       },
@@ -126,10 +129,26 @@ class WorkspaceController extends ChangeNotifier {
     });
   }
 
+  // ALL members of the active workspace — for the Members / Roles admin screens.
+  // (Distinct from `memberships`, which is only the current user's, for switching.)
+  void _subscribeWorkspaceMembers() {
+    if (activeWorkspaceId == null) return;
+    _wsMembersSub?.cancel();
+    _wsMembersSub = _db
+        .collection('memberships')
+        .where('workspaceId', isEqualTo: activeWorkspaceId)
+        .snapshots()
+        .listen((snap) {
+      workspaceMembers = snap.docs.map(Membership.fromDoc).toList();
+      notifyListeners();
+    });
+  }
+
   Future<void> switchWorkspace(String id) async {
     activeWorkspaceId = id;
     await _prefs?.setString(_prefKey, id);
     _subscribeRoles();
+    _subscribeWorkspaceMembers();
     notifyListeners();
   }
 
@@ -138,6 +157,7 @@ class WorkspaceController extends ChangeNotifier {
     _memSub?.cancel();
     _wsSub?.cancel();
     _rolesSub?.cancel();
+    _wsMembersSub?.cancel();
     super.dispose();
   }
 }

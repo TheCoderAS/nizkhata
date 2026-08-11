@@ -5,6 +5,9 @@ import '../core/format.dart';
 import '../data/models.dart';
 import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
+import '../widgets/revision_history.dart';
+import 'debt_form.dart';
+import 'debts_screen.dart';
 
 const _kPurposeLabels = <String, String>{
   'loan': 'Loan',
@@ -40,7 +43,11 @@ class _DebtDetail extends StatelessWidget {
     final data = context.watch<DataController>();
     final ws = context.watch<WorkspaceController>();
     final currency = ws.activeWorkspace?.baseCurrency ?? 'INR';
+    final canManage = ws.can('debts.manage');
+    final canTxn = ws.can('transactions.create');
     final outstanding = data.outstandingOf(debt.id);
+    final settleable = debt.status == 'open' && outstanding > 0;
+    final settleLabel = debt.direction == 'owed' ? 'Record receipt' : 'Record repayment';
     final contactName = data.contactsById[debt.contactId]?.name ?? '—';
     final title = debt.label ?? contactName;
     final linked = data.transactions
@@ -55,7 +62,23 @@ class _DebtDetail extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(title, style: Theme.of(context).textTheme.titleLarge),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(title, style: Theme.of(context).textTheme.titleLarge),
+                ),
+                if (canManage)
+                  TextButton.icon(
+                    onPressed: () {
+                      final nav = Navigator.of(context);
+                      nav.pop();
+                      showDebtForm(nav.context, existing: debt);
+                    },
+                    icon: const Icon(Icons.edit, size: 18),
+                    label: const Text('Edit'),
+                  ),
+              ],
+            ),
             const SizedBox(height: 16),
             _row(context, 'Contact', contactName),
             _row(context, 'Direction', debt.direction == 'owed' ? 'They owe you' : 'You owe them'),
@@ -64,6 +87,21 @@ class _DebtDetail extends StatelessWidget {
             _row(context, 'Principal', formatMoney(debt.principal, currency)),
             _row(context, 'Outstanding', formatMoney(outstanding, currency)),
             if (debt.note?.isNotEmpty == true) _row(context, 'Note', debt.note!),
+            if (canTxn && settleable) ...[
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.tonalIcon(
+                  onPressed: () {
+                    final nav = Navigator.of(context);
+                    nav.pop();
+                    showDebtPayment(nav.context, debt);
+                  },
+                  icon: const Icon(Icons.payments_outlined, size: 18),
+                  label: Text(settleLabel),
+                ),
+              ),
+            ],
             const SizedBox(height: 12),
             const Divider(height: 1),
             const SizedBox(height: 12),
@@ -75,6 +113,10 @@ class _DebtDetail extends StatelessWidget {
                   style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant))
             else
               for (final t in linked) _txnTile(context, data, t, currency),
+            const SizedBox(height: 12),
+            const Divider(height: 1),
+            const SizedBox(height: 8),
+            RevisionHistory(entityType: 'debts', entityId: debt.id),
           ],
         ),
       ),

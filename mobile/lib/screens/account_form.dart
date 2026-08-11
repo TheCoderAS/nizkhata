@@ -170,7 +170,17 @@ class _AccountFormState extends State<_AccountForm> {
                 TextFormField(
                   controller: _cardExpiry,
                   decoration: const InputDecoration(labelText: 'Expiry (MM/YY)'),
+                  keyboardType: TextInputType.number,
                   maxLength: 5,
+                  inputFormatters: [ExpiryTextFormatter()],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'For your safety we never store the full card number or CVV — only the last 4 digits.',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
                 ),
               ],
               const SizedBox(height: 12),
@@ -201,5 +211,19 @@ class UpperCaseTextFormatter extends TextInputFormatter {
   @override
   TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
     return newValue.copyWith(text: newValue.text.toUpperCase());
+  }
+}
+
+/// Normalizes free typing into MM/YY (mirrors formatExpiry in src/pages/Accounts.tsx).
+class ExpiryTextFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
+    final digits = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
+    final trimmed = digits.length > 4 ? digits.substring(0, 4) : digits;
+    final text = trimmed.length <= 2 ? trimmed : '${trimmed.substring(0, 2)}/${trimmed.substring(2)}';
+    return TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(offset: text.length),
+    );
   }
 }

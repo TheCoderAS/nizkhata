@@ -6,6 +6,9 @@ import '../data/derive.dart';
 import '../data/models.dart';
 import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
+import '../widgets/revision_history.dart';
+import 'due_form.dart';
+import 'dues_screen.dart';
 
 /// Read-only detail sheet for a due. Shows direction, status, amounts and the
 /// linked payment transactions. Mirrors the web DueDetail dialog.
@@ -30,8 +33,11 @@ class _DueDetail extends StatelessWidget {
     final data = context.watch<DataController>();
     final ws = context.watch<WorkspaceController>();
     final currency = ws.activeWorkspace?.baseCurrency ?? 'INR';
+    final canManage = ws.can('dues.manage');
+    final canTxn = ws.can('transactions.create');
     final settled = data.settledOf(due.id);
     final status = dueStatusFromSettled(due, settled);
+    final settleable = status == 'open' || status == 'partial';
     final remaining = due.amount - settled;
     final contact = due.contactId != null ? data.contactsById[due.contactId]?.name : null;
     final account = due.accountId != null ? data.accountsById[due.accountId]?.name : null;
@@ -45,7 +51,23 @@ class _DueDetail extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(due.title, style: Theme.of(context).textTheme.titleLarge),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(due.title, style: Theme.of(context).textTheme.titleLarge),
+                ),
+                if (canManage)
+                  TextButton.icon(
+                    onPressed: () {
+                      final nav = Navigator.of(context);
+                      nav.pop();
+                      showDueForm(nav.context, existing: due);
+                    },
+                    icon: const Icon(Icons.edit, size: 18),
+                    label: const Text('Edit'),
+                  ),
+              ],
+            ),
             const SizedBox(height: 16),
             _row(context, 'Direction', due.direction == 'receivable' ? 'Receivable' : 'Payable'),
             _row(context, 'Status', status),
@@ -55,6 +77,21 @@ class _DueDetail extends StatelessWidget {
             _row(context, 'Remaining', formatMoney(remaining > 0 ? remaining : 0, currency)),
             if (contact != null) _row(context, 'Contact', contact),
             if (account != null) _row(context, 'Account', account),
+            if (canTxn && settleable) ...[
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.tonalIcon(
+                  onPressed: () {
+                    final nav = Navigator.of(context);
+                    nav.pop();
+                    showDuePayment(nav.context, due);
+                  },
+                  icon: const Icon(Icons.payments_outlined, size: 18),
+                  label: const Text('Record payment'),
+                ),
+              ),
+            ],
             const SizedBox(height: 12),
             const Divider(height: 1),
             const SizedBox(height: 12),
@@ -66,6 +103,10 @@ class _DueDetail extends StatelessWidget {
                   style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant))
             else
               for (final t in linked) _txnTile(context, data, t, currency),
+            const SizedBox(height: 12),
+            const Divider(height: 1),
+            const SizedBox(height: 8),
+            RevisionHistory(entityType: 'dues', entityId: due.id),
           ],
         ),
       ),

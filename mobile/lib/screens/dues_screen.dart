@@ -10,6 +10,7 @@ import '../state/auth_controller.dart';
 import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
 import '../widgets/common.dart';
+import '../widgets/data_table_view.dart';
 import 'due_detail.dart';
 import 'due_form.dart';
 
@@ -40,6 +41,7 @@ class DuesScreen extends StatefulWidget {
 class _DuesScreenState extends State<DuesScreen> {
   String _statusFilter = '__unsettled';
   String _directionFilter = '__all';
+  String _search = '';
 
   int get _activeFilterCount =>
       (_statusFilter != '__unsettled' ? 1 : 0) + (_directionFilter != '__all' ? 1 : 0);
@@ -143,8 +145,10 @@ class _DuesScreenState extends State<DuesScreen> {
       }
     }
 
-    // Apply status + direction filters. Default view is unsettled (open +
-    // partial); status derives from the settled amount.
+    // Apply search + status + direction filters. Default view is unsettled
+    // (open + partial); status derives from the settled amount. Search matches
+    // title and contact name (case-insensitive).
+    final query = _search.trim().toLowerCase();
     final filtered = data.dues.where((d) {
       if (_directionFilter != '__all' && d.direction != _directionFilter) return false;
       if (_statusFilter != '__all') {
@@ -154,6 +158,12 @@ class _DuesScreenState extends State<DuesScreen> {
         } else if (st != _statusFilter) {
           return false;
         }
+      }
+      if (query.isNotEmpty) {
+        final contactName =
+            d.contactId != null ? data.contactsById[d.contactId]?.name ?? '' : '';
+        final hay = '${d.title} $contactName'.toLowerCase();
+        if (!hay.contains(query)) return false;
       }
       return true;
     }).toList()
@@ -167,80 +177,152 @@ class _DuesScreenState extends State<DuesScreen> {
               label: const Text('Due'),
             )
           : null,
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 88),
+      body: Column(
         children: [
-          if (receivable > 0 || payable > 0)
-            Row(
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                if (receivable > 0)
-                  Expanded(child: StatCard(label: 'Receivable', amount: receivable, currency: currency, tone: StatTone.success, icon: Icons.arrow_downward)),
-                if (receivable > 0 && payable > 0) const SizedBox(width: 12),
-                if (payable > 0)
-                  Expanded(child: StatCard(label: 'Payable', amount: payable, currency: currency, tone: StatTone.danger, icon: Icons.arrow_upward)),
-              ],
-            ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              OutlinedButton.icon(
-                onPressed: () => _openFilters(context),
-                icon: const Icon(Icons.filter_list, size: 18),
-                label: Text(_activeFilterCount > 0 ? 'Filters ($_activeFilterCount)' : 'Filters'),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
-                  children: [
-                    if (_statusFilter != '__unsettled')
-                      _chip('Status: ${_kDueStatusFilters[_statusFilter]}',
-                          () => setState(() => _statusFilter = '__unsettled')),
-                    if (_directionFilter != '__all')
-                      _chip('Direction: ${_kDueDirectionFilters[_directionFilter]}',
-                          () => setState(() => _directionFilter = '__all')),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          if (filtered.isEmpty)
-            Padding(
-              padding: const EdgeInsets.only(top: 40),
-              child: EmptyView(
-                title: _activeFilterCount > 0 ? 'No dues match the filter' : 'No unsettled dues',
-                action: _activeFilterCount > 0
-                    ? FilledButton(onPressed: _clearFilters, child: const Text('Clear filters'))
-                    : null,
-              ),
-            )
-          else
-            for (final d in filtered)
-              Card(
-                margin: const EdgeInsets.only(bottom: 8),
-                child: ListTile(
-                  onTap: () => showDueDetail(context, d),
-                  title: Text(d.title),
-                  subtitle: Text('${d.direction == 'receivable' ? 'Receivable' : 'Payable'} · due ${formatDate(d.dueDate)}'),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
+                if (receivable > 0 || payable > 0) ...[
+                  Row(
                     children: [
-                      Text(formatMoney(d.amount - data.settledOf(d.id), currency),
-                          style: const TextStyle(fontWeight: FontWeight.w600)),
-                      if (canManage || canTxn || canViewContacts || canViewTxns)
-                        _DueMenu(
-                          due: d,
-                          canManage: canManage,
-                          canTxn: canTxn,
-                          canViewContacts: canViewContacts,
-                          canViewTxns: canViewTxns,
-                        ),
+                      if (receivable > 0)
+                        Expanded(child: StatCard(label: 'Receivable', amount: receivable, currency: currency, tone: StatTone.success, icon: Icons.arrow_downward)),
+                      if (receivable > 0 && payable > 0) const SizedBox(width: 12),
+                      if (payable > 0)
+                        Expanded(child: StatCard(label: 'Payable', amount: payable, currency: currency, tone: StatTone.danger, icon: Icons.arrow_upward)),
                     ],
                   ),
+                  const SizedBox(height: 12),
+                ],
+                TextField(
+                  onChanged: (v) => setState(() => _search = v),
+                  decoration: const InputDecoration(
+                    hintText: 'Search dues…',
+                    prefixIcon: Icon(Icons.search, size: 20),
+                    isDense: true,
+                  ),
                 ),
-              ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: () => _openFilters(context),
+                      icon: const Icon(Icons.filter_list, size: 18),
+                      label: Text(_activeFilterCount > 0 ? 'Filters ($_activeFilterCount)' : 'Filters'),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: [
+                          if (_statusFilter != '__unsettled')
+                            _chip('Status: ${_kDueStatusFilters[_statusFilter]}',
+                                () => setState(() => _statusFilter = '__unsettled')),
+                          if (_directionFilter != '__all')
+                            _chip('Direction: ${_kDueDirectionFilters[_directionFilter]}',
+                                () => setState(() => _directionFilter = '__all')),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: filtered.isEmpty
+                ? Padding(
+                    padding: const EdgeInsets.only(top: 40),
+                    child: EmptyView(
+                      icon: (_activeFilterCount > 0 || query.isNotEmpty)
+                          ? Icons.filter_alt_off
+                          : Icons.call_received,
+                      title: (_activeFilterCount > 0 || query.isNotEmpty)
+                          ? 'No dues match the filter'
+                          : 'No unsettled dues',
+                      action: _activeFilterCount > 0
+                          ? FilledButton(onPressed: _clearFilters, child: const Text('Clear filters'))
+                          : null,
+                    ),
+                  )
+                : DataTableView<Due>(
+                    tableId: 'dues',
+                    rows: filtered,
+                    onRowTap: (d) => showDueDetail(context, d),
+                    trailing: (d) => (canManage || canTxn || canViewContacts || canViewTxns)
+                        ? _DueMenu(
+                            due: d,
+                            canManage: canManage,
+                            canTxn: canTxn,
+                            canViewContacts: canViewContacts,
+                            canViewTxns: canViewTxns,
+                          )
+                        : const SizedBox.shrink(),
+                    columns: [
+                      DataColumn2<Due>(
+                        key: 'title',
+                        label: 'Title',
+                        locked: true,
+                        defaultWidth: 160,
+                        sortValue: (d) => d.title,
+                        cell: (d) => Text(d.title, overflow: TextOverflow.ellipsis),
+                      ),
+                      DataColumn2<Due>(
+                        key: 'direction',
+                        label: 'Direction',
+                        defaultVisible: false,
+                        defaultWidth: 110,
+                        sortValue: (d) => d.direction,
+                        cell: (d) => Text(d.direction == 'receivable' ? 'Receivable' : 'Payable'),
+                      ),
+                      DataColumn2<Due>(
+                        key: 'contact',
+                        label: 'Contact',
+                        defaultVisible: false,
+                        defaultWidth: 140,
+                        sortValue: (d) => d.contactId != null ? data.contactsById[d.contactId]?.name ?? '' : '',
+                        cell: (d) => Text(
+                            d.contactId != null ? data.contactsById[d.contactId]?.name ?? '—' : '—',
+                            overflow: TextOverflow.ellipsis),
+                      ),
+                      DataColumn2<Due>(
+                        key: 'dueDate',
+                        label: 'Due date',
+                        defaultWidth: 110,
+                        sortValue: (d) => d.dueDate,
+                        cell: (d) => Text(formatDate(d.dueDate)),
+                      ),
+                      DataColumn2<Due>(
+                        key: 'amount',
+                        label: 'Amount',
+                        numeric: true,
+                        defaultWidth: 120,
+                        sortValue: (d) => d.amount,
+                        cell: (d) => Text(formatMoney(d.amount, currency),
+                            style: const TextStyle(fontWeight: FontWeight.w600)),
+                      ),
+                      DataColumn2<Due>(
+                        key: 'settled',
+                        label: 'Settled',
+                        defaultVisible: false,
+                        numeric: true,
+                        defaultWidth: 120,
+                        sortValue: (d) => data.settledOf(d.id),
+                        cell: (d) => Text(formatMoney(data.settledOf(d.id), currency)),
+                      ),
+                      DataColumn2<Due>(
+                        key: 'status',
+                        label: 'Status',
+                        defaultWidth: 100,
+                        sortValue: (d) => dueStatusFromSettled(d, data.settledOf(d.id)),
+                        cell: (d) => Text(dueStatusFromSettled(d, data.settledOf(d.id))),
+                      ),
+                    ],
+                  ),
+          ),
         ],
       ),
     );
@@ -280,13 +362,15 @@ class _DueMenu extends StatelessWidget {
       onSelected: (v) {
         switch (v) {
           case 'pay':
-            _showDuePayment(context, due);
+            showDuePayment(context, due);
             break;
           case 'contact':
             if (due.contactId != null) context.push('/contacts/${due.contactId}');
             break;
           case 'txns':
-            if (due.contactId != null) context.push('/contacts/${due.contactId}');
+            if (due.contactId != null) {
+              context.push('/transactions?contact=${due.contactId}');
+            }
             break;
           case 'edit':
             showDueForm(context, existing: due);
@@ -359,7 +443,7 @@ void _confirmDelete(BuildContext context, Due due) {
   );
 }
 
-Future<void> _showDuePayment(BuildContext context, Due due) {
+Future<void> showDuePayment(BuildContext context, Due due) {
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,

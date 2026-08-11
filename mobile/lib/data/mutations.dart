@@ -143,10 +143,35 @@ class Mutations {
   }
 
   // ---- contacts ----
-  Future<String> createContact(String ws, Map<String, dynamic> data) => _auditedCreate('contacts', ws, data);
+  Future<String> createContact(String ws, Map<String, dynamic> data) =>
+      _auditedCreate('contacts', ws, _normalizeContactEmails(data));
   Future<void> updateContact(String ws, String id, Map<String, dynamic> data) =>
-      _auditedUpdate('contacts', ws, id, data);
+      _auditedUpdate('contacts', ws, id, _normalizeContactEmails(data));
   Future<void> deleteContact(String ws, String id) => _auditedDelete('contacts', ws, id);
+
+  /// Coerce the `emails` field to the web shape — a list of `{value, label}`
+  /// maps (label defaulting to "Other") with blank values dropped — and keep
+  /// the legacy single `email` in sync (first address, or null when empty) so
+  /// older readers stay correct.
+  Map<String, dynamic> _normalizeContactEmails(Map<String, dynamic> data) {
+    if (!data.containsKey('emails')) return data;
+    final raw = data['emails'];
+    final clean = <Map<String, dynamic>>[];
+    if (raw is List) {
+      for (final e in raw) {
+        if (e is Map) {
+          final value = (e['value'] ?? '').toString().trim();
+          if (value.isEmpty) continue;
+          final label = (e['label'] ?? '').toString().trim();
+          clean.add({'value': value, 'label': label.isEmpty ? 'Other' : label});
+        }
+      }
+    }
+    final out = Map<String, dynamic>.from(data);
+    out['emails'] = clean;
+    out['email'] = clean.isEmpty ? null : clean.first['value'];
+    return out;
+  }
 
   // ---- accounts ----
   Future<String> createAccount(String ws, Map<String, dynamic> data) => _auditedCreate('accounts', ws, data);

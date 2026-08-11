@@ -1,5 +1,6 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../core/format.dart';
@@ -9,6 +10,7 @@ import '../data/models.dart';
 import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
 import '../widgets/common.dart';
+import 'transaction_detail.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -18,6 +20,8 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   PeriodKind period = PeriodKind.month;
+  DateTime _customStart = DateTime(DateTime.now().year, DateTime.now().month, 1);
+  DateTime _customEnd = DateTime.now();
 
   @override
   Widget build(BuildContext context) {
@@ -25,8 +29,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final data = context.watch<DataController>();
     final currency = ws.activeWorkspace?.baseCurrency ?? 'INR';
     final fyStart = ws.activeWorkspace?.fyStartMonth ?? 4;
+    final canViewTxns = ws.can('transactions.view');
     final now = DateTime.now();
-    final range = resolvePeriod(period, now, fyStart);
+    final range = period == PeriodKind.custom
+        ? (
+            start: DateTime(_customStart.year, _customStart.month, _customStart.day),
+            // End is inclusive: extend to the start of the following day.
+            end: DateTime(_customEnd.year, _customEnd.month, _customEnd.day).add(const Duration(days: 1)),
+          )
+        : resolvePeriod(period, now, fyStart);
 
     final trend = trendSeries(data.transactions, range.start, range.end);
     final totalInAccounts =
@@ -65,6 +76,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
       padding: const EdgeInsets.all(16),
       children: [
         _periodSelector(),
+        if (period == PeriodKind.custom) ...[
+          const SizedBox(height: 12),
+          _customRangePickers(),
+        ],
         const SizedBox(height: 12),
         _NetWorthHero(current: current, delta: delta, pct: nwPct, series: nwSeries, currency: currency),
         const SizedBox(height: 12),
@@ -119,6 +134,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         const SizedBox(height: 12),
         SectionCard(
           title: 'Upcoming dues',
+          trailing: _seeAll('/dues'),
           child: upcomingTop.isEmpty
               ? Text('Nothing due.', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant))
               : Column(
@@ -131,6 +147,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         if (budgetRows.isNotEmpty) ...[
           SectionCard(
             title: 'Budgets',
+            trailing: _seeAll('/budgets'),
             child: Column(
               children: [
                 for (final p in budgetRows) _budgetRow(p, currency),
@@ -141,45 +158,56 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ],
         SectionCard(
           title: 'Spend by category',
+          trailing: _seeAll('/reports'),
           child: topSpend.isEmpty
               ? Text('No spend recorded.', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant))
               : Column(
                   children: [
-                    for (final c in topSpend) _spendRow(c, topSpend.first.amount, currency),
+                    for (final c in topSpend)
+                      _spendRow(
+                        c,
+                        topSpend.first.amount,
+                        currency,
+                        onTap: canViewTxns ? () => context.push('/transactions?category=${c.id}') : null,
+                      ),
                   ],
                 ),
         ),
         const SizedBox(height: 12),
         SectionCard(
           title: 'Recent transactions',
+          trailing: _seeAll('/transactions'),
           child: recentTop.isEmpty
               ? Text('No transactions yet.', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant))
               : Column(
                   children: [
                     for (final t in recentTop)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 6),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(t.note?.isNotEmpty == true ? t.note! : 'Transaction',
-                                      maxLines: 1, overflow: TextOverflow.ellipsis),
-                                  Text(formatDate(t.date),
-                                      style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant)),
-                                ],
+                      InkWell(
+                        onTap: () => showTransactionDetail(context, t),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 6),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(t.note?.isNotEmpty == true ? t.note! : 'Transaction',
+                                        maxLines: 1, overflow: TextOverflow.ellipsis),
+                                    Text(formatDate(t.date),
+                                        style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                                  ],
+                                ),
                               ),
-                            ),
-                            Text(
-                              formatMoney(t.totalAmount, currency),
-                              style: TextStyle(
-                                fontWeight: FontWeight.w600,
-                                color: t.totalAmount < 0 ? AppColors.danger : AppColors.accent2,
+                              Text(
+                                formatMoney(t.totalAmount, currency),
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  color: t.totalAmount < 0 ? AppColors.danger : AppColors.accent2,
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
                   ],
@@ -190,18 +218,81 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  Widget _seeAll(String route) => TextButton(
+        onPressed: () => context.go(route),
+        style: TextButton.styleFrom(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          minimumSize: const Size(0, 32),
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          visualDensity: VisualDensity.compact,
+        ),
+        child: const Text('See all'),
+      );
+
   Widget _periodSelector() {
-    return Align(
-      alignment: Alignment.centerRight,
-      child: DropdownButton<PeriodKind>(
-        value: period,
-        underline: const SizedBox.shrink(),
-        items: [
-          for (final p in [PeriodKind.week, PeriodKind.month, PeriodKind.year, PeriodKind.fy])
-            DropdownMenuItem(value: p, child: Text(periodLabels[p]!)),
+    const short = {
+      PeriodKind.week: 'Week',
+      PeriodKind.month: 'Month',
+      PeriodKind.year: 'Year',
+      PeriodKind.fy: 'FY',
+      PeriodKind.custom: 'Custom',
+    };
+    return SizedBox(
+      width: double.infinity,
+      child: SegmentedButton<PeriodKind>(
+        showSelectedIcon: false,
+        style: ButtonStyle(
+          visualDensity: VisualDensity.compact,
+          textStyle: WidgetStatePropertyAll(
+            Theme.of(context).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
+          ),
+        ),
+        segments: [
+          for (final p in [PeriodKind.week, PeriodKind.month, PeriodKind.year, PeriodKind.fy, PeriodKind.custom])
+            ButtonSegment(value: p, label: Text(short[p]!)),
         ],
-        onChanged: (v) => setState(() => period = v ?? PeriodKind.month),
+        selected: {period},
+        onSelectionChanged: (s) => setState(() => period = s.first),
       ),
+    );
+  }
+
+  Widget _customRangePickers() {
+    return Row(
+      children: [
+        Expanded(child: _dateField('From', _customStart, (d) => setState(() => _customStart = d))),
+        const SizedBox(width: 12),
+        Expanded(child: _dateField('To', _customEnd, (d) => setState(() => _customEnd = d))),
+      ],
+    );
+  }
+
+  Widget _dateField(String label, DateTime value, ValueChanged<DateTime> onPicked) {
+    final cs = Theme.of(context).colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
+        const SizedBox(height: 4),
+        OutlinedButton.icon(
+          style: OutlinedButton.styleFrom(
+            alignment: Alignment.centerLeft,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            minimumSize: const Size(0, 44),
+          ),
+          onPressed: () async {
+            final picked = await showDatePicker(
+              context: context,
+              initialDate: value,
+              firstDate: DateTime(2000),
+              lastDate: DateTime(2100),
+            );
+            if (picked != null) onPicked(picked);
+          },
+          icon: const Icon(Icons.calendar_today_outlined, size: 16),
+          label: Text(formatDate(value), overflow: TextOverflow.ellipsis),
+        ),
+      ],
     );
   }
 
@@ -328,26 +419,29 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _spendRow(CategorySpend c, double max, String currency) {
+  Widget _spendRow(CategorySpend c, double max, String currency, {VoidCallback? onTap}) {
     final double ratio = max > 0 ? (c.amount / max).clamp(0.0, 1.0).toDouble() : 0.0;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 5),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(child: Text(c.name, maxLines: 1, overflow: TextOverflow.ellipsis)),
-              Text(formatMoney(c.amount, currency), style: const TextStyle(fontWeight: FontWeight.w500)),
-            ],
-          ),
-          const SizedBox(height: 4),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(6),
-            child: LinearProgressIndicator(value: ratio, minHeight: 7),
-          ),
-        ],
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 5),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(child: Text(c.name, maxLines: 1, overflow: TextOverflow.ellipsis)),
+                Text(formatMoney(c.amount, currency), style: const TextStyle(fontWeight: FontWeight.w500)),
+              ],
+            ),
+            const SizedBox(height: 4),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: LinearProgressIndicator(value: ratio, minHeight: 7),
+            ),
+          ],
+        ),
       ),
     );
   }

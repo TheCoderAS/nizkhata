@@ -10,11 +10,28 @@ import '../state/auth_controller.dart';
 import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
 import '../widgets/common.dart';
+import '../widgets/data_table_view.dart';
 import 'debt_detail.dart';
 import 'debt_form.dart';
 
-class DebtsScreen extends StatelessWidget {
+const _kPurposeLabels = <String, String>{
+  'loan': 'Loan',
+  'custodial_savings': 'Custodial savings',
+  'lending': 'Lending',
+  'reimbursable': 'Reimbursable',
+  'informal': 'Informal',
+  'shared': 'Shared',
+};
+
+class DebtsScreen extends StatefulWidget {
   const DebtsScreen({super.key});
+
+  @override
+  State<DebtsScreen> createState() => _DebtsScreenState();
+}
+
+class _DebtsScreenState extends State<DebtsScreen> {
+  String _search = '';
 
   @override
   Widget build(BuildContext context) {
@@ -26,7 +43,18 @@ class DebtsScreen extends StatelessWidget {
     final canViewContacts = ws.can('contacts.view');
     final canViewTxns = ws.can('transactions.view');
 
-    final visible = data.debts.where((d) => d.purpose != 'shared').toList();
+    final query = _search.trim().toLowerCase();
+    final hasDebts = data.debts.any((d) => d.purpose != 'shared');
+    final visible = data.debts.where((d) {
+      if (d.purpose == 'shared') return false;
+      if (query.isNotEmpty) {
+        final contactName = data.contactsById[d.contactId]?.name ?? '';
+        final purposeLabel = _kPurposeLabels[d.purpose] ?? d.purpose;
+        final hay = '${d.label ?? ''} $contactName $purposeLabel'.toLowerCase();
+        if (!hay.contains(query)) return false;
+      }
+      return true;
+    }).toList();
     var theyOwe = 0.0;
     var youOwe = 0.0;
     for (final d in visible) {
@@ -38,9 +66,6 @@ class DebtsScreen extends StatelessWidget {
         youOwe += o;
       }
     }
-    final owed = visible.where((d) => d.direction == 'owed').toList();
-    final owe = visible.where((d) => d.direction == 'owe').toList();
-
     return Scaffold(
       floatingActionButton: canManage
           ? FloatingActionButton.extended(
@@ -49,65 +74,112 @@ class DebtsScreen extends StatelessWidget {
               label: const Text('Debt'),
             )
           : null,
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 88),
+      body: Column(
         children: [
           if (theyOwe > 0 || youOwe > 0)
-            Row(
-              children: [
-                if (theyOwe > 0)
-                  Expanded(child: StatCard(label: 'They owe you', amount: theyOwe, currency: currency, tone: StatTone.success, icon: Icons.arrow_downward)),
-                if (theyOwe > 0 && youOwe > 0) const SizedBox(width: 12),
-                if (youOwe > 0)
-                  Expanded(child: StatCard(label: 'You owe', amount: youOwe, currency: currency, tone: StatTone.danger, icon: Icons.arrow_upward)),
-              ],
-            ),
-          const SizedBox(height: 12),
-          if (visible.isEmpty)
-            const Padding(padding: EdgeInsets.only(top: 40), child: EmptyView(title: 'No debts yet'))
-          else ...[
-            if (owed.isNotEmpty) _group(context, 'They owe you', owed, data, currency, canManage, canTxn, canViewContacts, canViewTxns),
-            if (owe.isNotEmpty) _group(context, 'You owe', owe, data, currency, canManage, canTxn, canViewContacts, canViewTxns),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _group(BuildContext context, String title, List<Debt> debts, DataController data,
-      String currency, bool canManage, bool canTxn, bool canViewContacts, bool canViewTxns) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(top: 8, bottom: 4),
-          child: Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
-        ),
-        for (final d in debts)
-          Card(
-            margin: const EdgeInsets.only(bottom: 8),
-            child: ListTile(
-              onTap: () => showDebtDetail(context, d),
-              title: Text(d.label ?? data.contactsById[d.contactId]?.name ?? 'Debt'),
-              subtitle: Text(data.contactsById[d.contactId]?.name ?? '—'),
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+              child: Row(
                 children: [
-                  Text(formatMoney(data.outstandingOf(d.id), currency),
-                      style: const TextStyle(fontWeight: FontWeight.w600)),
-                  if (canManage || canTxn || canViewContacts || canViewTxns)
-                    _DebtMenu(
-                      debt: d,
-                      canManage: canManage,
-                      canTxn: canTxn,
-                      canViewContacts: canViewContacts,
-                      canViewTxns: canViewTxns,
-                    ),
+                  if (theyOwe > 0)
+                    Expanded(child: StatCard(label: 'They owe you', amount: theyOwe, currency: currency, tone: StatTone.success, icon: Icons.arrow_downward)),
+                  if (theyOwe > 0 && youOwe > 0) const SizedBox(width: 12),
+                  if (youOwe > 0)
+                    Expanded(child: StatCard(label: 'You owe', amount: youOwe, currency: currency, tone: StatTone.danger, icon: Icons.arrow_upward)),
                 ],
               ),
             ),
+          if (hasDebts)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+              child: TextField(
+                onChanged: (v) => setState(() => _search = v),
+                decoration: const InputDecoration(
+                  hintText: 'Search debts…',
+                  prefixIcon: Icon(Icons.search, size: 20),
+                  isDense: true,
+                ),
+              ),
+            ),
+          Expanded(
+            child: visible.isEmpty
+                ? Padding(
+                    padding: const EdgeInsets.only(top: 40),
+                    child: EmptyView(
+                      title: query.isNotEmpty ? 'No debts match the search' : 'No debts yet',
+                      icon: query.isNotEmpty ? Icons.filter_alt_off : Icons.credit_card_outlined,
+                    ),
+                  )
+                : DataTableView<Debt>(
+                    tableId: 'debts',
+                    rows: visible,
+                    onRowTap: (d) => showDebtDetail(context, d),
+                    trailing: (d) => (canManage || canTxn || canViewContacts || canViewTxns)
+                        ? _DebtMenu(
+                            debt: d,
+                            canManage: canManage,
+                            canTxn: canTxn,
+                            canViewContacts: canViewContacts,
+                            canViewTxns: canViewTxns,
+                          )
+                        : const SizedBox.shrink(),
+                    columns: [
+                      DataColumn2<Debt>(
+                        key: 'label',
+                        label: 'Label',
+                        locked: true,
+                        defaultWidth: 170,
+                        sortValue: (d) => d.label ?? data.contactsById[d.contactId]?.name ?? 'Debt',
+                        cell: (d) => Text(d.label ?? data.contactsById[d.contactId]?.name ?? 'Debt',
+                            overflow: TextOverflow.ellipsis),
+                      ),
+                      DataColumn2<Debt>(
+                        key: 'contact',
+                        label: 'Contact',
+                        defaultWidth: 150,
+                        sortValue: (d) => data.contactsById[d.contactId]?.name ?? '',
+                        cell: (d) => Text(data.contactsById[d.contactId]?.name ?? '—',
+                            overflow: TextOverflow.ellipsis),
+                      ),
+                      DataColumn2<Debt>(
+                        key: 'direction',
+                        label: 'Direction',
+                        defaultVisible: false,
+                        defaultWidth: 130,
+                        sortValue: (d) => d.direction,
+                        cell: (d) => Text(d.direction == 'owed' ? 'They owe you' : 'You owe',
+                            overflow: TextOverflow.ellipsis),
+                      ),
+                      DataColumn2<Debt>(
+                        key: 'purpose',
+                        label: 'Purpose',
+                        defaultVisible: false,
+                        defaultWidth: 140,
+                        sortValue: (d) => _kPurposeLabels[d.purpose] ?? d.purpose,
+                        cell: (d) => Text(_kPurposeLabels[d.purpose] ?? d.purpose,
+                            overflow: TextOverflow.ellipsis),
+                      ),
+                      DataColumn2<Debt>(
+                        key: 'status',
+                        label: 'Status',
+                        defaultWidth: 100,
+                        sortValue: (d) => d.status,
+                        cell: (d) => Text(d.status),
+                      ),
+                      DataColumn2<Debt>(
+                        key: 'outstanding',
+                        label: 'Outstanding',
+                        numeric: true,
+                        defaultWidth: 130,
+                        sortValue: (d) => data.outstandingOf(d.id),
+                        cell: (d) => Text(formatMoney(data.outstandingOf(d.id), currency),
+                            style: const TextStyle(fontWeight: FontWeight.w600)),
+                      ),
+                    ],
+                  ),
           ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -137,13 +209,13 @@ class _DebtMenu extends StatelessWidget {
       onSelected: (v) {
         switch (v) {
           case 'settle':
-            _showDebtPayment(context, debt);
+            showDebtPayment(context, debt);
             break;
           case 'contact':
             if (hasContact) context.push('/contacts/${debt.contactId}');
             break;
           case 'txns':
-            if (hasContact) context.push('/contacts/${debt.contactId}');
+            if (hasContact) context.push('/transactions?contact=${debt.contactId}');
             break;
           case 'edit':
             showDebtForm(context, existing: debt);
@@ -196,7 +268,7 @@ void _confirmDelete(BuildContext context, Debt debt) {
   );
 }
 
-Future<void> _showDebtPayment(BuildContext context, Debt debt) {
+Future<void> showDebtPayment(BuildContext context, Debt debt) {
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
