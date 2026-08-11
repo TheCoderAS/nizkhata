@@ -362,7 +362,7 @@ class _DueMenu extends StatelessWidget {
       onSelected: (v) {
         switch (v) {
           case 'pay':
-            _showDuePayment(context, due);
+            showDuePayment(context, due);
             break;
           case 'contact':
             if (due.contactId != null) context.push('/contacts/${due.contactId}');
@@ -443,7 +443,7 @@ void _confirmDelete(BuildContext context, Due due) {
   );
 }
 
-Future<void> _showDuePayment(BuildContext context, Due due) {
+Future<void> showDuePayment(BuildContext context, Due due) {
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,

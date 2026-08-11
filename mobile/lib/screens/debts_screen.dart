@@ -209,7 +209,7 @@ class _DebtMenu extends StatelessWidget {
       onSelected: (v) {
         switch (v) {
           case 'settle':
-            _showDebtPayment(context, debt);
+            showDebtPayment(context, debt);
             break;
           case 'contact':
             if (hasContact) context.push('/contacts/${debt.contactId}');
@@ -268,7 +268,7 @@ void _confirmDelete(BuildContext context, Debt debt) {
   );
 }
 
-Future<void> _showDebtPayment(BuildContext context, Debt debt) {
+Future<void> showDebtPayment(BuildContext context, Debt debt) {
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
