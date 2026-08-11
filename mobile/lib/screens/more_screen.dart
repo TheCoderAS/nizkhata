@@ -64,6 +64,8 @@ class MoreScreen extends StatelessWidget {
         Card(
           child: Column(
             children: [
+              _navTile(context, Icons.contacts_outlined, 'Contacts', '/contacts'),
+              const Divider(height: 1),
               _navTile(context, Icons.account_balance_wallet_outlined, 'Accounts', '/accounts'),
               const Divider(height: 1),
               _navTile(context, Icons.category_outlined, 'Categories', '/categories'),

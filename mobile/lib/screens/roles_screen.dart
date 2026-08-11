@@ -62,7 +62,7 @@ class _RoleCard extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final ws = context.watch<WorkspaceController>();
     final granted = kPermissions.where((p) => role.permissions[p] == true).length;
-    final memberCount = ws.memberships.where((m) => m.roleId == role.id).length;
+    final memberCount = ws.workspaceMembers.where((m) => m.roleId == role.id).length;
 
     return Card(
       child: Padding(
@@ -140,7 +140,7 @@ class _RoleCard extends StatelessWidget {
   }
 
   void _confirmDelete(BuildContext context) {
-    final memberships = context.read<WorkspaceController>().memberships;
+    final memberships = context.read<WorkspaceController>().workspaceMembers;
     final user = context.read<AuthController>().user;
     showDialog<void>(
       context: context,

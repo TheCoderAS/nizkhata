@@ -54,7 +54,7 @@ class MembersScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
         children: [
-          for (final m in ws.memberships)
+          for (final m in ws.workspaceMembers)
             _MemberTile(
               membership: m,
               ownerId: ownerId,
