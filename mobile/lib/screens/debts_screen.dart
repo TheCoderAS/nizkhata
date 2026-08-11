@@ -39,48 +39,87 @@ class _DebtsScreenState extends State<DebtsScreen> {
   static const _statusLabels = {'outstanding': 'Outstanding', 'settled': 'Settled', 'all': 'All'};
   static const _dirLabels = {'all': 'All', 'owed': 'They owe', 'owe': 'You owe'};
 
-  Widget _filterChip(
-    BuildContext context, {
-    required String label,
-    required String current,
-    required Map<String, String> labels,
-    required ValueChanged<String> onSelected,
-  }) {
-    final cs = Theme.of(context).colorScheme;
-    // Non-default selections read as "active" (tinted).
-    final isDefault = current == labels.keys.first;
-    return PopupMenuButton<String>(
-      onSelected: onSelected,
-      position: PopupMenuPosition.under,
-      itemBuilder: (_) => [
-        for (final e in labels.entries)
-          PopupMenuItem(value: e.key, child: Text(e.value)),
-      ],
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-        decoration: BoxDecoration(
-          color: isDefault ? cs.surfaceContainerHighest.withValues(alpha: 0.5) : cs.primary.withValues(alpha: 0.14),
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(
-            color: isDefault ? cs.outlineVariant : cs.primary.withValues(alpha: 0.5),
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('$label: ',
-                style: TextStyle(fontSize: 12.5, color: cs.onSurfaceVariant)),
-            Text(labels[current] ?? current,
-                style: TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w600,
-                    color: isDefault ? cs.onSurface : cs.primary)),
-            Icon(Icons.arrow_drop_down, size: 18, color: isDefault ? cs.onSurfaceVariant : cs.primary),
-          ],
+  int get _activeFilterCount =>
+      (_status != 'outstanding' ? 1 : 0) + (_direction != 'all' ? 1 : 0);
+
+  // Same filter UX as Transactions/Dues: a bottom sheet with dropdowns, opened
+  // from the tonal filter button; active choices surface as removable chips.
+  Future<void> _openFilters(BuildContext context) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+        child: StatefulBuilder(
+          builder: (ctx, setSheet) {
+            void update(VoidCallback fn) {
+              setSheet(fn);
+              setState(fn);
+            }
+
+            return Padding(
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Filters', style: Theme.of(ctx).textTheme.titleLarge),
+                  const SizedBox(height: 16),
+                  DropdownButtonFormField<String>(
+                    value: _status,
+                    decoration: const InputDecoration(labelText: 'Status'),
+                    items: [
+                      for (final e in _statusLabels.entries)
+                        DropdownMenuItem(value: e.key, child: Text(e.value)),
+                    ],
+                    onChanged: (v) => update(() => _status = v ?? 'outstanding'),
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    value: _direction,
+                    decoration: const InputDecoration(labelText: 'Direction'),
+                    items: [
+                      for (final e in _dirLabels.entries)
+                        DropdownMenuItem(value: e.key, child: Text(e.value)),
+                    ],
+                    onChanged: (v) => update(() => _direction = v ?? 'all'),
+                  ),
+                  const SizedBox(height: 20),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => update(() {
+                            _status = 'outstanding';
+                            _direction = 'all';
+                          }),
+                          child: const Text('Clear all'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: FilledButton(
+                          onPressed: () => Navigator.of(ctx).pop(),
+                          child: const Text('Done'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          },
         ),
       ),
     );
   }
+
+  Widget _chip(String label, VoidCallback onClear) => InputChip(
+        label: Text(label),
+        onDeleted: onClear,
+        deleteIcon: const Icon(Icons.close, size: 16),
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -144,47 +183,63 @@ class _DebtsScreenState extends State<DebtsScreen> {
           if (hasDebts) ...[
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-              child: TextField(
-                onChanged: (v) => setState(() => _search = v),
-                decoration: const InputDecoration(
-                  hintText: 'Search debts…',
-                  prefixIcon: Icon(Icons.search, size: 20),
-                  isDense: true,
-                ),
-              ),
-            ),
-            SizedBox(
-              height: 40,
-              child: ListView(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
                 children: [
-                  _filterChip(
-                    context,
-                    label: 'Status',
-                    current: _status,
-                    labels: _statusLabels,
-                    onSelected: (v) => setState(() => _status = v),
+                  Expanded(
+                    child: TextField(
+                      onChanged: (v) => setState(() => _search = v),
+                      decoration: const InputDecoration(
+                        hintText: 'Search debts…',
+                        prefixIcon: Icon(Icons.search, size: 20),
+                        isDense: true,
+                      ),
+                    ),
                   ),
-                  const SizedBox(width: 8),
-                  _filterChip(
-                    context,
-                    label: 'Direction',
-                    current: _direction,
-                    labels: _dirLabels,
-                    onSelected: (v) => setState(() => _direction = v),
+                  Gap.sm,
+                  Badge(
+                    isLabelVisible: _activeFilterCount > 0,
+                    label: Text('$_activeFilterCount'),
+                    child: IconButton.filledTonal(
+                      tooltip: 'Filters',
+                      onPressed: () => _openFilters(context),
+                      icon: const Icon(Icons.tune),
+                    ),
                   ),
                 ],
               ),
             ),
+            if (_activeFilterCount > 0)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      if (_status != 'outstanding')
+                        Padding(
+                          padding: const EdgeInsets.only(right: 6),
+                          child: _chip('Status: ${_statusLabels[_status]}',
+                              () => setState(() => _status = 'outstanding')),
+                        ),
+                      if (_direction != 'all')
+                        _chip('Direction: ${_dirLabels[_direction]}',
+                            () => setState(() => _direction = 'all')),
+                    ],
+                  ),
+                ),
+              ),
           ],
           Expanded(
             child: visible.isEmpty
                 ? Padding(
                     padding: const EdgeInsets.only(top: 40),
                     child: EmptyView(
-                      title: query.isNotEmpty ? 'No debts match the search' : 'No debts yet',
-                      icon: query.isNotEmpty ? Icons.filter_alt_off : Icons.credit_card_outlined,
+                      title: (query.isNotEmpty || _activeFilterCount > 0)
+                          ? 'No debts match the filters'
+                          : 'No debts yet',
+                      icon: (query.isNotEmpty || _activeFilterCount > 0)
+                          ? Icons.filter_alt_off
+                          : Icons.credit_card_outlined,
                     ),
                   )
                 : EntityCardList<Debt>(
