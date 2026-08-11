@@ -102,28 +102,6 @@ class MoreScreen extends StatelessWidget {
             ],
           ),
         ),
-        const SizedBox(height: 12),
-        SectionCard(
-          title: 'Switch workspace',
-          child: Column(
-            children: [
-              for (final w in ws.workspaces)
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(w.name),
-                  trailing: w.id == ws.activeWorkspaceId ? const Icon(Icons.check) : null,
-                  onTap: () => ws.switchWorkspace(w.id),
-                ),
-              const Divider(height: 1),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.add),
-                title: const Text('Create workspace'),
-                onTap: () => _createWorkspace(context, auth, ws),
-              ),
-            ],
-          ),
-        ),
         const SizedBox(height: 20),
         FilledButton.tonalIcon(
           onPressed: () => auth.signOut(),
@@ -132,44 +110,6 @@ class MoreScreen extends StatelessWidget {
         ),
       ],
     );
-  }
-
-  Future<void> _createWorkspace(BuildContext context, AuthController auth, WorkspaceController ws) async {
-    final user = auth.user;
-    if (user == null) return;
-    final controller = TextEditingController();
-    final name = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('New workspace'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          textCapitalization: TextCapitalization.words,
-          decoration: const InputDecoration(labelText: 'Name', hintText: 'e.g. Household'),
-          onSubmitted: (v) => Navigator.pop(ctx, v.trim()),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
-            child: const Text('Create'),
-          ),
-        ],
-      ),
-    );
-    if (name == null || name.isEmpty) return;
-    try {
-      final id = await auth.createPersonalWorkspace(user, name: name);
-      await ws.switchWorkspace(id);
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Created "$name"')));
-      }
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Couldn't create workspace: $e")));
-      }
-    }
   }
 
   Widget _navTile(BuildContext context, IconData icon, String title, String route) => ListTile(
