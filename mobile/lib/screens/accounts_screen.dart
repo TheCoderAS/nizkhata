@@ -10,7 +10,7 @@ import '../state/auth_controller.dart';
 import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
 import '../widgets/common.dart';
-import '../widgets/data_table_view.dart';
+import '../widgets/entity_card_list.dart';
 import '../widgets/revision_history.dart';
 import 'account_form.dart';
 
@@ -44,14 +44,14 @@ class AccountsScreen extends StatelessWidget {
                   ? FilledButton(onPressed: () => showAccountForm(context), child: const Text('New account'))
                   : null,
             )
-          : DataTableView<Account>(
-              tableId: 'accounts',
+          : EntityCardList<Account>(
+              listId: 'accounts',
               rows: accounts,
               onRowTap: (a) => showAccountDetail(context, a),
               trailing: (a) => PopupMenuButton<String>(
                 onSelected: (v) {
                   if (v == 'ledger') context.push('/accounts/${a.id}/ledger');
-                  if (v == 'transactions') context.push('/transactions?account=${a.id}');
+                  if (v == 'transactions') context.push('/txns?account=${a.id}');
                   if (v == 'edit') showAccountForm(context, existing: a);
                   if (v == 'delete') _confirmDelete(context, a);
                 },
@@ -62,59 +62,43 @@ class AccountsScreen extends StatelessWidget {
                   if (canManage) const PopupMenuItem(value: 'delete', child: Text('Delete')),
                 ],
               ),
-              columns: [
-                DataColumn2<Account>(
+              fields: [
+                CardField<Account>(
                   key: 'name',
                   label: 'Name',
+                  role: CardRole.title,
                   locked: true,
-                  defaultWidth: 200,
                   sortValue: (a) => a.name.toLowerCase(),
-                  cell: (a) {
-                    final masked = a.cardLast4 != null && a.cardLast4!.isNotEmpty
-                        ? '···· ${a.cardLast4}'
-                        : (a.accountNumber != null && a.accountNumber!.length >= 4
-                            ? '···· ${a.accountNumber!.substring(a.accountNumber!.length - 4)}'
-                            : '');
-                    return Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(a.name, overflow: TextOverflow.ellipsis),
-                        if (masked.isNotEmpty)
-                          Text(
-                            masked,
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Theme.of(context).colorScheme.onSurfaceVariant,
-                            ),
-                          ),
-                      ],
-                    );
+                  text: (a) => a.name,
+                ),
+                CardField<Account>(
+                  key: 'number',
+                  label: 'Number',
+                  sortValue: (a) => _masked(a),
+                  text: (a) {
+                    final masked = _masked(a);
+                    return masked.isEmpty ? '—' : masked;
                   },
                 ),
-                DataColumn2<Account>(
+                CardField<Account>(
                   key: 'type',
                   label: 'Type',
-                  defaultWidth: 120,
                   sortValue: (a) => _typeLabel(a.type),
-                  cell: (a) => Text(_typeLabel(a.type)),
+                  text: (a) => _typeLabel(a.type),
                 ),
-                DataColumn2<Account>(
+                CardField<Account>(
                   key: 'opening',
                   label: 'Opening',
                   defaultVisible: false,
-                  numeric: true,
-                  defaultWidth: 120,
                   sortValue: (a) => a.openingBalance,
-                  cell: (a) => Text(formatMoney(a.openingBalance, currency)),
+                  text: (a) => formatMoney(a.openingBalance, currency),
                 ),
-                DataColumn2<Account>(
+                CardField<Account>(
                   key: 'balance',
                   label: 'Balance',
-                  numeric: true,
-                  defaultWidth: 130,
+                  role: CardRole.amount,
                   sortValue: (a) => data.balanceOf(a.id),
-                  cell: (a) {
+                  widget: (a) {
                     final bal = data.balanceOf(a.id);
                     return Text(
                       accountBalanceLabel(a.type, bal, currency),
@@ -296,7 +280,7 @@ void showAccountDetail(BuildContext context, Account a) {
                           label: const Text('Transactions'),
                           onPressed: () {
                             Navigator.of(sheetCtx).pop();
-                            context.push('/transactions?account=${a.id}');
+                            context.push('/txns?account=${a.id}');
                           },
                         ),
                       ),

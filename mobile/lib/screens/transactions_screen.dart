@@ -7,7 +7,7 @@ import '../data/models.dart';
 import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
 import '../widgets/common.dart';
-import '../widgets/data_table_view.dart';
+import '../widgets/entity_card_list.dart';
 import 'split_transaction_form.dart';
 import 'transaction_detail.dart';
 import 'transaction_form.dart';
@@ -33,12 +33,18 @@ class TransactionsScreen extends StatefulWidget {
   final String? initialContact;
   final String? initialCategory;
   final String? initialType;
+
+  /// When true the screen supplies its own AppBar with a back button (used for
+  /// the /txns drill-down route). In the bottom-nav shell this is false — the
+  /// shell provides the chrome.
+  final bool standalone;
   const TransactionsScreen({
     super.key,
     this.initialAccount,
     this.initialContact,
     this.initialCategory,
     this.initialType,
+    this.standalone = false,
   });
 
   @override
@@ -238,6 +244,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     }).toList();
 
     return Scaffold(
+      appBar: widget.standalone ? AppBar(title: const Text('Transactions')) : null,
       floatingActionButton: canCreate
           ? FloatingActionButton.extended(
               onPressed: () => _openAddMenu(context),
@@ -249,49 +256,63 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-            child: TextField(
-              onChanged: (v) => setState(() => _search = v),
-              decoration: const InputDecoration(
-                hintText: 'Search note / contact…',
-                prefixIcon: Icon(Icons.search, size: 20),
-                isDense: true,
-              ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
             child: Row(
               children: [
-                OutlinedButton.icon(
-                  onPressed: () => _openFilters(context),
-                  icon: const Icon(Icons.filter_list, size: 18),
-                  label: Text(_activeFilterCount > 0 ? 'Filters ($_activeFilterCount)' : 'Filters'),
-                ),
-                const SizedBox(width: 8),
                 Expanded(
-                  child: Wrap(
-                    spacing: 6,
-                    runSpacing: 6,
-                    children: [
-                      if (_accountFilter != null)
-                        _chip('Account: ${data.accountsById[_accountFilter]?.name ?? 'Unknown'}',
-                            () => setState(() => _accountFilter = null)),
-                      if (_contactFilter != null)
-                        _chip('Contact: ${data.contactsById[_contactFilter]?.name ?? 'Unknown'}',
-                            () => setState(() => _contactFilter = null)),
-                      if (_categoryFilter != null)
-                        _chip('Category: ${data.categoriesById[_categoryFilter]?.name ?? 'Unknown'}',
-                            () => setState(() => _categoryFilter = null)),
-                      if (_typeFilter != null)
-                        _chip('Type: ${_kLineTypeLabels[_typeFilter] ?? _typeFilter}',
-                            () => setState(() => _typeFilter = null)),
-                      if (_splitOnly) _chip('Split only', () => setState(() => _splitOnly = false)),
-                    ],
+                  child: TextField(
+                    onChanged: (v) => setState(() => _search = v),
+                    decoration: const InputDecoration(
+                      hintText: 'Search note / contact…',
+                      prefixIcon: Icon(Icons.search, size: 20),
+                      isDense: true,
+                    ),
+                  ),
+                ),
+                Gap.sm,
+                IconButton.filledTonal(
+                  onPressed: () => _openFilters(context),
+                  icon: Badge(
+                    isLabelVisible: _activeFilterCount > 0,
+                    label: Text('$_activeFilterCount'),
+                    child: const Icon(Icons.tune),
                   ),
                 ),
               ],
             ),
           ),
+          if (_activeFilterCount > 0)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 6, 16, 4),
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    if (_accountFilter != null) ...[
+                      _chip('Account: ${data.accountsById[_accountFilter]?.name ?? 'Unknown'}',
+                          () => setState(() => _accountFilter = null)),
+                      Gap.sm,
+                    ],
+                    if (_contactFilter != null) ...[
+                      _chip('Contact: ${data.contactsById[_contactFilter]?.name ?? 'Unknown'}',
+                          () => setState(() => _contactFilter = null)),
+                      Gap.sm,
+                    ],
+                    if (_categoryFilter != null) ...[
+                      _chip('Category: ${data.categoriesById[_categoryFilter]?.name ?? 'Unknown'}',
+                          () => setState(() => _categoryFilter = null)),
+                      Gap.sm,
+                    ],
+                    if (_typeFilter != null) ...[
+                      _chip('Type: ${_kLineTypeLabels[_typeFilter] ?? _typeFilter}',
+                          () => setState(() => _typeFilter = null)),
+                      Gap.sm,
+                    ],
+                    if (_splitOnly)
+                      _chip('Split only', () => setState(() => _splitOnly = false)),
+                  ],
+                ),
+              ),
+            ),
           Expanded(
             child: txns.isEmpty
                 ? EmptyView(
@@ -308,63 +329,62 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                                 child: const Text('Add transaction'))
                             : null),
                   )
-                : DataTableView<Txn>(
-                    tableId: 'transactions',
+                : EntityCardList<Txn>(
+                    listId: 'transactions',
                     rows: txns,
                     onRowTap: (t) => showTransactionDetail(context, t),
-                    columns: [
-                      DataColumn2<Txn>(
-                        key: 'date',
-                        label: 'Date',
-                        locked: true,
-                        defaultWidth: 104,
-                        sortValue: (t) => t.date,
-                        cell: (t) => Text(formatDate(t.date)),
-                      ),
-                      DataColumn2<Txn>(
-                        key: 'account',
-                        label: 'Account',
-                        defaultWidth: 140,
-                        sortValue: (t) => data.accountsById[t.accountId]?.name ?? '',
-                        cell: (t) => Text(data.accountsById[t.accountId]?.name ?? '—', overflow: TextOverflow.ellipsis),
-                      ),
-                      DataColumn2<Txn>(
-                        key: 'contact',
-                        label: 'Contact',
-                        defaultVisible: false,
-                        defaultWidth: 140,
-                        cell: (t) => Text(
-                            t.contactId != null ? data.contactsById[t.contactId]?.name ?? '—' : '—',
-                            overflow: TextOverflow.ellipsis),
-                      ),
-                      DataColumn2<Txn>(
-                        key: 'lines',
-                        label: 'Lines',
-                        defaultVisible: false,
-                        numeric: true,
-                        defaultWidth: 68,
-                        cell: (t) => Text('${t.lines.length}'),
-                      ),
-                      DataColumn2<Txn>(
+                    fields: [
+                      CardField<Txn>(
                         key: 'note',
                         label: 'Note',
-                        defaultVisible: false,
-                        defaultWidth: 170,
-                        cell: (t) => Text(t.note ?? '—', overflow: TextOverflow.ellipsis),
+                        role: CardRole.title,
+                        locked: true,
+                        text: (t) => t.note?.isNotEmpty == true ? t.note! : 'Transaction',
                       ),
-                      DataColumn2<Txn>(
+                      CardField<Txn>(
                         key: 'amount',
                         label: 'Amount',
-                        numeric: true,
-                        defaultWidth: 120,
+                        role: CardRole.amount,
                         sortValue: (t) => t.totalAmount,
-                        cell: (t) => Text(
+                        widget: (t) => Text(
                           formatMoney(t.totalAmount, currency),
                           style: TextStyle(
                             fontWeight: FontWeight.w600,
                             color: t.totalAmount < 0 ? AppColors.danger : AppColors.accent2,
                           ),
                         ),
+                      ),
+                      CardField<Txn>(
+                        key: 'date',
+                        label: 'Date',
+                        role: CardRole.meta,
+                        defaultVisible: true,
+                        sortValue: (t) => t.date,
+                        text: (t) => formatDate(t.date),
+                      ),
+                      CardField<Txn>(
+                        key: 'account',
+                        label: 'Account',
+                        role: CardRole.meta,
+                        defaultVisible: true,
+                        sortValue: (t) => data.accountsById[t.accountId]?.name ?? '',
+                        text: (t) => data.accountsById[t.accountId]?.name ?? '—',
+                      ),
+                      CardField<Txn>(
+                        key: 'contact',
+                        label: 'Contact',
+                        role: CardRole.meta,
+                        defaultVisible: false,
+                        text: (t) => t.contactId != null
+                            ? data.contactsById[t.contactId]?.name ?? '—'
+                            : '—',
+                      ),
+                      CardField<Txn>(
+                        key: 'lines',
+                        label: 'Lines',
+                        role: CardRole.meta,
+                        defaultVisible: false,
+                        text: (t) => '${t.lines.length}',
                       ),
                     ],
                   ),

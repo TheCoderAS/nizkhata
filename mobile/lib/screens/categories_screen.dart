@@ -11,7 +11,7 @@ import '../state/auth_controller.dart';
 import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
 import '../widgets/common.dart';
-import '../widgets/data_table_view.dart';
+import '../widgets/entity_card_list.dart';
 import 'category_form.dart';
 
 class CategoriesScreen extends StatefulWidget {
@@ -214,35 +214,33 @@ class _CategoryList extends StatelessWidget {
     if (items.isEmpty) {
       return EmptyView(icon: Icons.category_outlined, title: 'No $kind categories');
     }
-    return DataTableView<AppCategory>(
-      tableId: 'categories-$kind',
+    return EntityCardList<AppCategory>(
+      listId: 'categories-$kind',
       rows: items,
-      columns: [
-        DataColumn2<AppCategory>(
+      fields: [
+        CardField<AppCategory>(
           key: 'name',
           label: 'Name',
+          role: CardRole.title,
           locked: true,
-          defaultWidth: 180,
           sortValue: (c) => c.name.toLowerCase(),
-          cell: (c) => Text(c.name, overflow: TextOverflow.ellipsis),
+          text: (c) => c.name,
         ),
-        DataColumn2<AppCategory>(
+        CardField<AppCategory>(
           key: 'amount',
           label: 'Net',
-          numeric: true,
-          defaultWidth: 130,
+          role: CardRole.amount,
           sortValue: (c) => amountByCategory[c.id] ?? 0,
-          cell: (c) => Text(
+          widget: (c) => Text(
             formatMoney(amountByCategory[c.id] ?? 0, currency),
             style: const TextStyle(fontWeight: FontWeight.w600),
           ),
         ),
-        DataColumn2<AppCategory>(
+        CardField<AppCategory>(
           key: 'source',
           label: 'Source',
-          defaultWidth: 120,
           sortValue: (c) => c.isSystem ? 'System' : 'Custom',
-          cell: (c) {
+          widget: (c) {
             final cs = Theme.of(context).colorScheme;
             if (c.isSystem) {
               return Row(
@@ -275,7 +273,7 @@ class _CategoryList extends StatelessWidget {
       trailing: (canManage || canViewTxns)
           ? (c) => PopupMenuButton<String>(
                 onSelected: (v) {
-                  if (v == 'transactions') context.push('/transactions?category=${c.id}');
+                  if (v == 'transactions') context.push('/txns?category=${c.id}');
                   if (v == 'edit') showCategoryForm(context, existing: c);
                   if (v == 'delete') _confirmDelete(context, c);
                 },

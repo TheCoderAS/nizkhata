@@ -168,7 +168,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         c,
                         topSpend.first.amount,
                         currency,
-                        onTap: canViewTxns ? () => context.push('/transactions?category=${c.id}') : null,
+                        onTap: canViewTxns ? () => context.push('/txns?category=${c.id}') : null,
                       ),
                   ],
                 ),

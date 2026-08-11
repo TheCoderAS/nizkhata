@@ -159,7 +159,7 @@ class _BudgetCard extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: canViewTxns
-            ? () => context.push('/transactions?category=${p.budget.categoryId}')
+            ? () => context.push('/txns?category=${p.budget.categoryId}')
             : null,
         child: Padding(
           padding: const EdgeInsets.all(16),

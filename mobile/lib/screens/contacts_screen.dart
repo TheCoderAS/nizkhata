@@ -10,7 +10,7 @@ import '../state/auth_controller.dart';
 import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
 import '../widgets/common.dart';
-import '../widgets/data_table_view.dart';
+import '../widgets/entity_card_list.dart';
 import 'contact_form.dart';
 
 class ContactsScreen extends StatefulWidget {
@@ -89,15 +89,16 @@ class _ContactsScreenState extends State<ContactsScreen> {
                           )
                         : null,
                   )
-                : DataTableView<Contact>(
-                    tableId: 'contacts',
+                : EntityCardList<Contact>(
+                    listId: 'contacts',
                     rows: contacts,
                     onRowTap: (c) => context.push('/contacts/${c.id}'),
+                    leading: (c) => EntityAvatar(name: c.name),
                     trailing: (canManage || canViewTxns)
                         ? (c) => PopupMenuButton<String>(
                               onSelected: (v) {
                                 if (v == 'transactions') {
-                                  context.push('/transactions?contact=${c.id}');
+                                  context.push('/txns?contact=${c.id}');
                                 }
                                 if (v == 'edit') showContactForm(context, existing: c);
                                 if (v == 'delete') _confirmDelete(context, c);
@@ -114,17 +115,15 @@ class _ContactsScreenState extends State<ContactsScreen> {
                               ],
                             )
                         : null,
-                    columns: [
-                      DataColumn2<Contact>(
+                    fields: [
+                      CardField<Contact>(
                         key: 'name',
                         label: 'Name',
+                        role: CardRole.title,
                         locked: true,
-                        defaultWidth: 200,
                         sortValue: (c) => c.name.toLowerCase(),
-                        cell: (c) => Row(
+                        widget: (c) => Row(
                           children: [
-                            EntityAvatar(name: c.name, size: 28),
-                            const SizedBox(width: 10),
                             Flexible(child: Text(c.name, overflow: TextOverflow.ellipsis)),
                             if (c.relationship == 'family') ...[
                               const SizedBox(width: 8),
@@ -133,20 +132,18 @@ class _ContactsScreenState extends State<ContactsScreen> {
                           ],
                         ),
                       ),
-                      DataColumn2<Contact>(
+                      CardField<Contact>(
                         key: 'type',
                         label: 'Type',
-                        defaultWidth: 110,
                         sortValue: (c) => c.type,
-                        cell: (c) => Text(c.type == 'business' ? 'Business' : 'Person'),
+                        text: (c) => c.type == 'business' ? 'Business' : 'Person',
                       ),
-                      DataColumn2<Contact>(
+                      CardField<Contact>(
                         key: 'net',
                         label: 'Net position',
-                        numeric: true,
-                        defaultWidth: 130,
+                        role: CardRole.amount,
                         sortValue: (c) => data.positionOf(c.id).net,
-                        cell: (c) {
+                        widget: (c) {
                           final net = data.positionOf(c.id).net;
                           if (net.abs() < 0.005) return const Text('—');
                           return Text(

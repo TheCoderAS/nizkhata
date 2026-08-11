@@ -73,7 +73,7 @@ class ContactDetailScreen extends StatelessWidget {
               IconButton(
                 tooltip: 'Open in Transactions',
                 icon: const Icon(Icons.swap_horiz),
-                onPressed: () => context.push('/transactions?contact=$contactId'),
+                onPressed: () => context.push('/txns?contact=$contactId'),
               ),
           ],
         ),

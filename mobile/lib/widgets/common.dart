@@ -70,9 +70,15 @@ class StatCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 8),
-            Text(
-              formatMoney(amount, currency),
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: valueColor),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Text(
+                formatMoneyCompact(amount, currency),
+                maxLines: 1,
+                softWrap: false,
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: valueColor),
+              ),
             ),
             if (hint != null) ...[
               const SizedBox(height: 4),
