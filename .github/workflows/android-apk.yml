@@ -12,12 +12,16 @@ name: Android APK
 
 on:
   workflow_dispatch:
+    inputs:
+      version:
+        description: "Version tag to publish a signed release (e.g. v1.0.0). Empty = build only."
+        required: false
+        default: ""
   push:
     tags:
       - "v*"
     branches:
-      # Build on pushes to the app branch during development. Remove before
-      # merging to main (kept here so the APK build is validated on every push).
+      # Build on pushes to the app branch during development.
       - "claude/android-app"
 
 permissions:
@@ -179,4 +183,16 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
+          files: mobile/build/app/outputs/flutter-apk/app-release.apk
+
+      # Manual dispatch with a version input publishes a permanent, versioned
+      # release (creates the tag via the runner token — no local tag push needed).
+      - name: Publish versioned release (dispatch)
+        if: success() && github.event_name == 'workflow_dispatch' && inputs.version != ''
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.version }}
+          target_commitish: ${{ github.sha }}
+          name: NizKhata Android ${{ inputs.version }}
+          prerelease: false
           files: mobile/build/app/outputs/flutter-apk/app-release.apk
