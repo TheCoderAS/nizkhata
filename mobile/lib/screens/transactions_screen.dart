@@ -358,6 +358,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                         key: 'date',
                         label: 'Date',
                         role: CardRole.meta,
+                        icon: Icons.event,
                         defaultVisible: true,
                         sortValue: (t) => t.date,
                         text: (t) => formatDate(t.date),
@@ -366,6 +367,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                         key: 'account',
                         label: 'Account',
                         role: CardRole.meta,
+                        icon: Icons.account_balance_wallet_outlined,
                         defaultVisible: true,
                         sortValue: (t) => data.accountsById[t.accountId]?.name ?? '',
                         text: (t) => data.accountsById[t.accountId]?.name ?? '—',
@@ -374,6 +376,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                         key: 'contact',
                         label: 'Contact',
                         role: CardRole.meta,
+                        icon: Icons.person_outline,
                         defaultVisible: false,
                         text: (t) => t.contactId != null
                             ? data.contactsById[t.contactId]?.name ?? '—'
@@ -383,6 +386,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                         key: 'lines',
                         label: 'Lines',
                         role: CardRole.meta,
+                        icon: Icons.segment,
                         defaultVisible: false,
                         text: (t) => '${t.lines.length}',
                       ),

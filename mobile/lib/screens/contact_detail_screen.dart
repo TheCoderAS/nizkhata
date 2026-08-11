@@ -57,12 +57,6 @@ class ContactDetailScreen extends StatelessWidget {
         : (contact.email != null && contact.email!.isNotEmpty
             ? [contact.email!]
             : <String>[]);
-    final infoBits = [
-      if (contact.phone != null && contact.phone!.isNotEmpty) contact.phone!,
-      ...emailBits,
-      if (contact.address != null && contact.address!.isNotEmpty) contact.address!,
-    ];
-
     return DefaultTabController(
       length: 3,
       child: Scaffold(
@@ -79,67 +73,61 @@ class ContactDetailScreen extends StatelessWidget {
         ),
         body: Column(
           children: [
+            // Hero: avatar + name + type/relationship badges.
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 6,
-                    children: [
-                      _Badge(contact.type == 'business' ? 'Business' : 'Person'),
-                      if (contact.relationship == 'family') _Badge('Family'),
-                    ],
-                  ),
-                  if (infoBits.isNotEmpty) ...[
-                    const SizedBox(height: 8),
-                    Text(
-                      infoBits.join(' · '),
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
+                  EntityAvatar(name: contact.name, size: 52),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(contact.name,
+                            style: Theme.of(context).textTheme.titleLarge,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis),
+                        const SizedBox(height: 6),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          children: [
+                            _Badge(contact.type == 'business' ? 'Business' : 'Person'),
+                            if (contact.relationship == 'family') _Badge('Family'),
+                          ],
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ],
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: StatCard(
-                      label: 'Net',
-                      amount: position.net,
-                      currency: currency,
-                      tone: netTone,
-                      icon: Icons.balance,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: StatCard(
-                      label: 'In',
-                      amount: position.totalIn,
-                      currency: currency,
-                      tone: StatTone.success,
-                      icon: Icons.arrow_downward,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: StatCard(
-                      label: 'Out',
-                      amount: position.totalOut,
-                      currency: currency,
-                      tone: StatTone.danger,
-                      icon: Icons.arrow_upward,
-                    ),
-                  ),
-                ],
+            // Contact info — one icon-led row per detail, not a cramped run-on line.
+            if (contact.phone != null && contact.phone!.isNotEmpty ||
+                emailBits.isNotEmpty ||
+                (contact.address != null && contact.address!.isNotEmpty))
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (contact.phone != null && contact.phone!.isNotEmpty)
+                      _infoRow(context, Icons.phone_outlined, contact.phone!),
+                    for (final e in contact.emails)
+                      _infoRow(context, Icons.mail_outline, e.value, tag: e.label),
+                    if (contact.emails.isEmpty && contact.email != null && contact.email!.isNotEmpty)
+                      _infoRow(context, Icons.mail_outline, contact.email!),
+                    if (contact.address != null && contact.address!.isNotEmpty)
+                      _infoRow(context, Icons.location_on_outlined, contact.address!),
+                  ],
+                ),
               ),
+            // Position summary — compact, unified card instead of three tiles.
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
+              child: _positionCard(context, position, currency, netTone),
             ),
             const TabBar(
               tabs: [
@@ -157,6 +145,82 @@ class ContactDetailScreen extends StatelessWidget {
                 ],
               ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _infoRow(BuildContext context, IconData icon, String text, {String? tag}) {
+    final cs = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 17, color: cs.onSurfaceVariant),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text.rich(
+              TextSpan(
+                children: [
+                  TextSpan(text: text),
+                  if (tag != null)
+                    TextSpan(
+                      text: '  $tag',
+                      style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant),
+                    ),
+                ],
+              ),
+              style: TextStyle(fontSize: 13.5, color: cs.onSurface),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _positionCard(BuildContext context, ContactPosition position, String currency, StatTone netTone) {
+    final cs = Theme.of(context).colorScheme;
+    Color toneColor(StatTone t) => switch (t) {
+          StatTone.success => AppColors.accent2,
+          StatTone.danger => AppColors.danger,
+          StatTone.neutral => cs.onSurface,
+        };
+    Widget cell(String label, double amount, Color color) => Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
+              const SizedBox(height: 4),
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  formatMoneyCompact(amount, currency),
+                  maxLines: 1,
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: color),
+                ),
+              ),
+            ],
+          ),
+        );
+    Widget divider() => Container(
+          width: 1,
+          height: 34,
+          margin: const EdgeInsets.symmetric(horizontal: 12),
+          color: cs.outlineVariant.withValues(alpha: 0.6),
+        );
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        child: Row(
+          children: [
+            cell('Net', position.net, toneColor(netTone)),
+            divider(),
+            cell('In', position.totalIn, AppColors.accent2),
+            divider(),
+            cell('Out', position.totalOut, AppColors.danger),
           ],
         ),
       ),
@@ -296,7 +360,7 @@ class ContactDetailScreen extends StatelessWidget {
             padding: const EdgeInsets.only(top: 8, bottom: 4),
             child: Text(
               _purposeLabels[entry.key] ?? entry.key,
-              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
             ),
           ),
           for (final d in entry.value)
