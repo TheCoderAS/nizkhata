@@ -97,7 +97,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
                         ? (c) => PopupMenuButton<String>(
                               onSelected: (v) {
                                 if (v == 'transactions') {
-                                  context.push('/transactions?contact=${c.id}');
+                                  context.push('/txns?contact=${c.id}');
                                 }
                                 if (v == 'edit') showContactForm(context, existing: c);
                                 if (v == 'delete') _confirmDelete(context, c);

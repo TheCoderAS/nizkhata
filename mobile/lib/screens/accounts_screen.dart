@@ -51,7 +51,7 @@ class AccountsScreen extends StatelessWidget {
               trailing: (a) => PopupMenuButton<String>(
                 onSelected: (v) {
                   if (v == 'ledger') context.push('/accounts/${a.id}/ledger');
-                  if (v == 'transactions') context.push('/transactions?account=${a.id}');
+                  if (v == 'transactions') context.push('/txns?account=${a.id}');
                   if (v == 'edit') showAccountForm(context, existing: a);
                   if (v == 'delete') _confirmDelete(context, a);
                 },
@@ -296,7 +296,7 @@ void showAccountDetail(BuildContext context, Account a) {
                           label: const Text('Transactions'),
                           onPressed: () {
                             Navigator.of(sheetCtx).pop();
-                            context.push('/transactions?account=${a.id}');
+                            context.push('/txns?account=${a.id}');
                           },
                         ),
                       ),

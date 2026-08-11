@@ -33,12 +33,18 @@ class TransactionsScreen extends StatefulWidget {
   final String? initialContact;
   final String? initialCategory;
   final String? initialType;
+
+  /// When true the screen supplies its own AppBar with a back button (used for
+  /// the /txns drill-down route). In the bottom-nav shell this is false — the
+  /// shell provides the chrome.
+  final bool standalone;
   const TransactionsScreen({
     super.key,
     this.initialAccount,
     this.initialContact,
     this.initialCategory,
     this.initialType,
+    this.standalone = false,
   });
 
   @override
@@ -238,6 +244,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     }).toList();
 
     return Scaffold(
+      appBar: widget.standalone ? AppBar(title: const Text('Transactions')) : null,
       floatingActionButton: canCreate
           ? FloatingActionButton.extended(
               onPressed: () => _openAddMenu(context),

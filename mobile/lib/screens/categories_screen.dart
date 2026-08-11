@@ -275,7 +275,7 @@ class _CategoryList extends StatelessWidget {
       trailing: (canManage || canViewTxns)
           ? (c) => PopupMenuButton<String>(
                 onSelected: (v) {
-                  if (v == 'transactions') context.push('/transactions?category=${c.id}');
+                  if (v == 'transactions') context.push('/txns?category=${c.id}');
                   if (v == 'edit') showCategoryForm(context, existing: c);
                   if (v == 'delete') _confirmDelete(context, c);
                 },

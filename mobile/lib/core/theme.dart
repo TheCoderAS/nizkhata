@@ -22,12 +22,15 @@ class Gap {
 
 ThemeData _base(Brightness brightness, ColorScheme scheme) {
   final base = ThemeData(brightness: brightness);
+  // Weights kept deliberately restrained — one clear emphasis level (titles),
+  // everything else regular/medium — so the UI reads calm and modern rather
+  // than shouty. Only headline/title carry weight; body & menu text stay normal.
   final textTheme = GoogleFonts.interTextTheme(base.textTheme).copyWith(
-    headlineSmall: GoogleFonts.inter(fontWeight: FontWeight.w800, letterSpacing: -0.5),
-    titleLarge: GoogleFonts.inter(fontWeight: FontWeight.w700, letterSpacing: -0.3),
-    titleMedium: GoogleFonts.inter(fontWeight: FontWeight.w600),
-    titleSmall: GoogleFonts.inter(fontWeight: FontWeight.w600),
-    labelLarge: GoogleFonts.inter(fontWeight: FontWeight.w600),
+    headlineSmall: GoogleFonts.inter(fontWeight: FontWeight.w700, letterSpacing: -0.4),
+    titleLarge: GoogleFonts.inter(fontWeight: FontWeight.w600, letterSpacing: -0.2),
+    titleMedium: GoogleFonts.inter(fontWeight: FontWeight.w500),
+    titleSmall: GoogleFonts.inter(fontWeight: FontWeight.w500),
+    labelLarge: GoogleFonts.inter(fontWeight: FontWeight.w500),
   );
   final radius = BorderRadius.circular(14);
 
@@ -64,7 +67,7 @@ ThemeData _base(Brightness brightness, ColorScheme scheme) {
       labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
       labelTextStyle: WidgetStateProperty.resolveWith(
         (s) => textTheme.labelMedium?.copyWith(
-          fontWeight: FontWeight.w600,
+          fontWeight: s.contains(WidgetState.selected) ? FontWeight.w600 : FontWeight.w500,
           color: s.contains(WidgetState.selected) ? scheme.primary : scheme.onSurfaceVariant,
         ),
       ),

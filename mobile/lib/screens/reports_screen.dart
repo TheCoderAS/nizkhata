@@ -853,7 +853,7 @@ class _CategoryTab extends StatelessWidget {
                   trailing: Text(formatMoney(c.amount, currency),
                       style: const TextStyle(fontWeight: FontWeight.w600)),
                   onTap: canViewTxns
-                      ? () => context.push('/transactions?category=${c.id}')
+                      ? () => context.push('/txns?category=${c.id}')
                       : null,
                 ),
             ],
@@ -952,7 +952,7 @@ class _ContactTab extends StatelessWidget {
                 ListTile(
                   contentPadding: EdgeInsets.zero,
                   title: Text(nameOf(id)),
-                  onTap: canViewTxns ? () => context.push('/transactions?contact=$id') : null,
+                  onTap: canViewTxns ? () => context.push('/txns?contact=$id') : null,
                   trailing: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.end,

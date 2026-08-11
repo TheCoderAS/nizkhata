@@ -369,7 +369,7 @@ class _DueMenu extends StatelessWidget {
             break;
           case 'txns':
             if (due.contactId != null) {
-              context.push('/transactions?contact=${due.contactId}');
+              context.push('/txns?contact=${due.contactId}');
             }
             break;
           case 'edit':

@@ -215,7 +215,7 @@ class _DebtMenu extends StatelessWidget {
             if (hasContact) context.push('/contacts/${debt.contactId}');
             break;
           case 'txns':
-            if (hasContact) context.push('/transactions?contact=${debt.contactId}');
+            if (hasContact) context.push('/txns?contact=${debt.contactId}');
             break;
           case 'edit':
             showDebtForm(context, existing: debt);

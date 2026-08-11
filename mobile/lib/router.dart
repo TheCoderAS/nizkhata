@@ -51,6 +51,23 @@ GoRouter buildRouter(AuthController auth) {
         path: '/accounts/:id/ledger',
         builder: (_, state) => AccountLedgerScreen(accountId: state.pathParameters['id']!),
       ),
+      // Standalone filtered transactions view (drill-down target from other
+      // screens). Kept OUTSIDE the shell so it renders its own AppBar + back
+      // button — pushing a shell-branch route imperatively renders a blank
+      // shell child, which is why drill-downs use /txns, not /transactions.
+      GoRoute(
+        path: '/txns',
+        builder: (_, state) {
+          final q = state.uri.queryParameters;
+          return TransactionsScreen(
+            standalone: true,
+            initialAccount: q['account'],
+            initialContact: q['contact'],
+            initialCategory: q['category'],
+            initialType: q['type'],
+          );
+        },
+      ),
       GoRoute(path: '/contacts', builder: (_, __) => const ContactsScreen()),
       GoRoute(
         path: '/contacts/:id',

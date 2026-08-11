@@ -21,6 +21,36 @@ String formatMoney(num amount, [String currency = 'INR', String locale = 'en_IN'
   return fmt.format(amount);
 }
 
+/// Compact currency for tight spaces (stat cards): Indian short scale —
+/// ₹43.5K, ₹2.5L, ₹1.2Cr. Keeps the accounting sign (negatives parenthesised)
+/// and em-dash zero. Values under 1,000 render in full so small numbers stay
+/// exact. Two significant-ish digits keep everything on one line up to crores.
+String formatMoneyCompact(num amount, [String currency = 'INR']) {
+  if (amount.abs() < 0.005) return '—';
+  final symbol = _currencySymbol(currency);
+  final neg = amount < 0;
+  final v = amount.abs();
+  String body;
+  if (v < 1000) {
+    // Whole rupees when exact, else two decimals.
+    body = v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(2);
+  } else if (v < 100000) {
+    body = '${_trim(v / 1000)}K';
+  } else if (v < 10000000) {
+    body = '${_trim(v / 100000)}L';
+  } else {
+    body = '${_trim(v / 10000000)}Cr';
+  }
+  final s = '$symbol$body';
+  return neg ? '($s)' : s;
+}
+
+/// One decimal, but drop a trailing ".0" so "90.0" -> "90".
+String _trim(double v) {
+  final s = v.toStringAsFixed(1);
+  return s.endsWith('.0') ? s.substring(0, s.length - 2) : s;
+}
+
 String _currencySymbol(String code) {
   switch (code) {
     case 'INR':
