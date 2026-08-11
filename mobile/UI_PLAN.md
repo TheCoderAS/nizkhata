@@ -15,7 +15,7 @@ budget/due validation; menu de-dup.
   - tap-header SORT (asc/desc), sticky header row
   - lib/lib/column_prefs.dart: shared_preferences-backed prefs (visible set + widths)
 
-## Phase 2 — roll DataTableView into list screens
+## Phase 2 — roll DataTableView into list screens ✅ DONE (all 6: transactions/dues/debts/contacts/accounts/categories)
 Transactions, Dues, Debts, Contacts, Accounts, Categories — each gets a table
 presentation matching the web columns, keeping FABs/filters/detail-tap.
 
