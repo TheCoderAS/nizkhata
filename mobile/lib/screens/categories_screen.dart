@@ -217,6 +217,7 @@ class _CategoryList extends StatelessWidget {
     return EntityCardList<AppCategory>(
       listId: 'categories-$kind',
       rows: items,
+      leading: (c) => _CategoryBadge(name: c.name, kind: c.kind),
       fields: [
         CardField<AppCategory>(
           key: 'name',
@@ -320,6 +321,36 @@ class _CategoryList extends StatelessWidget {
             child: const Text('Delete'),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Colored, deterministic badge for a category card — a soft gradient tile with
+/// an income/expense glyph, so the list reads with colour instead of grey rows.
+class _CategoryBadge extends StatelessWidget {
+  final String name;
+  final String kind;
+  const _CategoryBadge({required this.name, required this.kind});
+
+  @override
+  Widget build(BuildContext context) {
+    final g = avatarGradient(name.isEmpty ? '?' : name);
+    return Container(
+      width: 42,
+      height: 42,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [g.from.withValues(alpha: 0.85), g.to.withValues(alpha: 0.85)],
+        ),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Icon(
+        kind == 'income' ? Icons.south_west : Icons.north_east,
+        size: 20,
+        color: Colors.white,
       ),
     );
   }

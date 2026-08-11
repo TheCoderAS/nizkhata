@@ -353,14 +353,15 @@ class _SplitTransactionFormState extends State<_SplitTransactionForm> {
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
-              value: _accountId,
+              // Guard stale ids (deleted account) → null, else the form blanks.
+              value: accounts.any((a) => a.id == _accountId) ? _accountId : null,
               decoration: const InputDecoration(labelText: 'Account'),
               items: [for (final a in accounts) DropdownMenuItem(value: a.id, child: Text(a.name))],
               onChanged: (v) => setState(() => _accountId = v),
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
-              value: _contactId,
+              value: contacts.any((c) => c.id == _contactId) ? _contactId : null,
               decoration: const InputDecoration(labelText: 'Contact (optional)'),
               items: [
                 const DropdownMenuItem(value: null, child: Text('—')),
@@ -449,7 +450,7 @@ class _SplitTransactionFormState extends State<_SplitTransactionForm> {
               children: [
                 Expanded(
                   child: DropdownButtonFormField<String>(
-                    value: r.type,
+                    value: _kLineTypes.containsKey(r.type) ? r.type : null,
                     decoration: const InputDecoration(labelText: 'Type'),
                     items: [
                       for (final e in _kLineTypes.entries)
@@ -480,7 +481,7 @@ class _SplitTransactionFormState extends State<_SplitTransactionForm> {
             if (_needsCategory(r.type)) ...[
               const SizedBox(height: 8),
               DropdownButtonFormField<String>(
-                value: r.categoryId,
+                value: cats.any((c) => c.id == r.categoryId) ? r.categoryId : null,
                 decoration: const InputDecoration(labelText: 'Category'),
                 items: [for (final c in cats) DropdownMenuItem(value: c.id, child: Text(c.name))],
                 onChanged: (v) => setState(() => r.categoryId = v),
@@ -489,7 +490,7 @@ class _SplitTransactionFormState extends State<_SplitTransactionForm> {
             if (_needsToAccount(r.type)) ...[
               const SizedBox(height: 8),
               DropdownButtonFormField<String>(
-                value: r.toAccountId,
+                value: accounts.any((a) => a.id == r.toAccountId && a.id != _accountId) ? r.toAccountId : null,
                 decoration: const InputDecoration(labelText: 'To account'),
                 items: [
                   for (final a in accounts.where((a) => a.id != _accountId))
@@ -501,7 +502,7 @@ class _SplitTransactionFormState extends State<_SplitTransactionForm> {
             if (_needsDebt(r.type)) ...[
               const SizedBox(height: 8),
               DropdownButtonFormField<String>(
-                value: r.debtId,
+                value: debts.any((d) => d.id == r.debtId) ? r.debtId : null,
                 decoration: const InputDecoration(labelText: 'Debt'),
                 items: [
                   for (final d in debts)
@@ -558,7 +559,7 @@ class _SplitTransactionFormState extends State<_SplitTransactionForm> {
           if (r.taxable) ...[
             const SizedBox(height: 4),
             DropdownButtonFormField<String>(
-              value: r.taxHead,
+              value: _kTaxHeads.containsKey(r.taxHead) ? r.taxHead : null,
               isDense: true,
               decoration: const InputDecoration(labelText: 'Head'),
               items: [

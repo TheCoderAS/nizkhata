@@ -63,6 +63,11 @@ class EntityCardList<T> extends StatefulWidget {
   /// Extra padding around the list (screens with their own toolbar can zero this).
   final EdgeInsets padding;
 
+  /// Field key to sort by initially. When null (the default) the list keeps the
+  /// order the screen passed its [rows] in — e.g. transactions arrive newest-first.
+  final String? defaultSortKey;
+  final bool defaultAscending;
+
   const EntityCardList({
     super.key,
     required this.listId,
@@ -72,6 +77,8 @@ class EntityCardList<T> extends StatefulWidget {
     this.leading,
     this.trailing,
     this.padding = const EdgeInsets.fromLTRB(16, 4, 16, 96),
+    this.defaultSortKey,
+    this.defaultAscending = false,
   });
 
   @override
@@ -87,14 +94,9 @@ class _EntityCardListState<T> extends State<EntityCardList<T>> {
   @override
   void initState() {
     super.initState();
-    // Default sort: the amount/first sortable field, descending.
-    final sortable = widget.fields.where((f) => f.sortValue != null).toList();
-    if (sortable.isNotEmpty) {
-      _sortKey = (sortable.firstWhere(
-        (f) => f.role == CardRole.amount,
-        orElse: () => sortable.first,
-      )).key;
-    }
+    // Preserve the caller's row order unless an explicit default sort is given.
+    _sortKey = widget.defaultSortKey;
+    _asc = widget.defaultAscending;
     _load();
   }
 
@@ -220,10 +222,18 @@ class _EntityCardListState<T> extends State<EntityCardList<T>> {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(_asc ? Icons.arrow_upward : Icons.arrow_downward, size: 15, color: cs.onSurfaceVariant),
+                    Icon(
+                      _sortKey == null
+                          ? Icons.sort
+                          : (_asc ? Icons.arrow_upward : Icons.arrow_downward),
+                      size: 15,
+                      color: cs.onSurfaceVariant,
+                    ),
                     const SizedBox(width: 4),
                     Text(
-                      'Sort: ${widget.fields.firstWhere((f) => f.key == _sortKey, orElse: () => sortable.first).label}',
+                      _sortKey == null
+                          ? 'Sort'
+                          : 'Sort: ${widget.fields.firstWhere((f) => f.key == _sortKey).label}',
                       style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant),
                     ),
                   ],

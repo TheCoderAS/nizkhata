@@ -263,14 +263,14 @@ class _TransactionFormState extends State<_TransactionForm> {
               if (_type == 'expense' || _type == 'income') ...[
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
-                  value: _categoryId,
+                  value: cats.any((c) => c.id == _categoryId) ? _categoryId : null,
                   decoration: const InputDecoration(labelText: 'Category'),
                   items: [for (final c in cats) DropdownMenuItem(value: c.id, child: Text(c.name))],
                   onChanged: (v) => setState(() => _categoryId = v),
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
-                  value: _contactId,
+                  value: contacts.any((c) => c.id == _contactId) ? _contactId : null,
                   decoration: const InputDecoration(labelText: 'Contact (optional)'),
                   items: [
                     const DropdownMenuItem(value: null, child: Text('—')),
@@ -282,7 +282,7 @@ class _TransactionFormState extends State<_TransactionForm> {
               if (_isDebtType) ...[
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
-                  value: _debtId,
+                  value: debts.any((d) => d.id == _debtId) ? _debtId : null,
                   decoration: const InputDecoration(labelText: 'Debt'),
                   items: [
                     for (final d in debts)
@@ -331,8 +331,12 @@ class _TransactionFormState extends State<_TransactionForm> {
     ValueChanged<String?> onChanged, {
     String? Function(String?)? validator,
   }) {
+    // Guard: a prefilled id that no longer exists in the list (deleted account)
+    // would trip DropdownButtonFormField's "exactly one item" assertion and blank
+    // the whole form — fall back to null instead.
+    final safe = accounts.any((a) => a.id == value) ? value : null;
     return DropdownButtonFormField<String>(
-      value: value,
+      value: safe,
       decoration: InputDecoration(labelText: label),
       items: [for (final a in accounts) DropdownMenuItem(value: a.id, child: Text(a.name))],
       onChanged: onChanged,
