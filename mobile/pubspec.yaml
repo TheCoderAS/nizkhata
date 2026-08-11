@@ -1,7 +1,7 @@
 name: nizkhata
 description: NizKhata — native Android app. Every rupee, accounted for.
 publish_to: "none"
-version: 1.0.8+9
+version: 1.0.9+10
 
 environment:
   sdk: ">=3.4.0 <4.0.0"
@@ -51,27 +51,26 @@ flutter:
   assets:
     - assets/
 
-# App launcher icon — assets/icon.png is the transparent-background brand mark.
-# White adaptive background so the blue logo reads cleanly on the tile.
+# App launcher icon — full brand mark (assets/icon.png) on the dark-navy brand
+# field (#141A2A), matching the splash so the icon and splash feel like one set.
 flutter_launcher_icons:
   android: true
   ios: false
   image_path: "assets/icon.png"
-  # Brand indigo tile: reads as intentional on both light and dark home screens
-  # (a white tile looked harsh in dark mode; a dark-navy tile hid the dark logo).
-  adaptive_icon_background: "#4F46E5"
+  adaptive_icon_background: "#141A2A"
   adaptive_icon_foreground: "assets/icon.png"
 
-# Native splash — adapts to theme: white in light mode, dark navy in dark. The
-# transparent logo blends on either. Android 12+ uses its own splash API.
+# Native splash — adapts to theme: white in light mode, dark navy in dark. Uses
+# assets/splash.png (the logo centered with transparent margin) so the mark
+# renders smaller than the full icon. Android 12+ uses its own splash API.
 flutter_native_splash:
   color: "#FFFFFF"
   color_dark: "#141A2A"
-  image: "assets/icon.png"
+  image: "assets/splash.png"
   android_12:
     color: "#FFFFFF"
     color_dark: "#141A2A"
-    image: "assets/icon.png"
+    image: "assets/splash.png"
   android: true
   ios: false
   web: false
