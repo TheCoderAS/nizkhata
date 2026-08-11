@@ -10,6 +10,7 @@ import '../state/auth_controller.dart';
 import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
 import '../widgets/common.dart';
+import '../widgets/data_table_view.dart';
 import 'contact_form.dart';
 
 class ContactsScreen extends StatefulWidget {
@@ -86,53 +87,67 @@ class _ContactsScreenState extends State<ContactsScreen> {
                           )
                         : null,
                   )
-                : ListView.separated(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 88),
-                    itemCount: contacts.length,
-                    separatorBuilder: (_, __) => const Divider(height: 1),
-                    itemBuilder: (context, i) {
-                      final c = contacts[i];
-                      final net = data.positionOf(c.id).net;
-                      final isFamily = c.relationship == 'family';
-                      return ListTile(
-                        leading: EntityAvatar(name: c.name),
-                        title: Row(
+                : DataTableView<Contact>(
+                    tableId: 'contacts',
+                    rows: contacts,
+                    onRowTap: (c) => context.push('/contacts/${c.id}'),
+                    trailing: canManage
+                        ? (c) => PopupMenuButton<String>(
+                              onSelected: (v) {
+                                if (v == 'edit') showContactForm(context, existing: c);
+                                if (v == 'delete') _confirmDelete(context, c);
+                              },
+                              itemBuilder: (_) => const [
+                                PopupMenuItem(value: 'edit', child: Text('Edit')),
+                                PopupMenuItem(value: 'delete', child: Text('Delete')),
+                              ],
+                            )
+                        : null,
+                    columns: [
+                      DataColumn2<Contact>(
+                        key: 'name',
+                        label: 'Name',
+                        locked: true,
+                        defaultWidth: 200,
+                        sortValue: (c) => c.name.toLowerCase(),
+                        cell: (c) => Row(
                           children: [
+                            EntityAvatar(name: c.name, size: 28),
+                            const SizedBox(width: 10),
                             Flexible(child: Text(c.name, overflow: TextOverflow.ellipsis)),
-                            if (isFamily) ...[
+                            if (c.relationship == 'family') ...[
                               const SizedBox(width: 8),
                               _FamilyBadge(),
                             ],
                           ],
                         ),
-                        subtitle: Text(c.type == 'business' ? 'Business' : 'Person'),
-                        onTap: () => context.push('/contacts/${c.id}'),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            if (net.abs() >= 0.005)
-                              Text(
-                                formatMoney(net, currency),
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                  color: net > 0 ? AppColors.accent2 : AppColors.danger,
-                                ),
-                              ),
-                            if (canManage)
-                              PopupMenuButton<String>(
-                                onSelected: (v) {
-                                  if (v == 'edit') showContactForm(context, existing: c);
-                                  if (v == 'delete') _confirmDelete(context, c);
-                                },
-                                itemBuilder: (_) => const [
-                                  PopupMenuItem(value: 'edit', child: Text('Edit')),
-                                  PopupMenuItem(value: 'delete', child: Text('Delete')),
-                                ],
-                              ),
-                          ],
-                        ),
-                      );
-                    },
+                      ),
+                      DataColumn2<Contact>(
+                        key: 'type',
+                        label: 'Type',
+                        defaultWidth: 110,
+                        sortValue: (c) => c.type,
+                        cell: (c) => Text(c.type == 'business' ? 'Business' : 'Person'),
+                      ),
+                      DataColumn2<Contact>(
+                        key: 'net',
+                        label: 'Net position',
+                        numeric: true,
+                        defaultWidth: 130,
+                        sortValue: (c) => data.positionOf(c.id).net,
+                        cell: (c) {
+                          final net = data.positionOf(c.id).net;
+                          if (net.abs() < 0.005) return const Text('—');
+                          return Text(
+                            formatMoney(net, currency),
+                            style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                              color: net > 0 ? AppColors.accent2 : AppColors.danger,
+                            ),
+                          );
+                        },
+                      ),
+                    ],
                   ),
           ),
         ],

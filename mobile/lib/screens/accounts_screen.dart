@@ -10,6 +10,7 @@ import '../state/auth_controller.dart';
 import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
 import '../widgets/common.dart';
+import '../widgets/data_table_view.dart';
 import 'account_form.dart';
 
 class AccountsScreen extends StatelessWidget {
@@ -40,48 +41,86 @@ class AccountsScreen extends StatelessWidget {
                   ? FilledButton(onPressed: () => showAccountForm(context), child: const Text('New account'))
                   : null,
             )
-          : ListView.separated(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 88),
-              itemCount: accounts.length,
-              separatorBuilder: (_, __) => const Divider(height: 1),
-              itemBuilder: (context, i) {
-                final a = accounts[i];
-                final bal = data.balanceOf(a.id);
-                final masked = a.cardLast4 != null && a.cardLast4!.isNotEmpty
-                    ? ' ···· ${a.cardLast4}'
-                    : (a.accountNumber != null && a.accountNumber!.length >= 4
-                        ? ' ···· ${a.accountNumber!.substring(a.accountNumber!.length - 4)}'
-                        : '');
-                return ListTile(
-                  title: Text(a.name),
-                  subtitle: Text('${_typeLabel(a.type)}$masked'),
-                  onTap: canManage ? () => showAccountForm(context, existing: a) : null,
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        accountBalanceLabel(a.type, bal, currency),
-                        style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                          color: bal < 0 ? AppColors.danger : null,
-                        ),
+          : DataTableView<Account>(
+              tableId: 'accounts',
+              rows: accounts,
+              onRowTap: canManage ? (a) => showAccountForm(context, existing: a) : null,
+              trailing: (a) => PopupMenuButton<String>(
+                onSelected: (v) {
+                  if (v == 'ledger') context.push('/accounts/${a.id}/ledger');
+                  if (v == 'edit') showAccountForm(context, existing: a);
+                  if (v == 'delete') _confirmDelete(context, a);
+                },
+                itemBuilder: (_) => [
+                  const PopupMenuItem(value: 'ledger', child: Text('View ledger')),
+                  if (canManage) const PopupMenuItem(value: 'edit', child: Text('Edit')),
+                  if (canManage) const PopupMenuItem(value: 'delete', child: Text('Delete')),
+                ],
+              ),
+              columns: [
+                DataColumn2<Account>(
+                  key: 'name',
+                  label: 'Name',
+                  locked: true,
+                  defaultWidth: 200,
+                  sortValue: (a) => a.name.toLowerCase(),
+                  cell: (a) {
+                    final masked = a.cardLast4 != null && a.cardLast4!.isNotEmpty
+                        ? '···· ${a.cardLast4}'
+                        : (a.accountNumber != null && a.accountNumber!.length >= 4
+                            ? '···· ${a.accountNumber!.substring(a.accountNumber!.length - 4)}'
+                            : '');
+                    return Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(a.name, overflow: TextOverflow.ellipsis),
+                        if (masked.isNotEmpty)
+                          Text(
+                            masked,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                      ],
+                    );
+                  },
+                ),
+                DataColumn2<Account>(
+                  key: 'type',
+                  label: 'Type',
+                  defaultWidth: 120,
+                  sortValue: (a) => _typeLabel(a.type),
+                  cell: (a) => Text(_typeLabel(a.type)),
+                ),
+                DataColumn2<Account>(
+                  key: 'opening',
+                  label: 'Opening',
+                  defaultVisible: false,
+                  numeric: true,
+                  defaultWidth: 120,
+                  sortValue: (a) => a.openingBalance,
+                  cell: (a) => Text(formatMoney(a.openingBalance, currency)),
+                ),
+                DataColumn2<Account>(
+                  key: 'balance',
+                  label: 'Balance',
+                  numeric: true,
+                  defaultWidth: 130,
+                  sortValue: (a) => data.balanceOf(a.id),
+                  cell: (a) {
+                    final bal = data.balanceOf(a.id);
+                    return Text(
+                      accountBalanceLabel(a.type, bal, currency),
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: bal < 0 ? AppColors.danger : null,
                       ),
-                      PopupMenuButton<String>(
-                          onSelected: (v) {
-                            if (v == 'ledger') context.push('/accounts/${a.id}/ledger');
-                            if (v == 'edit') showAccountForm(context, existing: a);
-                            if (v == 'delete') _confirmDelete(context, a);
-                          },
-                          itemBuilder: (_) => [
-                            const PopupMenuItem(value: 'ledger', child: Text('View ledger')),
-                            if (canManage) const PopupMenuItem(value: 'edit', child: Text('Edit')),
-                            if (canManage) const PopupMenuItem(value: 'delete', child: Text('Delete')),
-                          ],
-                        ),
-                    ],
-                  ),
-                );
-              },
+                    );
+                  },
+                ),
+              ],
             ),
     );
   }

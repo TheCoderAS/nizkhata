@@ -10,6 +10,7 @@ import '../state/auth_controller.dart';
 import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
 import '../widgets/common.dart';
+import '../widgets/data_table_view.dart';
 import 'category_form.dart';
 
 class CategoriesScreen extends StatefulWidget {
@@ -136,47 +137,76 @@ class _CategoryList extends StatelessWidget {
     if (items.isEmpty) {
       return EmptyView(title: 'No $kind categories');
     }
-    return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 88),
-      itemCount: items.length,
-      separatorBuilder: (_, __) => const Divider(height: 1),
-      itemBuilder: (context, i) {
-        final c = items[i];
-        final cs = Theme.of(context).colorScheme;
-        final net = amountByCategory[c.id] ?? 0;
-        return ListTile(
-          title: Text(c.name),
-          trailing: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                formatMoney(net, currency),
-                style: const TextStyle(fontWeight: FontWeight.w600),
-              ),
-              const SizedBox(width: 12),
-              Text(
-                c.isSystem ? 'System' : 'Custom',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: c.isSystem ? cs.onSurfaceVariant : AppColors.accent2,
-                ),
-              ),
-              if (canManage)
-                PopupMenuButton<String>(
-                  onSelected: (v) {
-                    if (v == 'edit') showCategoryForm(context, existing: c);
-                    if (v == 'delete') _confirmDelete(context, c);
-                  },
-                  itemBuilder: (_) => [
-                    PopupMenuItem(value: 'edit', enabled: !c.isSystem, child: const Text('Edit')),
-                    PopupMenuItem(value: 'delete', enabled: !c.isSystem, child: const Text('Delete')),
-                  ],
-                ),
-            ],
+    return DataTableView<AppCategory>(
+      tableId: 'categories-$kind',
+      rows: items,
+      columns: [
+        DataColumn2<AppCategory>(
+          key: 'name',
+          label: 'Name',
+          locked: true,
+          defaultWidth: 180,
+          sortValue: (c) => c.name.toLowerCase(),
+          cell: (c) => Text(c.name, overflow: TextOverflow.ellipsis),
+        ),
+        DataColumn2<AppCategory>(
+          key: 'amount',
+          label: 'Net',
+          numeric: true,
+          defaultWidth: 130,
+          sortValue: (c) => amountByCategory[c.id] ?? 0,
+          cell: (c) => Text(
+            formatMoney(amountByCategory[c.id] ?? 0, currency),
+            style: const TextStyle(fontWeight: FontWeight.w600),
           ),
-        );
-      },
+        ),
+        DataColumn2<AppCategory>(
+          key: 'source',
+          label: 'Source',
+          defaultWidth: 120,
+          sortValue: (c) => c.isSystem ? 'System' : 'Custom',
+          cell: (c) {
+            final cs = Theme.of(context).colorScheme;
+            if (c.isSystem) {
+              return Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.lock, size: 13, color: cs.onSurfaceVariant),
+                  const SizedBox(width: 4),
+                  Text(
+                    'System',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: cs.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              );
+            }
+            return const Text(
+              'Custom',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: AppColors.accent2,
+              ),
+            );
+          },
+        ),
+      ],
+      trailing: canManage
+          ? (c) => PopupMenuButton<String>(
+                onSelected: (v) {
+                  if (v == 'edit') showCategoryForm(context, existing: c);
+                  if (v == 'delete') _confirmDelete(context, c);
+                },
+                itemBuilder: (_) => [
+                  PopupMenuItem(value: 'edit', enabled: !c.isSystem, child: const Text('Edit')),
+                  PopupMenuItem(value: 'delete', enabled: !c.isSystem, child: const Text('Delete')),
+                ],
+              )
+          : null,
     );
   }
 
