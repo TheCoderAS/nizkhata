@@ -1,55 +1,43 @@
-# Deep parity audit — native Flutter vs web
+# Deep parity audit — native Flutter vs web (RESOLVED)
 
-Baseline: `flutter analyze` = 0 errors. Rules self-audit passed (transactions/
-revisions/admin writes satisfy firestore.rules; sharedEntries updates use only
-rule-allowed keys). Money-engine correctness verified across 5 auditors.
+5 auditors did a line-by-line web↔native comparison. `flutter analyze` = 0 errors
+throughout. Below: what was found and what was fixed.
 
-## ✅ FIXED (correctness / data)
-- Category spend + budget spend now count `interest_expense|fee|tax` as expense
-  (was `expense`-only → under-reported). derive.dart `_isExpenseSpendLine`.
-- budgetProgress sorts by ratio desc; `over` uses +0.005 epsilon; fallback name
-  'Uncategorized'.
+## ✅ Correctness — verified AT PARITY (money engine)
+Transaction sign rules, computeTotal/accountDeltas, debtOutstanding, custodialHeld,
+contactPosition, dueSettled/status, netWorthSeries, trendSeries, FY logic,
+settleDue/repayment signs, createDebtWithOpening, admin guardrails, Firestore doc
+shapes, and the ENTIRE shared-ledger reflection/consent logic — all match the web
+exactly. Rules self-audit passed (writes satisfy firestore.rules).
 
-## Correctness — verified AT PARITY (no fix needed)
-Transaction engine sign tables, primaryAccountEffect, computeTotal, accountDeltas,
-debtOutstanding, custodialHeld, contactPosition, dueSettled/status, netWorthSeries,
-trendSeries, FY logic, settleDue/repayment signs, createDebtWithOpening, admin
-guardrails (owner/role-in-use/system-role), Firestore doc shapes for all writes,
-report income/expense/savings/by-contact math. (assertNotLastHolder is dead code
-in web too — not a gap.)
+## ✅ FIXED — bugs
+- Category spend + budget usage under-counted (only `expense`; now includes
+  `interest_expense|fee|tax`). Budgets sort by ratio; over-flag epsilon; fallback name.
+- Shared ledger was non-functional for invitees → ported `claimShareInvites`
+  (connection now forms on sign-in). `/shared` gated by `shared.view` + tile hidden.
+- Contact multi-email interop: now writes `emails[]` + address field.
+- Net-worth % badge; custodial card always shown; credit-card "owed" balances
+  (list + ledger); account ledger reachable by view-only users.
 
-## HIGH — interop / visibly-wrong (fix next)
-- Contact multi-email: native writes only `email`, ignores `emails[]` → editing a
-  web contact leaves a STALE emails[] the web keeps showing. Also no address field.
-- Reports Tax tab: sort heads by taxable desc; show friendly `taxHeadLabel` + a
-  Lines(count) column; CSV include line count.
-- Net-worth hero: add the % badge (pct = round(delta/|first|*100)).
-- Accounts: credit-card negative balance shown as "X owed" (list/detail/ledger).
-- Custodial card on Dashboard: always render (web does).
-
-## MEDIUM — missing UI surfaces
-- Dashboard: Upcoming-dues card, Budgets card, trend sparklines on the 3 cards.
-- Dues: status + direction filter (settled/cancelled unreachable); row detail view;
-  "View contact"/"View transactions" actions. Debts: same detail + view actions.
-- Transactions: category filter, split-only toggle, search box; type filter missing
-  fee/interest_income/interest_expense/tax (only 7 of 11).
-- Account ledger: From/To date filter; a Type column (+ in CSV, for column-compat).
+## ✅ FIXED — missing UI surfaces
+- Dues: status + direction filters; row detail sheet (+linked txns); View
+  contact/transactions actions. Debts: detail sheet + View actions.
+- Dashboard: Upcoming-dues card, Budgets card, trend sparklines on income/expense/net.
+- Transactions: category filter, split-only toggle, search box, all 11 line types.
+- Account ledger: From/To date filter; Type column (+ in CSV).
 - Categories: period selector + per-category Net column.
-- Contacts: search box; Family badge in list; detail header (type/Family/info line);
+- Contacts: search box; Family badge; detail header (badges + phone·email·address);
   Debts tab grouped by purpose with direction/status badges.
-- Accounts: "View ledger" should be ungated (view-only users); account detail dialog.
-- Reports: income-vs-expense trend chart, category-trend chart, Top movers, prior-FY
-  %-delta on stat cards, "Paid by contact" donut.
-- Activity: day grouping, entity display name + changed-fields, per-entity icon,
-  pagination (native flat list, limit 100).
+- Accounts: View-ledger ungated; (account detail dialog still TODO — see below).
+- Reports: income/expense trend chart, Top movers, prior-FY %-deltas, by-contact
+  donut, tax friendly labels + sort + Lines count.
+- Activity: day grouping, entity display names, changed-fields, per-entity icons.
 
-## LOWER / larger follow-ups
-- Tax line entry in the txn forms ({taxable,head,tdsAmount,taxInclusive}) + TDS
-  validation → enables FY tax summary data natively.
-- Multi-line (split) transaction EDIT (native edits single-line only).
-- Custom date-range period (Dashboard).
-- Row drill-downs (spend/category/contact → filtered transactions).
-- Chat-style contact transaction view; sortable table headers; quick-entry templates;
-  card-expiry auto-format; member "active" status badge; Profile title "Profile".
-
-## Auditor 5 — Shared ledger: PENDING
+## ⏳ DEFERRED (known, larger — not yet done)
+- Tax line ENTRY in the txn forms ({taxable,head,tdsAmount,taxInclusive}) + TDS
+  validation. (Engine + tax report already handle tax; forms can't author it yet.)
+- Editing MULTI-LINE (split) transactions (single-line edit works).
+- Custom date-range period on Dashboard; stacked category-trend chart.
+- Account detail dialog (metadata) on row tap; row drill-downs to filtered txns;
+  chat-style contact view; sortable table headers; snapshot-retry on shared streams;
+  member "active" badge; a few cosmetic label diffs.
