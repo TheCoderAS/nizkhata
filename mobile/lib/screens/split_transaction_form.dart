@@ -19,8 +19,10 @@ Future<void> showSplitTransactionForm(BuildContext context, {Txn? existing}) {
     context: context,
     isScrollControlled: true,
     showDragHandle: true,
-    builder: (_) => Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+    // Own context for MediaQuery — the caller's may be unmounted when this is
+    // opened right after the detail sheet pops on Edit (would blank the sheet).
+    builder: (ctx) => Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
       child: _SplitTransactionForm(existing: existing),
     ),
   );

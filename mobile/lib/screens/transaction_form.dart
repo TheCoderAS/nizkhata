@@ -17,8 +17,11 @@ Future<void> showTransactionForm(BuildContext context, {Txn? existing}) {
     context: context,
     isScrollControlled: true,
     showDragHandle: true,
-    builder: (_) => Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+    // Use the sheet's own context for MediaQuery — the caller's context may be
+    // unmounted (this form is opened right after the detail sheet pops on Edit),
+    // and reading MediaQuery off a defunct context blanks the sheet.
+    builder: (ctx) => Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
       child: _TransactionForm(existing: existing),
     ),
   );
