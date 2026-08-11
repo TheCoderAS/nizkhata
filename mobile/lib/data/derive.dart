@@ -154,6 +154,11 @@ ContactPosition contactPosition(String contactId, List<Debt> debts, List<Txn> tx
 
 // ---- spend by category -----------------------------------------------------
 
+// A line counts as "expense spend" (for category spend + budgets) when it is an
+// expense, interest expense, fee or tax line — matching web categorySpendInRange.
+bool _isExpenseSpendLine(String type) =>
+    type == 'expense' || type == 'interest_expense' || type == 'fee' || type == 'tax';
+
 class CategorySpend {
   final String id;
   final String name;
@@ -168,7 +173,7 @@ List<CategorySpend> spendByCategoryInRange(
   for (final t in txns) {
     if (t.date.isBefore(start) || !t.date.isBefore(end)) continue;
     for (final line in t.lines) {
-      if (line.type != 'expense') continue;
+      if (!_isExpenseSpendLine(line.type)) continue;
       if (line.categoryId == null) continue;
       sums[line.categoryId!] = (sums[line.categoryId!] ?? 0) + line.amount;
     }
@@ -378,15 +383,17 @@ List<BudgetProgress> budgetProgress(
     for (final t in txns) {
       if (t.date.isBefore(range.start) || !t.date.isBefore(range.end)) continue;
       for (final line in t.lines) {
-        if (line.type == 'expense' && line.categoryId == b.categoryId) {
+        if (_isExpenseSpendLine(line.type) && line.categoryId == b.categoryId) {
           spent += line.amount;
         }
       }
     }
     spent = roundMoney(spent);
     final ratio = b.amount > 0 ? spent / b.amount : 0.0;
-    out.add(BudgetProgress(b, categoriesById[b.categoryId]?.name ?? 'AppCategory', spent, b.amount, ratio));
+    out.add(BudgetProgress(b, categoriesById[b.categoryId]?.name ?? 'Uncategorized', spent, b.amount, ratio));
   }
+  // Highest utilization first, matching the web (budgetProgress sorts by ratio desc).
+  out.sort((a, b) => b.ratio.compareTo(a.ratio));
   return out;
 }
 

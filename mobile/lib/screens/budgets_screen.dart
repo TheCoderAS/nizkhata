@@ -75,7 +75,7 @@ class _BudgetCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final p = progress;
-    final over = p.spent > p.limit;
+    final over = p.spent > p.limit + 0.005;
     final remaining = p.limit - p.spent;
     final periodLabel = p.budget.period == 'yearly' ? 'Yearly' : 'Monthly';
     final barColor = p.ratio > 1
