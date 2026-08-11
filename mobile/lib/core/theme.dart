@@ -33,27 +33,34 @@ ThemeData _base(Brightness brightness, ColorScheme scheme) {
     labelLarge: GoogleFonts.inter(fontWeight: FontWeight.w500),
   );
   final radius = BorderRadius.circular(14);
+  // Dark: a dim base so elevated cards read clearly above it. Light: plain surface.
+  final scaffoldBg = brightness == Brightness.dark ? scheme.surfaceDim : scheme.surface;
 
   return ThemeData(
     useMaterial3: true,
     brightness: brightness,
     colorScheme: scheme,
-    scaffoldBackgroundColor: scheme.surface,
+    scaffoldBackgroundColor: scaffoldBg,
     textTheme: textTheme,
     splashFactory: InkSparkle.splashFactory,
     appBarTheme: AppBarTheme(
       centerTitle: false,
       scrolledUnderElevation: 2,
-      backgroundColor: scheme.surface,
+      backgroundColor: scaffoldBg,
       surfaceTintColor: scheme.surfaceTint,
       titleTextStyle: textTheme.titleLarge?.copyWith(fontSize: 20),
     ),
     cardTheme: CardThemeData(
-      elevation: 0,
-      color: scheme.surfaceContainerLowest,
+      // Cards sit a step ABOVE the scaffold surface so they lift off the
+      // background (using the darkest container made them read sunken/grey in
+      // dark mode). A hairline border + soft shadow give quiet depth.
+      elevation: 1,
+      shadowColor: Colors.black.withValues(alpha: brightness == Brightness.dark ? 0.4 : 0.10),
+      surfaceTintColor: Colors.transparent,
+      color: brightness == Brightness.dark ? scheme.surfaceContainerHigh : scheme.surfaceContainerLowest,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: scheme.outlineVariant.withValues(alpha: 0.6)),
+        borderRadius: BorderRadius.circular(18),
+        side: BorderSide(color: scheme.outlineVariant.withValues(alpha: 0.45)),
       ),
       margin: EdgeInsets.zero,
       clipBehavior: Clip.antiAlias,

@@ -132,10 +132,12 @@ class SectionCard extends StatelessWidget {
   final String title;
   final Widget child;
   final Widget? trailing;
-  const SectionCard({super.key, required this.title, required this.child, this.trailing});
+  final IconData? icon;
+  const SectionCard({super.key, required this.title, required this.child, this.trailing, this.icon});
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -145,7 +147,21 @@ class SectionCard extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                Expanded(
+                  child: Row(
+                    children: [
+                      if (icon != null) ...[
+                        Icon(icon, size: 17, color: cs.primary),
+                        const SizedBox(width: 8),
+                      ],
+                      Flexible(
+                        child: Text(title,
+                            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                            overflow: TextOverflow.ellipsis),
+                      ),
+                    ],
+                  ),
+                ),
                 if (trailing != null) trailing!,
               ],
             ),

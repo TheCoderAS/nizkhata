@@ -145,6 +145,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         const SizedBox(height: 12),
         SectionCard(
           title: 'Upcoming dues',
+          icon: Icons.event_note_outlined,
           trailing: _seeAll('/dues'),
           child: upcomingTop.isEmpty
               ? Text('Nothing due.', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant))
@@ -158,6 +159,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         if (budgetRows.isNotEmpty) ...[
           SectionCard(
             title: 'Budgets',
+            icon: Icons.pie_chart_outline,
             trailing: _seeAll('/budgets'),
             child: Column(
               children: [
@@ -169,6 +171,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ],
         SectionCard(
           title: 'Spend by category',
+          icon: Icons.donut_small_outlined,
           trailing: _seeAll('/reports'),
           child: topSpend.isEmpty
               ? Text('No spend recorded.', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant))
@@ -187,6 +190,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         const SizedBox(height: 12),
         SectionCard(
           title: 'Recent transactions',
+          icon: Icons.receipt_long_outlined,
           trailing: _seeAll('/transactions'),
           child: recentTop.isEmpty
               ? Text('No transactions yet.', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant))
