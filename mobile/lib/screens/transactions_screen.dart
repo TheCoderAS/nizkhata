@@ -8,6 +8,7 @@ import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
 import '../widgets/common.dart';
 import '../widgets/entity_card_list.dart';
+import '../widgets/txn_lines_editor.dart' show kTaxHeads;
 import 'split_transaction_form.dart';
 import 'transaction_detail.dart';
 
@@ -33,6 +34,8 @@ class TransactionsScreen extends StatefulWidget {
   final String? initialContact;
   final String? initialCategory;
   final String? initialType;
+  final String? initialTaxHead;
+  final String? initialFy;
 
   /// When true the screen supplies its own AppBar with a back button (used for
   /// the /txns drill-down route). In the bottom-nav shell this is false — the
@@ -44,6 +47,8 @@ class TransactionsScreen extends StatefulWidget {
     this.initialContact,
     this.initialCategory,
     this.initialType,
+    this.initialTaxHead,
+    this.initialFy,
     this.standalone = false,
   });
 
@@ -56,6 +61,10 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   String? _contactFilter;
   String? _typeFilter;
   String? _categoryFilter;
+  // Drill-down-only filters (set via /txns?taxhead=…&fy=… from Reports; shown
+  // as removable chips, not in the filter sheet).
+  String? _taxHeadFilter;
+  String? _fyFilter;
   bool _splitOnly = false;
   String _search = '';
 
@@ -66,6 +75,8 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     _contactFilter = widget.initialContact;
     _categoryFilter = widget.initialCategory;
     _typeFilter = widget.initialType;
+    _taxHeadFilter = widget.initialTaxHead;
+    _fyFilter = widget.initialFy;
   }
 
   int get _activeFilterCount =>
@@ -73,6 +84,8 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       (_contactFilter != null ? 1 : 0) +
       (_typeFilter != null ? 1 : 0) +
       (_categoryFilter != null ? 1 : 0) +
+      (_taxHeadFilter != null ? 1 : 0) +
+      (_fyFilter != null ? 1 : 0) +
       (_splitOnly ? 1 : 0);
 
   void _clearFilters() => setState(() {
@@ -80,6 +93,8 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
         _contactFilter = null;
         _typeFilter = null;
         _categoryFilter = null;
+        _taxHeadFilter = null;
+        _fyFilter = null;
         _splitOnly = false;
       });
 
@@ -202,6 +217,14 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       if (_categoryFilter != null && !t.lines.any((l) => l.categoryId == _categoryFilter)) return false;
       if (_splitOnly && !t.hasSplit) return false;
       if (_typeFilter != null && !t.lines.any((l) => l.type == _typeFilter)) return false;
+      if (_taxHeadFilter != null &&
+          !t.lines.any((l) =>
+              l.tax != null &&
+              l.tax!['taxable'] == true &&
+              (l.tax!['head'] ?? 'other') == _taxHeadFilter)) {
+        return false;
+      }
+      if (_fyFilter != null && t.financialYear != _fyFilter) return false;
       if (query.isNotEmpty) {
         final contactName = t.contactId != null ? data.contactsById[t.contactId]?.name ?? '' : '';
         final hay = '${t.note ?? ''} $contactName'.toLowerCase();
@@ -272,6 +295,15 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                     if (_typeFilter != null) ...[
                       _chip('Type: ${_kLineTypeLabels[_typeFilter] ?? _typeFilter}',
                           () => setState(() => _typeFilter = null)),
+                      Gap.sm,
+                    ],
+                    if (_taxHeadFilter != null) ...[
+                      _chip('Tax head: ${kTaxHeads[_taxHeadFilter] ?? _taxHeadFilter}',
+                          () => setState(() => _taxHeadFilter = null)),
+                      Gap.sm,
+                    ],
+                    if (_fyFilter != null) ...[
+                      _chip('FY: $_fyFilter', () => setState(() => _fyFilter = null)),
                       Gap.sm,
                     ],
                     if (_splitOnly)
