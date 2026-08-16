@@ -41,6 +41,9 @@ class TransactionsScreen extends StatefulWidget {
   /// the /txns drill-down route). In the bottom-nav shell this is false — the
   /// shell provides the chrome.
   final bool standalone;
+
+  /// Auto-open the "new transaction" form on first build (quick action).
+  final bool autoAdd;
   const TransactionsScreen({
     super.key,
     this.initialAccount,
@@ -50,6 +53,7 @@ class TransactionsScreen extends StatefulWidget {
     this.initialTaxHead,
     this.initialFy,
     this.standalone = false,
+    this.autoAdd = false,
   });
 
   @override
@@ -77,6 +81,11 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     _typeFilter = widget.initialType;
     _taxHeadFilter = widget.initialTaxHead;
     _fyFilter = widget.initialFy;
+    if (widget.autoAdd) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) showSplitTransactionForm(context);
+      });
+    }
   }
 
   int get _activeFilterCount =>

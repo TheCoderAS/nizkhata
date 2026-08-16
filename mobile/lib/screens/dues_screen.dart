@@ -33,7 +33,17 @@ const _kDueDirectionFilters = <String, String>{
 };
 
 class DuesScreen extends StatefulWidget {
-  const DuesScreen({super.key});
+  /// Standalone mode (own AppBar + back button) — used by the /dues-day
+  /// drill-down route (notification taps, quick actions).
+  final bool standalone;
+
+  /// Only show dues due on this specific day (from /dues-day?date=YYYY-MM-DD).
+  final DateTime? initialDate;
+
+  /// Auto-open the "new due" form on first build (quick action).
+  final bool autoAdd;
+
+  const DuesScreen({super.key, this.standalone = false, this.initialDate, this.autoAdd = false});
 
   @override
   State<DuesScreen> createState() => _DuesScreenState();
@@ -42,14 +52,29 @@ class DuesScreen extends StatefulWidget {
 class _DuesScreenState extends State<DuesScreen> {
   String _statusFilter = '__unsettled';
   String _directionFilter = '__all';
+  DateTime? _dateFilter;
   String _search = '';
 
+  @override
+  void initState() {
+    super.initState();
+    _dateFilter = widget.initialDate;
+    if (widget.autoAdd) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) showDueForm(context);
+      });
+    }
+  }
+
   int get _activeFilterCount =>
-      (_statusFilter != '__unsettled' ? 1 : 0) + (_directionFilter != '__all' ? 1 : 0);
+      (_statusFilter != '__unsettled' ? 1 : 0) +
+      (_directionFilter != '__all' ? 1 : 0) +
+      (_dateFilter != null ? 1 : 0);
 
   void _clearFilters() => setState(() {
         _statusFilter = '__unsettled';
         _directionFilter = '__all';
+        _dateFilter = null;
       });
 
   Future<void> _openFilters(BuildContext context) async {
@@ -152,6 +177,12 @@ class _DuesScreenState extends State<DuesScreen> {
     final query = _search.trim().toLowerCase();
     final filtered = data.dues.where((d) {
       if (_directionFilter != '__all' && d.direction != _directionFilter) return false;
+      if (_dateFilter != null) {
+        final f = _dateFilter!;
+        if (d.dueDate.year != f.year || d.dueDate.month != f.month || d.dueDate.day != f.day) {
+          return false;
+        }
+      }
       if (_statusFilter != '__all') {
         final st = dueStatusFromSettled(d, data.settledOf(d.id));
         if (_statusFilter == '__unsettled') {
@@ -171,6 +202,7 @@ class _DuesScreenState extends State<DuesScreen> {
       ..sort((a, b) => a.dueDate.compareTo(b.dueDate));
 
     return Scaffold(
+      appBar: widget.standalone ? AppBar(title: const Text('Dues')) : null,
       floatingActionButton: canManage
           ? FloatingActionButton(
               onPressed: () => showDueForm(context),
@@ -236,6 +268,12 @@ class _DuesScreenState extends State<DuesScreen> {
                         if (_directionFilter != '__all')
                           _chip('Direction: ${_kDueDirectionFilters[_directionFilter]}',
                               () => setState(() => _directionFilter = '__all')),
+                        if (_dateFilter != null)
+                          Padding(
+                            padding: const EdgeInsets.only(left: 6),
+                            child: _chip('Due: ${formatDate(_dateFilter!)}',
+                                () => setState(() => _dateFilter = null)),
+                          ),
                       ],
                     ),
                   ),

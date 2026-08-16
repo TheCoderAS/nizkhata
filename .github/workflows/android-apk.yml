@@ -96,8 +96,58 @@ jobs:
               )
               s = s.replace('</activity>', applink + '</activity>', 1)
               print('App Links intent-filter added')
+          # Due reminders: notification + boot + exact-alarm permissions.
+          for perm in ['android.permission.POST_NOTIFICATIONS',
+                       'android.permission.RECEIVE_BOOT_COMPLETED',
+                       'android.permission.USE_EXACT_ALARM',
+                       'android.permission.VIBRATE']:
+              if perm not in s:
+                  s = re.sub(r'(<manifest[^>]*>)',
+                             r'\1\n    <uses-permission android:name="%s"/>' % perm, s, count=1)
+          # flutter_local_notifications receivers (scheduled + reboot re-registration)
+          # and the home-screen widget provider.
+          if 'ScheduledNotificationReceiver' not in s:
+              receivers = (
+                  '\n'
+                  '        <receiver android:exported="false" android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver" />\n'
+                  '        <receiver android:exported="false" android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver">\n'
+                  '            <intent-filter>\n'
+                  '                <action android:name="android.intent.action.BOOT_COMPLETED"/>\n'
+                  '                <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>\n'
+                  '                <action android:name="android.intent.action.QUICKBOOT_POWERON"/>\n'
+                  '            </intent-filter>\n'
+                  '        </receiver>\n'
+                  '        <receiver android:name=".DuesWidgetProvider" android:exported="false">\n'
+                  '            <intent-filter>\n'
+                  '                <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>\n'
+                  '            </intent-filter>\n'
+                  '            <meta-data android:name="android.appwidget.provider" android:resource="@xml/dues_widget_info"/>\n'
+                  '        </receiver>\n'
+                  '    '
+              )
+              s = s.replace('</application>', receivers + '</application>', 1)
+              print('notification + widget receivers added')
           open(p, 'w').write(s)
           PY
+          # flutter_local_notifications requires core library desugaring.
+          python3 - <<'PY2'
+          import re
+          p = 'android/app/build.gradle.kts'
+          s = open(p).read()
+          if 'isCoreLibraryDesugaringEnabled' not in s:
+              s = re.sub(r'(compileOptions\s*\{)', r'\1\n        isCoreLibraryDesugaringEnabled = true', s, count=1)
+              if re.search(r'^dependencies\s*\{', s, flags=re.M):
+                  s = re.sub(r'(^dependencies\s*\{)', r'\1\n    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")', s, count=1, flags=re.M)
+              else:
+                  s += '\n\ndependencies {\n    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")\n}\n'
+              open(p, 'w').write(s)
+              print('desugaring enabled')
+          PY2
+          # Inject the native home-screen widget sources (provider + layouts).
+          mkdir -p android/app/src/main/kotlin
+          cp -r android-extras/kotlin/. android/app/src/main/kotlin/
+          cp -r android-extras/res/. android/app/src/main/res/
+          echo "widget sources injected"
           # Minimum supported platform: Android 12 (API 31).
           for f in android/app/build.gradle android/app/build.gradle.kts; do
             [ -f "$f" ] || continue
