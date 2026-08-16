@@ -118,10 +118,14 @@ class Mutations {
   }
 
   Future<void> _auditedUpdate(String col, String workspaceId, String id, Map<String, dynamic> data) async {
-    final clean = _strip(data);
+    // On update an explicit null means "clear this field" — translate it to a
+    // server-side delete. (Stripping nulls, as create rightly does, silently
+    // kept the old value whenever a dropdown/optional field was cleared.)
+    final update = <String, dynamic>{};
+    data.forEach((k, v) => update[k] = v ?? FieldValue.delete());
     final batch = _db.batch();
     batch.update(_db.collection(col).doc(id), {
-      ...clean,
+      ...update,
       'updatedBy': by.toMap(),
       'updatedAt': FieldValue.serverTimestamp(),
     });
@@ -130,8 +134,8 @@ class Mutations {
         entityType: col,
         entityId: id,
         action: 'update',
-        snapshot: clean,
-        changedFields: clean.keys.toList());
+        snapshot: _strip(data),
+        changedFields: data.keys.toList());
     await batch.commit();
   }
 
