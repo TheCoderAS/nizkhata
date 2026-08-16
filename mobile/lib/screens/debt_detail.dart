@@ -7,6 +7,7 @@ import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
 import '../widgets/revision_history.dart';
 import 'debt_form.dart';
+import 'transaction_detail.dart';
 import 'debts_screen.dart';
 
 const _kPurposeLabels = <String, String>{
@@ -140,24 +141,31 @@ class _DebtDetail extends StatelessWidget {
   Widget _txnTile(BuildContext context, DataController data, Txn t, String currency) {
     final cs = Theme.of(context).colorScheme;
     final account = data.accountsById[t.accountId]?.name ?? '—';
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(t.note?.isNotEmpty == true ? t.note! : account),
-                Text('${formatDate(t.date)} · $account',
-                    style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
-              ],
+    // Opens the transaction's detail sheet stacked on top of this one — no
+    // bouncing away to the Transactions screen.
+    return InkWell(
+      borderRadius: BorderRadius.circular(8),
+      onTap: () => showTransactionDetail(context, t),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 5),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(t.note?.isNotEmpty == true ? t.note! : account),
+                  Text('${formatDate(t.date)} · $account',
+                      style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
+                ],
+              ),
             ),
-          ),
-          Text(formatMoney(t.totalAmount, currency),
-              style: const TextStyle(fontWeight: FontWeight.w600)),
-        ],
+            Text(formatMoney(t.totalAmount, currency),
+                style: const TextStyle(fontWeight: FontWeight.w600)),
+            Icon(Icons.chevron_right, size: 18, color: cs.onSurfaceVariant),
+          ],
+        ),
       ),
     );
   }

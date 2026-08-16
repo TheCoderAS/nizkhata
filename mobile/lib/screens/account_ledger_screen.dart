@@ -15,6 +15,7 @@ import '../core/theme.dart';
 import '../data/derive.dart';
 import '../data/models.dart';
 import '../state/data_controller.dart';
+import 'transaction_detail.dart';
 import '../state/workspace_controller.dart';
 import '../widgets/common.dart';
 
@@ -41,7 +42,8 @@ class _LedgerRow {
   final String types;
   final double delta;
   final double balance;
-  _LedgerRow(this.date, this.description, this.types, this.delta, this.balance);
+  final Txn txn;
+  _LedgerRow(this.date, this.description, this.types, this.delta, this.balance, this.txn);
 }
 
 class AccountLedgerScreen extends StatefulWidget {
@@ -122,6 +124,7 @@ class _AccountLedgerScreenState extends State<AccountLedgerScreen> {
         types,
         e.key,
         running,
+        e.value,
       ));
     }
     final display = filtered.reversed.toList(); // newest first
@@ -246,6 +249,8 @@ class _AccountLedgerScreenState extends State<AccountLedgerScreen> {
                       final cs = Theme.of(context).colorScheme;
                       return ListTile(
                         contentPadding: const EdgeInsets.symmetric(vertical: 2),
+                        // Ledger rows open the transaction's detail sheet.
+                        onTap: () => showTransactionDetail(context, r.txn),
                         title: Text(r.description),
                         subtitle: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
