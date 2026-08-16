@@ -281,14 +281,8 @@ class _DuesScreenState extends State<DuesScreen> {
                         sortValue: (d) => d.title,
                         text: (d) => d.title,
                       ),
-                      CardField<Due>(
-                        key: 'direction',
-                        label: 'Direction',
-                        icon: Icons.swap_vert,
-                        defaultVisible: false,
-                        sortValue: (d) => d.direction,
-                        text: (d) => d.direction == 'receivable' ? 'Receivable' : 'Payable',
-                      ),
+                      // No direction field: the amount's green/red already says
+                      // receivable vs payable (Direction stays as a filter).
                       CardField<Due>(
                         key: 'contact',
                         label: 'Contact',

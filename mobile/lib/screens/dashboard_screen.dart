@@ -366,34 +366,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Flexible(
-                      child: Text(d.title.isNotEmpty ? d.title : 'Due',
-                          maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w500)),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: (receivable ? AppColors.accent2 : AppColors.danger).withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        d.direction,
-                        style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w600,
-                            color: receivable ? AppColors.accent2 : AppColors.danger),
-                      ),
-                    ),
-                  ],
-                ),
+                Text(d.title.isNotEmpty ? d.title : 'Due',
+                    maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w500)),
                 Text(formatDate(d.dueDate), style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
               ],
             ),
           ),
-          Text(formatMoney(d.amount, currency), style: const TextStyle(fontWeight: FontWeight.w600)),
+          // Green = receivable, red = payable — no text badge needed.
+          Text(
+            formatMoney(d.amount, currency),
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              color: receivable ? AppColors.accent2 : AppColors.danger,
+            ),
+          ),
         ],
       ),
     );

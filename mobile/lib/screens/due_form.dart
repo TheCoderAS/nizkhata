@@ -37,7 +37,6 @@ class _DueForm extends StatefulWidget {
 
 class _DueFormState extends State<_DueForm> {
   final _formKey = GlobalKey<FormState>();
-  late String _direction = widget.existing?.direction ?? 'payable';
   late final _title = TextEditingController(text: widget.existing?.title ?? '');
   late DateTime _dueDate = widget.existing?.dueDate ?? DateTime.now();
   late String? _contactId = widget.existing?.contactId;
@@ -59,7 +58,9 @@ class _DueFormState extends State<_DueForm> {
       row.categoryId = due.categoryId;
       _lines = [row];
     } else {
-      _lines = [LineDraft(type: _direction == 'payable' ? 'expense' : 'income')];
+      // New due defaults to a payable (expense) line; switch the line type to
+      // income to make it a receivable — direction is derived from the lines.
+      _lines = [LineDraft(type: 'expense')];
     }
   }
 
@@ -80,21 +81,6 @@ class _DueFormState extends State<_DueForm> {
   List<String> _errors() => validateLineDrafts(_lines, accountId: _accountId, contactId: _contactId)
       .where((e) => e != 'Pick an account.')
       .toList();
-
-  void _onDirectionChanged(String dir) {
-    setState(() {
-      _direction = dir;
-      // Flip plain income/expense lines to match the new direction (their
-      // category kind changes with them, so reset stale categories).
-      final newType = dir == 'payable' ? 'expense' : 'income';
-      for (final l in _lines) {
-        if (l.type == 'income' || l.type == 'expense') {
-          if (l.type != newType) l.categoryId = null;
-          l.type = newType;
-        }
-      }
-    });
-  }
 
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
@@ -203,15 +189,6 @@ class _DueFormState extends State<_DueForm> {
               Text(widget.existing == null ? 'New due' : 'Edit due',
                   style: Theme.of(context).textTheme.titleLarge),
               const SizedBox(height: 16),
-              SegmentedButton<String>(
-                segments: const [
-                  ButtonSegment(value: 'payable', label: Text('Payable')),
-                  ButtonSegment(value: 'receivable', label: Text('Receivable')),
-                ],
-                selected: {_direction},
-                onSelectionChanged: (s) => _onDirectionChanged(s.first),
-              ),
-              const SizedBox(height: 14),
               TextFormField(
                 controller: _title,
                 decoration: const InputDecoration(labelText: 'Title'),
