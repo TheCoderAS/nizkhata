@@ -28,10 +28,13 @@ on:
 permissions:
   contents: write
 
-# During rapid dev iteration, cancel an in-flight build when a newer commit lands.
+# During rapid dev iteration, cancel an in-flight PUSH build when a newer commit
+# lands — but release (workflow_dispatch) runs get a unique group so they can
+# never cancel each other or be cancelled (back-to-back releases were killing
+# each other's publish step).
 concurrency:
-  group: android-apk-${{ github.ref }}
-  cancel-in-progress: true
+  group: android-apk-${{ github.event_name == 'workflow_dispatch' && github.run_id || github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' }}
 
 jobs:
   build-apk:

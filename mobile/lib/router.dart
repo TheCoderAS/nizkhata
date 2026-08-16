@@ -90,6 +90,8 @@ GoRouter buildRouter(AuthController auth) {
             initialContact: q['contact'],
             initialCategory: q['category'],
             initialType: q['type'],
+            initialTaxHead: q['taxhead'],
+            initialFy: q['fy'],
           );
         },
       ),

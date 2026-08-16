@@ -109,10 +109,12 @@ class _ReportsScreenState extends State<ReportsScreen> {
                     categories: data.categories,
                     allTxns: data.transactions,
                     range: range,
+                    fy: fy,
                     prevFy: prevFy,
                     currency: currency,
+                    canViewTxns: canViewTxns,
                   ),
-                  _TaxTab(txns: fyTxns, fy: fy, currency: currency, canExport: canExport),
+                  _TaxTab(txns: fyTxns, fy: fy, currency: currency, canExport: canExport, canViewTxns: canViewTxns),
                   _CategoryTab(
                     txns: data.transactions,
                     categories: data.categories,
@@ -182,8 +184,10 @@ class _InsightsTab extends StatelessWidget {
   final List<AppCategory> categories;
   final List<Txn> allTxns;
   final ({DateTime start, DateTime end}) range;
+  final String fy;
   final String prevFy;
   final String currency;
+  final bool canViewTxns;
   const _InsightsTab({
     required this.txns,
     required this.accounts,
@@ -191,8 +195,10 @@ class _InsightsTab extends StatelessWidget {
     required this.categories,
     required this.allTxns,
     required this.range,
+    required this.fy,
     required this.prevFy,
     required this.currency,
+    required this.canViewTxns,
   });
 
   // Income/expense/net totals for a set of FY-scoped transactions.
@@ -346,7 +352,12 @@ class _InsightsTab extends StatelessWidget {
               : Column(
                   children: [
                     for (final m in movers)
-                      Padding(
+                      InkWell(
+                        borderRadius: BorderRadius.circular(8),
+                        onTap: canViewTxns
+                            ? () => context.push('/txns?category=${m.id}&fy=$fy')
+                            : null,
+                        child: Padding(
                         padding: const EdgeInsets.symmetric(vertical: 6),
                         child: Row(
                           children: [
@@ -366,6 +377,7 @@ class _InsightsTab extends StatelessWidget {
                             ),
                           ],
                         ),
+                      ),
                       ),
                   ],
                 ),
@@ -696,7 +708,8 @@ class _TaxTab extends StatelessWidget {
   final String fy;
   final String currency;
   final bool canExport;
-  const _TaxTab({required this.txns, required this.fy, required this.currency, required this.canExport});
+  final bool canViewTxns;
+  const _TaxTab({required this.txns, required this.fy, required this.currency, required this.canExport, required this.canViewTxns});
 
   @override
   Widget build(BuildContext context) {
@@ -766,6 +779,7 @@ class _TaxTab extends StatelessWidget {
                 for (final h in heads)
                   ListTile(
                     contentPadding: EdgeInsets.zero,
+                    onTap: canViewTxns ? () => context.push('/txns?taxhead=$h&fy=$fy') : null,
                     title: Text(_taxHeadLabel(h), style: const TextStyle(fontWeight: FontWeight.w500)),
                     subtitle: Text(
                       'TDS ${formatMoney(roundMoney(tdsByHead[h] ?? 0), currency)}'
