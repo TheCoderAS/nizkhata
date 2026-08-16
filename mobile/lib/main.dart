@@ -50,7 +50,7 @@ class NizkhataApp extends StatelessWidget {
           create: (_) => DataController(),
           update: (_, ws, data) {
             final c = data ?? DataController();
-            WidgetsBinding.instance.addPostFrameCallback((_) => c.setWorkspace(ws.activeWorkspaceId));
+            WidgetsBinding.instance.addPostFrameCallback((_) => c.setWorkspace(ws.activeWorkspaceId, scope: ws.dataScope));
             return c;
           },
         ),

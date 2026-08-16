@@ -81,6 +81,15 @@ class _RoleCard extends StatelessWidget {
                           style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                         ),
                       ),
+                      if (role.permissions['scope.own'] == true) ...[
+                        const SizedBox(width: 8),
+                        Chip(
+                          visualDensity: VisualDensity.compact,
+                          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          avatar: Icon(Icons.person_pin_circle_outlined, size: 14, color: cs.primary),
+                          label: const Text('Own records only'),
+                        ),
+                      ],
                       if (role.isSystem) ...[
                         const SizedBox(width: 8),
                         Chip(

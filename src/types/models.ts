@@ -42,6 +42,9 @@ export interface Membership {
   // reading other users' profiles (Security Rules only allow reading your own).
   email?: string; // lowercased
   displayName?: string | null;
+  // Contact in this workspace that represents this member (email auto-link,
+  // admin-overridable). Basis for "own records only" restricted roles.
+  linkedContactId?: Id | null;
 }
 
 // ---- roles -----------------------------------------------------------------

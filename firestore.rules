@@ -58,6 +58,23 @@ service cloud.firestore {
       return isMember(ws) && roleOf(ws).data.permissions[perm] == true;
     }
 
+    // ---- "own records only" scope ---------------------------------------
+    // A role with permissions['scope.own'] == true limits reads to records of
+    // the member's linked contact (memberships.linkedContactId). `.get()` with
+    // a default keeps older role docs (no such key) fully unrestricted.
+    function isScopeOwn(ws) {
+      return roleOf(ws).data.permissions.get('scope.own', false) == true;
+    }
+    function ownContactOk(ws, recordContactId) {
+      return membership(ws).data.get('linkedContactId', null) != null
+        && recordContactId == membership(ws).data.linkedContactId;
+    }
+    // Module read that honours the own-records scope for contact-tied records.
+    function scopedRead(ws, perm, recordContactId) {
+      return can(ws, perm)
+        && (!isScopeOwn(ws) || ownContactOk(ws, recordContactId));
+    }
+
     function workspaceDoc(ws) {
       return get(/databases/$(database)/documents/workspaces/$(ws));
     }
@@ -224,7 +241,8 @@ service cloud.firestore {
     }
 
     match /contacts/{id} {
-      allow read:           if can(exWs(), 'contacts.view');
+      allow read:           if can(exWs(), 'contacts.view')
+        && (!isScopeOwn(exWs()) || ownContactOk(exWs(), resource.data.id));
       allow create:         if can(inWs(), 'contacts.manage');
       allow update:         if can(exWs(), 'contacts.manage') && wsImmutable();
       allow delete:         if can(exWs(), 'contacts.manage');
@@ -316,14 +334,14 @@ service cloud.firestore {
     }
 
     match /debts/{id} {
-      allow read:           if can(exWs(), 'debts.view');
+      allow read:           if scopedRead(exWs(), 'debts.view', resource.data.get('contactId', null));
       allow create:         if can(inWs(), 'debts.manage');
       allow update:         if can(exWs(), 'debts.manage') && wsImmutable();
       allow delete:         if can(exWs(), 'debts.manage');
     }
 
     match /dues/{id} {
-      allow read:           if can(exWs(), 'dues.view');
+      allow read:           if scopedRead(exWs(), 'dues.view', resource.data.get('contactId', null));
       allow create:         if can(inWs(), 'dues.manage');
       allow update:         if can(exWs(), 'dues.manage') && wsImmutable();
       allow delete:         if can(exWs(), 'dues.manage');
@@ -336,7 +354,7 @@ service cloud.firestore {
       return data.createdBy is map ? data.createdBy.uid : data.createdBy;
     }
     match /transactions/{id} {
-      allow read:   if can(exWs(), 'transactions.view');
+      allow read:   if scopedRead(exWs(), 'transactions.view', resource.data.get('contactId', null));
       allow create: if can(inWs(), 'transactions.create')
         && createdUid(request.resource.data) == request.auth.uid;
       allow update: if can(exWs(), 'transactions.edit')

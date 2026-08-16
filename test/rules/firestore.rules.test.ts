@@ -394,3 +394,90 @@ describe("shared ledger — invites", () => {
     await assertSucceeds(updateDoc(doc(db, "shareInvites", `${A}_guest@x.com`), { status: "accepted" }));
   });
 });
+
+describe("own-records scope (scope.own)", () => {
+  const RWS = "ws-scoped";
+  beforeEach(async () => {
+    await env.clearFirestore();
+    await seedWorkspace(RWS, "owner");
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      // Restricted role: may view transactions/dues/contacts but only own records.
+      await setDoc(doc(db, "roles", `${RWS}_limited`), {
+        id: `${RWS}_limited`,
+        workspaceId: RWS,
+        name: "Limited",
+        isSystem: false,
+        permissions: {
+          ...allPerms(false),
+          "transactions.view": true,
+          "dues.view": true,
+          "contacts.view": true,
+          "scope.own": true,
+        },
+      });
+      await setDoc(doc(db, "memberships", `${RWS}_limitedUser`), {
+        id: `${RWS}_limitedUser`,
+        workspaceId: RWS,
+        uid: "limitedUser",
+        roleId: `${RWS}_limited`,
+        status: "active",
+        linkedContactId: "c-mine",
+      });
+      await setDoc(doc(db, "memberships", `${RWS}_unlinkedUser`), {
+        id: `${RWS}_unlinkedUser`,
+        workspaceId: RWS,
+        uid: "unlinkedUser",
+        roleId: `${RWS}_limited`,
+        status: "active",
+      });
+      await setDoc(doc(db, "contacts", "c-mine"), {
+        id: "c-mine", workspaceId: RWS, name: "Me", type: "person",
+      });
+      await setDoc(doc(db, "contacts", "c-other"), {
+        id: "c-other", workspaceId: RWS, name: "Other", type: "person",
+      });
+      await setDoc(doc(db, "transactions", "t-mine"), {
+        id: "t-mine", workspaceId: RWS, contactId: "c-mine", totalAmount: -100,
+        createdBy: { uid: "owner", name: "O" }, lines: [],
+      });
+      await setDoc(doc(db, "transactions", "t-other"), {
+        id: "t-other", workspaceId: RWS, contactId: "c-other", totalAmount: -50,
+        createdBy: { uid: "owner", name: "O" }, lines: [],
+      });
+      await setDoc(doc(db, "dues", "d-mine"), {
+        id: "d-mine", workspaceId: RWS, contactId: "c-mine", amount: 10, status: "open",
+      });
+      await setDoc(doc(db, "dues", "d-other"), {
+        id: "d-other", workspaceId: RWS, contactId: "c-other", amount: 20, status: "open",
+      });
+    });
+  });
+
+  it("restricted member reads their own transaction / due / contact", async () => {
+    const db = env.authenticatedContext("limitedUser").firestore();
+    await assertSucceeds(getDoc(doc(db, "transactions", "t-mine")));
+    await assertSucceeds(getDoc(doc(db, "dues", "d-mine")));
+    await assertSucceeds(getDoc(doc(db, "contacts", "c-mine")));
+  });
+
+  it("restricted member cannot read other people's records", async () => {
+    const db = env.authenticatedContext("limitedUser").firestore();
+    await assertFails(getDoc(doc(db, "transactions", "t-other")));
+    await assertFails(getDoc(doc(db, "dues", "d-other")));
+    await assertFails(getDoc(doc(db, "contacts", "c-other")));
+  });
+
+  it("restricted member with NO linked contact reads nothing", async () => {
+    const db = env.authenticatedContext("unlinkedUser").firestore();
+    await assertFails(getDoc(doc(db, "transactions", "t-mine")));
+    await assertFails(getDoc(doc(db, "dues", "d-mine")));
+  });
+
+  it("unrestricted roles (no scope.own key) read as before", async () => {
+    const db = env.authenticatedContext("owner").firestore();
+    await assertSucceeds(getDoc(doc(db, "transactions", "t-other")));
+    await assertSucceeds(getDoc(doc(db, "dues", "d-other")));
+    await assertSucceeds(getDoc(doc(db, "contacts", "c-other")));
+  });
+});

@@ -30,7 +30,12 @@ export const PERMISSIONS = [
 
 export type Permission = (typeof PERMISSIONS)[number];
 
-export type PermissionMap = Partial<Record<Permission, boolean>>;
+// "scope.own" is a record-level flag, deliberately OUTSIDE the module catalog
+// (so all-permission templates never grant it): roles carrying it limit reads
+// to the member's linked contact's records.
+export const SCOPE_OWN = "scope.own" as const;
+
+export type PermissionMap = Partial<Record<Permission | typeof SCOPE_OWN, boolean>>;
 
 // Permissions the UI must warn about before granting/using (§3).
 export const DANGEROUS_PERMISSIONS: Permission[] = [

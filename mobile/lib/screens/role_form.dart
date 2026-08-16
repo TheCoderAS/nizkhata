@@ -74,7 +74,13 @@ class _RoleFormState extends State<_RoleForm> {
     setState(() => _busy = true);
     final m = Mutations(Actor.fromUser(user));
     final name = _name.text.trim();
-    final perms = {for (final p in kPermissions) if (_perms[p] == true) p: true};
+    final perms = {
+      for (final p in kPermissions)
+        if (_perms[p] == true) p: true,
+      // Own-records scope is not part of the module catalog; carry it through
+      // explicitly so saving never drops it.
+      if (_perms['scope.own'] == true) 'scope.own': true,
+    };
     try {
       if (widget.existing == null) {
         await m.createRole(wsId, name, perms);
@@ -116,6 +122,21 @@ class _RoleFormState extends State<_RoleForm> {
                 validator: (v) => (v == null || v.trim().isEmpty) ? 'Name is required' : null,
               ),
               const SizedBox(height: 8),
+              // Record-level scope: with this on, the member only ever sees
+              // records belonging to their linked contact (Members screen).
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Restricted to own records'),
+                subtitle: const Text(
+                  'Members with this role only see transactions, dues and the '
+                  'contact linked to them — nothing belonging to others.',
+                  style: TextStyle(fontSize: 12),
+                ),
+                value: _perms['scope.own'] == true,
+                onChanged: widget.existing?.isSystem == true
+                    ? null
+                    : (v) => setState(() => _perms['scope.own'] = v),
+              ),
               Expanded(
                 child: ListView(
                   children: [
