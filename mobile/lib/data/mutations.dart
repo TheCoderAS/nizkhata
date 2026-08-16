@@ -337,6 +337,47 @@ class Mutations {
     await batch.commit();
   }
 
+  /// Cascade a due's descriptive fields onto the transactions settled from it
+  /// (dueId link). Mirrors category / note / contact, and — if the direction
+  /// changed — flips each settlement line's income/expense type and the txn
+  /// sign (magnitude preserved). Paid amount, account and date are untouched.
+  /// Uses batch.update so createdBy stays immutable (Security Rules).
+  Future<void> syncDueLinkedTxns(
+    String ws, {
+    required List<Txn> linked,
+    required String direction,
+    String? categoryId,
+    String? note,
+    String? contactId,
+  }) async {
+    if (linked.isEmpty) return;
+    final newType = direction == 'payable' ? 'expense' : 'income';
+    final batch = _db.batch();
+    for (final t in linked) {
+      final lines = t.lines.map((l) {
+        final m = l.toMap();
+        if (l.type == 'income' || l.type == 'expense') m['type'] = newType;
+        if (categoryId != null) {
+          m['categoryId'] = categoryId;
+        } else {
+          m.remove('categoryId');
+        }
+        return m;
+      }).toList();
+      final signed = (direction == 'payable' ? -1 : 1) * t.totalAmount.abs();
+      batch.update(_db.collection('transactions').doc(t.id), {
+        'lines': lines.map(_strip).toList(),
+        'totalAmount': signed,
+        'updatedBy': by.toMap(),
+        'updatedAt': FieldValue.serverTimestamp(),
+        'note': note ?? FieldValue.delete(),
+        'contactId': contactId ?? FieldValue.delete(),
+      });
+      _appendRevision(batch, workspaceId: ws, entityType: 'transactions', entityId: t.id, action: 'update');
+    }
+    await batch.commit();
+  }
+
   /// Create a debt and, when [openingAmount] > 0, a linked opening transaction.
   Future<String> createDebtWithOpening(
     String ws,

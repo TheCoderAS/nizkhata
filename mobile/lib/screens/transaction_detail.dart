@@ -102,24 +102,33 @@ class _TransactionDetail extends StatelessWidget {
             const SizedBox(height: 8),
             RevisionHistory(entityType: 'transactions', entityId: txn.id),
             const SizedBox(height: 16),
+            // A transaction created by settling a due is owned by that due — it
+            // can't be edited directly; the due is the source of truth.
+            if (canEdit && txn.dueId != null) ...[
+              _dueLinkedNote(context),
+              const SizedBox(height: 12),
+            ],
             Row(
               children: [
                 if (canEdit)
                   Expanded(
                     child: FilledButton.tonalIcon(
-                      onPressed: () {
-                        // Pop this sheet, then open the edit form on the still-
-                        // mounted navigator context (not this sheet's, which is
-                        // being disposed) so the form never opens off a dead context.
-                        final nav = Navigator.of(context);
-                        final rootContext = nav.context;
-                        nav.pop();
-                        if (txn.lines.length == 1) {
-                          showTransactionForm(rootContext, existing: txn);
-                        } else {
-                          showSplitTransactionForm(rootContext, existing: txn);
-                        }
-                      },
+                      // Disabled for due-linked transactions (see note above).
+                      onPressed: txn.dueId != null
+                          ? null
+                          : () {
+                              // Pop this sheet, then open the edit form on the still-
+                              // mounted navigator context (not this sheet's, which is
+                              // being disposed) so the form never opens off a dead context.
+                              final nav = Navigator.of(context);
+                              final rootContext = nav.context;
+                              nav.pop();
+                              if (txn.lines.length == 1) {
+                                showTransactionForm(rootContext, existing: txn);
+                              } else {
+                                showSplitTransactionForm(rootContext, existing: txn);
+                              }
+                            },
                       icon: const Icon(Icons.edit_outlined),
                       label: const Text('Edit'),
                     ),
@@ -138,6 +147,35 @@ class _TransactionDetail extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  /// Educational banner shown when the transaction was settled from a due — its
+  /// fields are owned by the due, so it can't be edited here.
+  Widget _dueLinkedNote(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: cs.primary.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: cs.primary.withValues(alpha: 0.25)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.info_outline, size: 18, color: cs.primary),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'This transaction was created by settling a due, so it can’t be '
+              'edited here. Open the linked due and edit it — your changes flow '
+              'back to this transaction.',
+              style: TextStyle(fontSize: 12.5, color: cs.onSurfaceVariant, height: 1.35),
+            ),
+          ),
+        ],
       ),
     );
   }

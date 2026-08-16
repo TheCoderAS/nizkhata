@@ -316,6 +316,11 @@ class Due {
   final double amount;
   final DateTime dueDate;
   final String status; // open | partial | settled | cancelled
+  // Transaction-shape fields so a due can be settled into a faithful
+  // transaction (category + note). Optional & additive — the web app, which
+  // doesn't read them, keeps working.
+  final String? categoryId;
+  final String? note;
   Due({
     required this.id,
     required this.workspaceId,
@@ -326,6 +331,8 @@ class Due {
     required this.status,
     this.contactId,
     this.accountId,
+    this.categoryId,
+    this.note,
   });
   factory Due.fromDoc(DocumentSnapshot d) {
     final m = d.data() as Map<String, dynamic>;
@@ -339,6 +346,8 @@ class Due {
       status: m['status'] ?? 'open',
       contactId: m['contactId'],
       accountId: m['accountId'],
+      categoryId: m['categoryId'],
+      note: m['note'],
     );
   }
 }
