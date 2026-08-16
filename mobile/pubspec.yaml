@@ -43,7 +43,7 @@ dependencies:
   # when the app is closed), home-screen widget data, and app shortcuts.
   flutter_local_notifications: ^18.0.1
   timezone: ^0.10.0
-  flutter_timezone: ^3.0.1
+  flutter_timezone: ^4.1.1
   quick_actions: ^1.1.0
   home_widget: ^0.7.0
 

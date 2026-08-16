@@ -142,6 +142,11 @@ jobs:
                   s += '\n\ndependencies {\n    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")\n}\n'
               open(p, 'w').write(s)
               print('desugaring enabled')
+          gp = 'android/gradle.properties'
+          props = open(gp).read()
+          if 'kotlin.jvm.target.validation.mode' not in props:
+              open(gp, 'a').write('\n# Plugin Kotlin/Java jvm-target mismatches (e.g. a plugin pinning 1.8)\n# should warn, not fail the whole build.\nkotlin.jvm.target.validation.mode=warning\n')
+              print('kotlin jvm-target validation relaxed')
           PY2
           # Inject the native home-screen widget sources (provider + layouts).
           mkdir -p android/app/src/main/kotlin
