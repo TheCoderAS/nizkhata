@@ -10,6 +10,8 @@ import '../state/auth_controller.dart';
 import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
 import '../widgets/revision_history.dart';
+import 'debt_detail.dart';
+import 'due_detail.dart';
 import 'split_transaction_form.dart';
 
 
@@ -176,8 +178,9 @@ class _TransactionDetail extends StatelessWidget {
     );
   }
 
-  /// "Linked to" chips: a linked due (→ /dues) and any debts referenced by the
-  /// lines (→ /debts). Mirrors the web detail's linked-entity navigation.
+  /// "Linked to" chips: a linked due and any debts referenced by the lines.
+  /// Tapping opens that entity's DETAIL sheet in place (no bounce to the list
+  /// screen); the list is only a fallback when the entity isn't loaded.
   Widget _linkedRow(BuildContext context, DataController data) {
     final cs = Theme.of(context).colorScheme;
     final chips = <Widget>[];
@@ -190,10 +193,11 @@ class _TransactionDetail extends StatelessWidget {
           break;
         }
       }
+      final d = due;
       chips.add(_linkChip(
         context,
-        'Due · ${due?.title ?? '—'}',
-        () => context.push('/dues'),
+        'Due · ${d?.title ?? '—'}',
+        (root) => d != null ? showDueDetail(root, d) : root.push('/dues'),
       ));
     }
     final debtIds = <String>{
@@ -203,7 +207,11 @@ class _TransactionDetail extends StatelessWidget {
     for (final id in debtIds) {
       final debt = data.debtsById[id];
       final label = debt?.label ?? (debt != null ? data.contactsById[debt.contactId]?.name : null) ?? '—';
-      chips.add(_linkChip(context, 'Debt · $label', () => context.push('/debts')));
+      chips.add(_linkChip(
+        context,
+        'Debt · $label',
+        (root) => debt != null ? showDebtDetail(root, debt) : root.push('/debts'),
+      ));
     }
 
     if (chips.isEmpty) return const SizedBox.shrink();
@@ -219,13 +227,17 @@ class _TransactionDetail extends StatelessWidget {
     );
   }
 
-  Widget _linkChip(BuildContext context, String label, VoidCallback onTap) {
+  Widget _linkChip(BuildContext context, String label, void Function(BuildContext root) onOpen) {
     final cs = Theme.of(context).colorScheme;
     return InkWell(
       borderRadius: BorderRadius.circular(8),
       onTap: () {
-        Navigator.of(context).pop(); // close the detail sheet before navigating
-        onTap();
+        // Close this sheet, then open the linked entity's detail on the still-
+        // mounted navigator context (this sheet's context is being disposed).
+        final nav = Navigator.of(context);
+        final root = nav.context;
+        nav.pop();
+        onOpen(root);
       },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
