@@ -1,5 +1,6 @@
 import 'dart:async';
 
+
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/date_symbol_data_local.dart';
@@ -9,6 +10,8 @@ import 'package:quick_actions/quick_actions.dart';
 
 import 'core/theme.dart';
 import 'firebase_options.dart';
+import 'data/models.dart';
+import 'data/mutations.dart';
 import 'router.dart';
 import 'services/due_reminders.dart';
 import 'services/widget_sync.dart';
@@ -90,9 +93,9 @@ class _RootState extends State<_Root> {
       }
     });
 
-    // Long-press app icon shortcuts.
-    const actions = QuickActions();
-    actions.initialize((type) {
+    // Long-press app icon shortcuts (the list itself is role-aware and built
+    // in _updateShortcuts once permissions are known).
+    _quickActions.initialize((type) {
       switch (type) {
         case 'new_transaction':
           router.push('/txns?add=1');
@@ -108,17 +111,74 @@ class _RootState extends State<_Root> {
           break;
       }
     });
-    actions.setShortcutItems(const [
-      ShortcutItem(type: 'new_transaction', localizedTitle: 'New transaction', icon: 'ic_shortcut_add'),
-      ShortcutItem(type: 'new_due', localizedTitle: 'New due', icon: 'ic_shortcut_due'),
-      ShortcutItem(type: 'dues_today', localizedTitle: 'Dues today', icon: 'ic_shortcut_today'),
-    ]);
 
-    // Keep reminder schedules + the home-screen widget in sync with the data.
+    // Keep reminder schedules, the home-screen widget, the role-aware
+    // shortcuts and the contact auto-link in sync with the data.
     _data = context.read<DataController>();
     _ws = context.read<WorkspaceController>();
     _data!.addListener(_scheduleSync);
+    _ws!.addListener(_scheduleSync);
     _scheduleSync();
+  }
+
+  static const _quickActions = QuickActions();
+  String _shortcutSignature = '';
+
+  /// Only offer shortcuts the user's role actually permits — a viewer should
+  /// never see "New transaction" on the long-press menu.
+  void _updateShortcuts() {
+    final ws = _ws;
+    if (ws == null || ws.activeWorkspaceId == null) return;
+    final items = <ShortcutItem>[
+      if (ws.can('transactions.create'))
+        const ShortcutItem(type: 'new_transaction', localizedTitle: 'New transaction', icon: 'ic_shortcut_add'),
+      if (ws.can('dues.manage'))
+        const ShortcutItem(type: 'new_due', localizedTitle: 'New due', icon: 'ic_shortcut_due'),
+      if (ws.can('dues.view'))
+        const ShortcutItem(type: 'dues_today', localizedTitle: 'Dues today', icon: 'ic_shortcut_today'),
+    ];
+    final sig = items.map((i) => i.type).join(',');
+    if (sig == _shortcutSignature) return;
+    _shortcutSignature = sig;
+    if (items.isEmpty) {
+      _quickActions.clearShortcutItems();
+    } else {
+      _quickActions.setShortcutItems(items);
+    }
+  }
+
+  /// Auto-link this member to the workspace contact with their sign-in email
+  /// (once, when no link exists). Admins can override on the Members screen.
+  Future<void> _attemptAutoLink() async {
+    final ws = _ws;
+    final data = _data;
+    final auth = context.read<AuthController>();
+    final user = auth.user;
+    if (ws == null || data == null || user == null) return;
+    final email = user.email?.toLowerCase().trim();
+    if (email == null || email.isEmpty) return;
+    Membership? mine;
+    for (final m in ws.workspaceMembers) {
+      if (m.uid == user.uid) {
+        mine = m;
+        break;
+      }
+    }
+    if (mine == null || mine.linkedContactId != null) return;
+    for (final c in data.contacts) {
+      final emails = [
+        for (final e in c.emails) e.value.toLowerCase().trim(),
+        if (c.email != null) c.email!.toLowerCase().trim(),
+      ];
+      if (emails.contains(email)) {
+        try {
+          await Mutations(Actor.fromUser(user)).setMembershipContactLink(mine.id, c.id);
+        } catch (e) {
+          debugPrint('auto-link failed: $e');
+        }
+        return;
+      }
+    }
   }
 
   void _scheduleSync() {
@@ -129,6 +189,8 @@ class _RootState extends State<_Root> {
       final currency = _ws?.activeWorkspace?.baseCurrency ?? 'INR';
       DueReminders.sync(data.dues, data.settledOf);
       WidgetSync.sync(data.dues, data.settledOf, currency);
+      _updateShortcuts();
+      _attemptAutoLink();
     });
   }
 
@@ -136,6 +198,7 @@ class _RootState extends State<_Root> {
   void dispose() {
     _syncDebounce?.cancel();
     _data?.removeListener(_scheduleSync);
+    _ws?.removeListener(_scheduleSync);
     super.dispose();
   }
 

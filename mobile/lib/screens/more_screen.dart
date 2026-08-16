@@ -64,15 +64,24 @@ class MoreScreen extends StatelessWidget {
         Card(
           child: Column(
             children: [
-              _navTile(context, Icons.contacts_outlined, 'Contacts', '/contacts'),
-              const Divider(height: 1),
-              _navTile(context, Icons.account_balance_wallet_outlined, 'Accounts', '/accounts'),
-              const Divider(height: 1),
-              _navTile(context, Icons.category_outlined, 'Categories', '/categories'),
-              const Divider(height: 1),
-              _navTile(context, Icons.savings_outlined, 'Budgets', '/budgets'),
-              const Divider(height: 1),
-              _navTile(context, Icons.bar_chart_outlined, 'Reports', '/reports'),
+              if (ws.can('contacts.view'))
+                _navTile(context, Icons.contacts_outlined, 'Contacts', '/contacts'),
+              if (ws.can('accounts.view')) ...[
+                const Divider(height: 1),
+                _navTile(context, Icons.account_balance_wallet_outlined, 'Accounts', '/accounts'),
+              ],
+              if (ws.can('categories.view')) ...[
+                const Divider(height: 1),
+                _navTile(context, Icons.category_outlined, 'Categories', '/categories'),
+              ],
+              if (ws.can('categories.view')) ...[
+                const Divider(height: 1),
+                _navTile(context, Icons.savings_outlined, 'Budgets', '/budgets'),
+              ],
+              if (ws.can('reports.view')) ...[
+                const Divider(height: 1),
+                _navTile(context, Icons.bar_chart_outlined, 'Reports', '/reports'),
+              ],
               const Divider(height: 1),
               _navTile(context, Icons.history, 'Activity', '/activity'),
               if (ws.can('shared.view')) ...[

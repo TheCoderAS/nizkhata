@@ -43,6 +43,9 @@ class Membership {
   final String roleId;
   final String? email;
   final String? displayName;
+  // Contact in this workspace that represents this member (auto-matched by
+  // email, admin-overridable). Basis for restricted "own records only" roles.
+  final String? linkedContactId;
   Membership({
     required this.id,
     required this.workspaceId,
@@ -50,6 +53,7 @@ class Membership {
     required this.roleId,
     this.email,
     this.displayName,
+    this.linkedContactId,
   });
   factory Membership.fromDoc(DocumentSnapshot d) {
     final m = d.data() as Map<String, dynamic>;
@@ -60,6 +64,7 @@ class Membership {
       roleId: m['roleId'] ?? '',
       email: m['email'],
       displayName: m['displayName'],
+      linkedContactId: m['linkedContactId'],
     );
   }
 }

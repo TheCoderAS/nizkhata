@@ -149,10 +149,18 @@ service cloud.firestore {
 
       // role changes: must keep workspace; cannot change the owner's membership;
       // cannot hand the Owner role to anyone but the owner.
-      allow update: if can(exWs(), 'members.invite')
-        && wsImmutable()
-        && resource.data.uid != workspaceDoc(exWs()).data.ownerId
-        && ownerRoleOnlyForOwner(exWs(), request.resource.data.uid, request.resource.data.roleId);
+      // Additionally, any member may set/clear ONLY the linkedContactId on
+      // their own membership (email auto-link to "their" contact).
+      allow update: if (
+          can(exWs(), 'members.invite')
+          && wsImmutable()
+          && resource.data.uid != workspaceDoc(exWs()).data.ownerId
+          && ownerRoleOnlyForOwner(exWs(), request.resource.data.uid, request.resource.data.roleId)
+        ) || (
+          isSignedIn()
+          && resource.data.uid == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['linkedContactId'])
+        );
 
       // A member can leave on their own; an admin can remove others. The owner
       // can neither be removed nor leave (ownership must transfer/delete first)

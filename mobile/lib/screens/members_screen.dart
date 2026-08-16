@@ -12,6 +12,7 @@ import '../core/theme.dart';
 import '../data/models.dart';
 import '../data/mutations.dart';
 import '../state/auth_controller.dart';
+import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
 import '../widgets/common.dart';
 
@@ -165,6 +166,11 @@ class _MemberTile extends StatelessWidget {
       );
     }
 
+    final data = context.watch<DataController>();
+    final linkedName = membership.linkedContactId != null
+        ? (data.contactsById[membership.linkedContactId]?.name ?? '—')
+        : null;
+
     return ListTile(
       leading: EntityAvatar(name: isSelf ? _memberLabel(membership) : label),
       title: Row(
@@ -176,7 +182,23 @@ class _MemberTile extends StatelessWidget {
           ],
         ],
       ),
-      subtitle: showEmail ? Text(membership.email!) : null,
+      subtitle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (showEmail) Text(membership.email!),
+          // Which contact this member "is" (basis for own-records-only roles).
+          InkWell(
+            onTap: (canInvite || isSelf) ? () => _editContactLink(context, data) : null,
+            child: Text(
+              linkedName != null ? 'Linked contact: $linkedName' : 'No linked contact',
+              style: TextStyle(
+                fontSize: 12,
+                color: (canInvite || isSelf) ? cs.primary : cs.onSurfaceVariant,
+              ),
+            ),
+          ),
+        ],
+      ),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -188,6 +210,57 @@ class _MemberTile extends StatelessWidget {
               onPressed: () => _confirmRemove(context),
             ),
         ],
+      ),
+    );
+  }
+
+  /// Pick (or clear) the contact this member is linked to. Available to
+  /// admins (members.invite) for anyone, and to each member for themselves.
+  void _editContactLink(BuildContext context, DataController data) {
+    final user = context.read<AuthController>().user;
+    final contacts = data.contacts.where((c) => c.connectionUid == null).toList()
+      ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+              child: Text('Linked contact', style: Theme.of(ctx).textTheme.titleMedium),
+            ),
+            Flexible(
+              child: ListView(
+                shrinkWrap: true,
+                children: [
+                  ListTile(
+                    leading: const Icon(Icons.link_off),
+                    title: const Text('No linked contact'),
+                    trailing: membership.linkedContactId == null ? const Icon(Icons.check) : null,
+                    onTap: () async {
+                      Navigator.pop(ctx);
+                      await Mutations(Actor.fromUser(user)).setMembershipContactLink(membership.id, null);
+                    },
+                  ),
+                  for (final c in contacts)
+                    ListTile(
+                      leading: EntityAvatar(name: c.name, size: 32),
+                      title: Text(c.name),
+                      trailing: membership.linkedContactId == c.id ? const Icon(Icons.check) : null,
+                      onTap: () async {
+                        Navigator.pop(ctx);
+                        await Mutations(Actor.fromUser(user)).setMembershipContactLink(membership.id, c.id);
+                      },
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
       ),
     );
   }
