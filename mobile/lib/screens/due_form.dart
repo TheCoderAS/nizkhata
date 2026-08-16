@@ -106,6 +106,10 @@ class _DueFormState extends State<_DueForm> {
 
     final signedTotal = computeTotal(_txnLines(), dataC.debtsById);
     if (signedTotal.abs() <= 0.005) return;
+    // Direction is DERIVED from the lines' computed total, so the stored value
+    // can never contradict what settling will actually post. The toggle is just
+    // an authoring preset for line types.
+    final direction = signedTotal < 0 ? 'payable' : 'receivable';
 
     setState(() => _busy = true);
     final m = Mutations(Actor.fromUser(user));
@@ -121,7 +125,7 @@ class _DueFormState extends State<_DueForm> {
       }
     }
     final data = <String, dynamic>{
-      'direction': _direction,
+      'direction': direction,
       'title': _title.text.trim(),
       'amount': roundMoney(signedTotal.abs()),
       'dueDate': Timestamp.fromDate(_dueDate),
@@ -143,7 +147,7 @@ class _DueFormState extends State<_DueForm> {
         await m.syncDueLinkedTxns(
           ws,
           linked: linked,
-          direction: _direction,
+          direction: direction,
           note: note ?? (title.isEmpty ? null : title),
           contactId: _contactId,
           dueLines: lineMaps,
@@ -255,9 +259,16 @@ class _DueFormState extends State<_DueForm> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     const Text('Due amount', style: TextStyle(fontWeight: FontWeight.w600)),
+                    // Amount + the direction DERIVED from the lines (what will
+                    // actually be stored/settled) — so the form can't mislead.
                     Text(
-                      formatMoney(signedTotal.abs(), currency),
-                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+                      '${formatMoney(signedTotal.abs(), currency)}'
+                      '${signedTotal.abs() > 0.005 ? (signedTotal < 0 ? '  ·  you\'ll pay' : '  ·  you\'ll receive') : ''}',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 15,
+                        color: signedTotal < 0 ? AppColors.danger : AppColors.accent2,
+                      ),
                     ),
                   ],
                 ),
