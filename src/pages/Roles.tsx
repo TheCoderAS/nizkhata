@@ -216,6 +216,24 @@ function RoleEditor({
           <Input id="role-name" value={name} onChange={(e) => setName(e.target.value)} />
         </div>
 
+        {/* Record-level scope: members with this role only see records of the
+            contact linked to them (Members screen sets the link). */}
+        <label className="flex items-start gap-2 rounded border px-3 py-2 text-sm hover:bg-muted">
+          <input
+            type="checkbox"
+            className="mt-0.5"
+            checked={perms["scope.own"] === true}
+            onChange={(e) => setPerms((prev) => ({ ...prev, "scope.own": e.target.checked }))}
+          />
+          <span>
+            <span className="font-medium">Restricted to own records</span>
+            <span className="block text-xs text-muted-foreground">
+              Members with this role only see transactions, dues and the contact linked to
+              them — nothing belonging to others.
+            </span>
+          </span>
+        </label>
+
         <div className="grid gap-4 sm:grid-cols-2">
           {PERMISSION_GROUPS.map((group) => (
             <div key={group.prefix}>

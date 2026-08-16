@@ -10,10 +10,25 @@ import 'package:flutter/foundation.dart';
 import '../data/derive.dart';
 import '../data/models.dart';
 
+/// What the signed-in member may load: which modules their role can view, and
+/// — for "own records only" roles — the contact their reads are limited to.
+class DataScope {
+  final bool restricted;
+  final String? contactId;
+  final Set<String> views;
+  const DataScope({required this.restricted, this.contactId, required this.views});
+  static const full = DataScope(restricted: false, views: {
+    'transactions.view', 'dues.view', 'debts.view',
+    'contacts.view', 'accounts.view', 'categories.view',
+  });
+  String get key => '$restricted|$contactId|${(views.toList()..sort()).join(',')}';
+}
+
 class DataController extends ChangeNotifier {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
   String? _workspaceId;
+  String? _scopeKey;
   bool loading = true;
   String? error;
 
@@ -56,9 +71,10 @@ class DataController extends ChangeNotifier {
 
   ContactPosition positionOf(String contactId) => contactPosition(contactId, debts, transactions);
 
-  void setWorkspace(String? workspaceId) {
-    if (workspaceId == _workspaceId) return;
+  void setWorkspace(String? workspaceId, {DataScope scope = DataScope.full}) {
+    if (workspaceId == _workspaceId && scope.key == _scopeKey) return;
     _workspaceId = workspaceId;
+    _scopeKey = scope.key;
     for (final s in _subs) {
       s.cancel();
     }
@@ -76,40 +92,77 @@ class DataController extends ChangeNotifier {
       return;
     }
     loading = true;
+    // Reset so a role/scope change never leaves stale data from a wider scope.
+    accounts = [];
+    categories = [];
+    contacts = [];
+    debts = [];
+    dues = [];
+    budgets = [];
+    transactions = [];
     notifyListeners();
 
     Query q(String col) => _db.collection(col).where('workspaceId', isEqualTo: workspaceId);
 
-    _subs.add(q('accounts').snapshots().listen((s) {
-      accounts = s.docs.map(Account.fromDoc).toList();
-      notifyListeners();
-    }, onError: _onErr));
-    _subs.add(q('categories').snapshots().listen((s) {
-      categories = s.docs.map(AppCategory.fromDoc).toList();
-      notifyListeners();
-    }, onError: _onErr));
-    _subs.add(q('contacts').snapshots().listen((s) {
-      contacts = s.docs.map(Contact.fromDoc).toList();
-      notifyListeners();
-    }, onError: _onErr));
-    _subs.add(q('debts').snapshots().listen((s) {
-      debts = s.docs.map(Debt.fromDoc).toList();
-      notifyListeners();
-    }, onError: _onErr));
-    _subs.add(q('dues').snapshots().listen((s) {
-      dues = s.docs.map(Due.fromDoc).toList();
-      notifyListeners();
-    }, onError: _onErr));
-    _subs.add(q('budgets').snapshots().listen((s) {
-      budgets = s.docs.map(Budget.fromDoc).toList();
-      notifyListeners();
-    }, onError: _onErr));
-    // Transactions drive the loading flag (largest / most important stream).
-    _subs.add(q('transactions').snapshots().listen((s) {
-      transactions = s.docs.map(Txn.fromDoc).toList();
+    // Restricted scope with no linked contact = nothing to show (and the
+    // security rules deny broader reads anyway).
+    final blockedRestricted = scope.restricted && scope.contactId == null;
+
+    // Records tied to a contact get the own-contact filter when restricted —
+    // this is what makes the query pass the record-level security rules.
+    Query scoped(String col) {
+      final base = q(col);
+      return scope.restricted ? base.where('contactId', isEqualTo: scope.contactId) : base;
+    }
+
+    if (scope.views.contains('accounts.view') && !scope.restricted) {
+      _subs.add(q('accounts').snapshots().listen((s) {
+        accounts = s.docs.map(Account.fromDoc).toList();
+        notifyListeners();
+      }, onError: _onErr));
+    }
+    if (scope.views.contains('categories.view')) {
+      _subs.add(q('categories').snapshots().listen((s) {
+        categories = s.docs.map(AppCategory.fromDoc).toList();
+        notifyListeners();
+      }, onError: _onErr));
+      if (!scope.restricted) {
+        _subs.add(q('budgets').snapshots().listen((s) {
+          budgets = s.docs.map(Budget.fromDoc).toList();
+          notifyListeners();
+        }, onError: _onErr));
+      }
+    }
+    if (scope.views.contains('contacts.view') && !blockedRestricted) {
+      final cq = scope.restricted ? q('contacts').where('id', isEqualTo: scope.contactId) : q('contacts');
+      _subs.add(cq.snapshots().listen((s) {
+        contacts = s.docs.map(Contact.fromDoc).toList();
+        notifyListeners();
+      }, onError: _onErr));
+    }
+    if (scope.views.contains('debts.view') && !blockedRestricted) {
+      _subs.add(scoped('debts').snapshots().listen((s) {
+        debts = s.docs.map(Debt.fromDoc).toList();
+        notifyListeners();
+      }, onError: _onErr));
+    }
+    if (scope.views.contains('dues.view') && !blockedRestricted) {
+      _subs.add(scoped('dues').snapshots().listen((s) {
+        dues = s.docs.map(Due.fromDoc).toList();
+        notifyListeners();
+      }, onError: _onErr));
+    }
+    if (scope.views.contains('transactions.view') && !blockedRestricted) {
+      // Transactions drive the loading flag (largest / most important stream).
+      _subs.add(scoped('transactions').snapshots().listen((s) {
+        transactions = s.docs.map(Txn.fromDoc).toList();
+        loading = false;
+        notifyListeners();
+      }, onError: _onErr));
+    } else {
       loading = false;
       notifyListeners();
-    }, onError: _onErr));
+    }
   }
 
   void _onErr(Object e) {

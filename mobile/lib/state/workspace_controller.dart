@@ -9,6 +9,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../data/models.dart';
+import 'data_controller.dart';
 
 class WorkspaceController extends ChangeNotifier {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -50,6 +51,25 @@ class WorkspaceController extends ChangeNotifier {
     final role = rolesById[m.roleId];
     return role?.permissions[permission] == true;
   }
+
+  /// The active role limits reads to the member's own linked contact.
+  bool get isRestrictedScope => can('scope.own');
+
+  /// Contact representing the current member in the active workspace.
+  String? get myLinkedContactId => _activeMembership?.linkedContactId;
+
+  /// What the data layer may load for this member (drives DataController).
+  DataScope get dataScope => DataScope(
+        restricted: isRestrictedScope,
+        contactId: myLinkedContactId,
+        views: {
+          for (final p in const [
+            'transactions.view', 'dues.view', 'debts.view',
+            'contacts.view', 'accounts.view', 'categories.view',
+          ])
+            if (can(p)) p,
+        },
+      );
 
   Future<void> setUid(String? uid) async {
     if (uid == _uid) return;

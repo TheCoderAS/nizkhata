@@ -61,20 +61,32 @@ const DataContext = createContext<WorkspaceData | undefined>(undefined);
 function useLiveCollection<T>(
   name: string,
   workspaceId: string | null,
-  opts: { orderByField?: string; desc?: boolean } = {},
+  opts: {
+    orderByField?: string;
+    desc?: boolean;
+    // Own-records scope: filter this collection to one contact (field, value),
+    // and `enabled: false` skips the subscription entirely (empty result).
+    scopeField?: string;
+    scopeValue?: string | null;
+    enabled?: boolean;
+  } = {},
 ): { data: T[]; loading: boolean; error: string | null } {
   const [data, setData] = useState<T[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const enabled = opts.enabled !== false;
 
   useEffect(() => {
-    if (!workspaceId) {
+    if (!workspaceId || !enabled) {
       setData([]);
       setLoading(false);
       return;
     }
     setLoading(true);
     const constraints = [where("workspaceId", "==", workspaceId)];
+    if (opts.scopeField && opts.scopeValue) {
+      constraints.push(where(opts.scopeField, "==", opts.scopeValue) as never);
+    }
     if (opts.orderByField) {
       constraints.push(orderBy(opts.orderByField, opts.desc ? "desc" : "asc") as never);
     }
@@ -93,25 +105,55 @@ function useLiveCollection<T>(
     );
     return unsub;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [name, workspaceId, opts.orderByField, opts.desc]);
+  }, [name, workspaceId, opts.orderByField, opts.desc, opts.scopeField, opts.scopeValue, enabled]);
 
   return { data, loading, error };
 }
 
 export function WorkspaceDataProvider({ children }: { children: ReactNode }) {
-  const { activeWorkspaceId } = useWorkspace();
+  const { activeWorkspaceId, role, memberships } = useWorkspace();
   const ws = activeWorkspaceId;
 
-  const accounts = useLiveCollection<Account>("accounts", ws);
-  const categories = useLiveCollection<Category>("categories", ws);
-  const contacts = useLiveCollection<Contact>("contacts", ws);
-  const debts = useLiveCollection<Debt>("debts", ws);
-  const budgets = useLiveCollection<Budget>("budgets", ws);
+  // Own-records scope: a role flagged scope.own may only read records of the
+  // member's linked contact — mirror the mobile app and the security rules.
+  const myMembership = memberships.find((m) => m.workspaceId === ws) ?? null;
+  const restricted = role?.permissions?.["scope.own"] === true;
+  const ownContactId = myMembership?.linkedContactId ?? null;
+  // Until the role is known, hold off subscribing (prevents a denied
+  // unfiltered query flashing an error for restricted members).
+  const scopeReady = role != null;
+  const restrictedBlocked = restricted && !ownContactId;
+
+  const accounts = useLiveCollection<Account>("accounts", ws, {
+    enabled: scopeReady && !restricted,
+  });
+  const categories = useLiveCollection<Category>("categories", ws, { enabled: scopeReady });
+  const contacts = useLiveCollection<Contact>("contacts", ws, {
+    enabled: scopeReady && !restrictedBlocked,
+    scopeField: restricted ? "id" : undefined,
+    scopeValue: restricted ? ownContactId : undefined,
+  });
+  const debts = useLiveCollection<Debt>("debts", ws, {
+    enabled: scopeReady && !restrictedBlocked,
+    scopeField: restricted ? "contactId" : undefined,
+    scopeValue: restricted ? ownContactId : undefined,
+  });
+  const budgets = useLiveCollection<Budget>("budgets", ws, {
+    enabled: scopeReady && !restricted,
+  });
   const members = useLiveCollection<Membership>("memberships", ws);
-  const dues = useLiveCollection<Due>("dues", ws, { orderByField: "dueDate" });
+  const dues = useLiveCollection<Due>("dues", ws, {
+    orderByField: "dueDate",
+    enabled: scopeReady && !restrictedBlocked,
+    scopeField: restricted ? "contactId" : undefined,
+    scopeValue: restricted ? ownContactId : undefined,
+  });
   const transactions = useLiveCollection<Transaction>("transactions", ws, {
     orderByField: "date",
     desc: true,
+    enabled: scopeReady && !restrictedBlocked,
+    scopeField: restricted ? "contactId" : undefined,
+    scopeValue: restricted ? ownContactId : undefined,
   });
 
   const value = useMemo<WorkspaceData>(() => {
