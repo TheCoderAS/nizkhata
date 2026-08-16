@@ -109,9 +109,9 @@ class _RootState extends State<_Root> {
       }
     });
     actions.setShortcutItems(const [
-      ShortcutItem(type: 'new_transaction', localizedTitle: 'New transaction'),
-      ShortcutItem(type: 'new_due', localizedTitle: 'New due'),
-      ShortcutItem(type: 'dues_today', localizedTitle: 'Dues today'),
+      ShortcutItem(type: 'new_transaction', localizedTitle: 'New transaction', icon: 'ic_shortcut_add'),
+      ShortcutItem(type: 'new_due', localizedTitle: 'New due', icon: 'ic_shortcut_due'),
+      ShortcutItem(type: 'dues_today', localizedTitle: 'Dues today', icon: 'ic_shortcut_today'),
     ]);
 
     // Keep reminder schedules + the home-screen widget in sync with the data.

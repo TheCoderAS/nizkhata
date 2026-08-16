@@ -123,6 +123,7 @@ jobs:
                   '            </intent-filter>\n'
                   '            <meta-data android:name="android.appwidget.provider" android:resource="@xml/dues_widget_info"/>\n'
                   '        </receiver>\n'
+                  '        <service android:name=".DuesWidgetService" android:permission="android.permission.BIND_REMOTEVIEWS" android:exported="false"/>\n'
                   '    '
               )
               s = s.replace('</application>', receivers + '</application>', 1)
