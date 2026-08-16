@@ -1,12 +1,17 @@
+import 'dart:async';
+
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:quick_actions/quick_actions.dart';
 
 import 'core/theme.dart';
 import 'firebase_options.dart';
 import 'router.dart';
+import 'services/due_reminders.dart';
+import 'services/widget_sync.dart';
 import 'state/auth_controller.dart';
 import 'state/data_controller.dart';
 import 'state/shared_controller.dart';
@@ -68,6 +73,71 @@ class _Root extends StatefulWidget {
 
 class _RootState extends State<_Root> {
   late final router = buildRouter(context.read<AuthController>());
+  Timer? _syncDebounce;
+  DataController? _data;
+  WorkspaceController? _ws;
+
+  @override
+  void initState() {
+    super.initState();
+    // Notification taps route into the app (works warm and, via the pending
+    // route, cold-started from a tap).
+    DueReminders.onOpenRoute = (route) => router.push(route);
+    DueReminders.init().then((_) {
+      final pending = DueReminders.takePendingRoute();
+      if (pending != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) => router.push(pending));
+      }
+    });
+
+    // Long-press app icon shortcuts.
+    const actions = QuickActions();
+    actions.initialize((type) {
+      switch (type) {
+        case 'new_transaction':
+          router.push('/txns?add=1');
+          break;
+        case 'new_due':
+          router.push('/dues-day?add=1');
+          break;
+        case 'dues_today':
+          final now = DateTime.now();
+          final d =
+              '${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+          router.push('/dues-day?date=$d');
+          break;
+      }
+    });
+    actions.setShortcutItems(const [
+      ShortcutItem(type: 'new_transaction', localizedTitle: 'New transaction'),
+      ShortcutItem(type: 'new_due', localizedTitle: 'New due'),
+      ShortcutItem(type: 'dues_today', localizedTitle: 'Dues today'),
+    ]);
+
+    // Keep reminder schedules + the home-screen widget in sync with the data.
+    _data = context.read<DataController>();
+    _ws = context.read<WorkspaceController>();
+    _data!.addListener(_scheduleSync);
+    _scheduleSync();
+  }
+
+  void _scheduleSync() {
+    _syncDebounce?.cancel();
+    _syncDebounce = Timer(const Duration(seconds: 2), () {
+      final data = _data;
+      if (data == null) return;
+      final currency = _ws?.activeWorkspace?.baseCurrency ?? 'INR';
+      DueReminders.sync(data.dues, data.settledOf);
+      WidgetSync.sync(data.dues, data.settledOf, currency);
+    });
+  }
+
+  @override
+  void dispose() {
+    _syncDebounce?.cancel();
+    _data?.removeListener(_scheduleSync);
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {

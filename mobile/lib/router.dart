@@ -92,7 +92,20 @@ GoRouter buildRouter(AuthController auth) {
             initialType: q['type'],
             initialTaxHead: q['taxhead'],
             initialFy: q['fy'],
+            autoAdd: q['add'] == '1',
           );
+        },
+      ),
+      // Standalone dues view for notification taps ("dues to clear today") and
+      // quick actions — own AppBar, optional date filter, optional auto-add.
+      GoRoute(
+        path: '/dues-day',
+        builder: (_, state) {
+          final q = state.uri.queryParameters;
+          DateTime? date;
+          final raw = q['date'];
+          if (raw != null) date = DateTime.tryParse(raw);
+          return DuesScreen(standalone: true, initialDate: date, autoAdd: q['add'] == '1');
         },
       ),
       GoRoute(path: '/contacts', builder: (_, __) => const ContactsScreen()),
