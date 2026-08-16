@@ -147,6 +147,30 @@ jobs:
           if 'kotlin.jvm.target.validation.mode' not in props:
               open(gp, 'a').write('\n# Plugin Kotlin/Java jvm-target mismatches (e.g. a plugin pinning 1.8)\n# should warn, not fail the whole build.\nkotlin.jvm.target.validation.mode=warning\n')
               print('kotlin jvm-target validation relaxed')
+          if 'android.enableR8.fullMode' not in props:
+              open(gp, 'a').write('# R8 full mode strips GSON generic signatures, crash-looping\n# flutter_local_notifications at startup in release builds.\nandroid.enableR8.fullMode=false\n')
+              print('R8 full mode disabled')
+          # Keep rules so R8 never strips GSON/plugin reflection used by
+          # flutter_local_notifications' scheduled-notification storage.
+          open('android/app/proguard-rules.pro', 'w').write('''# flutter_local_notifications + GSON (reflection-based serialization)
+          -keep class com.dexterous.** { *; }
+          -keep class com.google.gson.** { *; }
+          -keepattributes Signature
+          -keepattributes *Annotation*
+          -keep class * implements com.google.gson.TypeAdapterFactory
+          -keep class * implements com.google.gson.JsonSerializer
+          -keep class * implements com.google.gson.JsonDeserializer
+          -keepclassmembers,allowobfuscation class * { @com.google.gson.annotations.SerializedName <fields>; }
+          -keep,allowobfuscation,allowshrinking class com.google.gson.reflect.TypeToken
+          -keep,allowobfuscation,allowshrinking class * extends com.google.gson.reflect.TypeToken
+          '''.replace('\n          ', '\n'))
+          print('proguard rules written')
+          s2 = open('android/app/build.gradle.kts').read()
+          if 'proguard-rules.pro' not in s2:
+              import re as re2
+              s2 = re2.sub(r'(release\s*\{)', r'\1\n            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")', s2, count=1)
+              open('android/app/build.gradle.kts', 'w').write(s2)
+              print('proguardFiles wired into release build type')
           PY2
           # Inject the native home-screen widget sources (provider + layouts).
           mkdir -p android/app/src/main/kotlin
