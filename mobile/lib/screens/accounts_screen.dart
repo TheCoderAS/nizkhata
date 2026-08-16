@@ -29,10 +29,10 @@ class AccountsScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('Accounts')),
       floatingActionButton: canManage
-          ? FloatingActionButton.extended(
+          ? FloatingActionButton(
               onPressed: () => showAccountForm(context),
-              icon: const Icon(Icons.add),
-              label: const Text('Account'),
+              tooltip: 'Add account',
+              child: const Icon(Icons.add),
             )
           : null,
       body: accounts.isEmpty

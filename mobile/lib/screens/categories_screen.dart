@@ -125,11 +125,11 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
           ),
         ),
         floatingActionButton: canManage
-            ? FloatingActionButton.extended(
-                onPressed: () => showCategoryForm(context),
-                icon: const Icon(Icons.add),
-                label: const Text('Category'),
-              )
+            ? FloatingActionButton(
+              onPressed: () => showCategoryForm(context),
+              tooltip: 'Add category',
+              child: const Icon(Icons.add),
+            )
             : null,
         body: Column(
           children: [
