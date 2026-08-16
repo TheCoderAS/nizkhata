@@ -159,10 +159,10 @@ class _DebtsScreenState extends State<DebtsScreen> {
     }
     return Scaffold(
       floatingActionButton: canManage
-          ? FloatingActionButton.extended(
+          ? FloatingActionButton(
               onPressed: () => showDebtForm(context),
-              icon: const Icon(Icons.add),
-              label: const Text('Debt'),
+              tooltip: 'Add debt',
+              child: const Icon(Icons.add),
             )
           : null,
       body: Column(

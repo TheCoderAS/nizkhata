@@ -172,10 +172,10 @@ class _DuesScreenState extends State<DuesScreen> {
 
     return Scaffold(
       floatingActionButton: canManage
-          ? FloatingActionButton.extended(
+          ? FloatingActionButton(
               onPressed: () => showDueForm(context),
-              icon: const Icon(Icons.add),
-              label: const Text('Due'),
+              tooltip: 'Add due',
+              child: const Icon(Icons.add),
             )
           : null,
       body: Column(

@@ -46,10 +46,10 @@ class _ContactsScreenState extends State<ContactsScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Contacts')),
       floatingActionButton: canManage
-          ? FloatingActionButton.extended(
+          ? FloatingActionButton(
               onPressed: () => showContactForm(context),
-              icon: const Icon(Icons.add),
-              label: const Text('Contact'),
+              tooltip: 'Add contact',
+              child: const Icon(Icons.add),
             )
           : null,
       body: Column(

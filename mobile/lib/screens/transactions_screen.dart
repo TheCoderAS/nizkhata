@@ -236,10 +236,10 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     return Scaffold(
       appBar: widget.standalone ? AppBar(title: const Text('Transactions')) : null,
       floatingActionButton: canCreate
-          ? FloatingActionButton.extended(
+          ? FloatingActionButton(
               onPressed: () => showSplitTransactionForm(context),
-              icon: const Icon(Icons.add),
-              label: const Text('Transaction'),
+              tooltip: 'Add transaction',
+              child: const Icon(Icons.add),
             )
           : null,
       body: Column(
