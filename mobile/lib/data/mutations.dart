@@ -142,6 +142,15 @@ class Mutations {
     await batch.commit();
   }
 
+  /// Link (or clear) the contact that represents a member. Deliberately a raw
+  /// single-field update: the self-service security rule only allows the
+  /// `linkedContactId` key to change on one's own membership.
+  Future<void> setMembershipContactLink(String membershipId, String? contactId) {
+    return _db.collection('memberships').doc(membershipId).update({
+      'linkedContactId': contactId ?? FieldValue.delete(),
+    });
+  }
+
   // ---- contacts ----
   Future<String> createContact(String ws, Map<String, dynamic> data) =>
       _auditedCreate('contacts', ws, _normalizeContactEmails(data));
