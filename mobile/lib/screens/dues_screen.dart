@@ -516,7 +516,7 @@ class _DuePaymentSheetState extends State<_DuePaymentSheet> {
         ws,
         due.id,
         date: now,
-        note: due.title,
+        note: (due.note?.isNotEmpty ?? false) ? due.note : due.title,
         accountId: _accountId!,
         contactId: due.contactId,
         totalAmount: roundMoney(due.direction == 'payable' ? -amount : amount),
@@ -526,6 +526,9 @@ class _DuePaymentSheetState extends State<_DuePaymentSheet> {
             'lineId': 'due_$lid',
             'type': due.direction == 'payable' ? 'expense' : 'income',
             'amount': amount,
+            // Carry the due's category so the settled transaction lands in the
+            // right bucket in reports/categories (the due is a transaction).
+            'categoryId': due.categoryId,
           },
         ],
         newStatus: dueStatusFromSettled(due, newSettled),

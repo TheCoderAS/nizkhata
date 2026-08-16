@@ -38,12 +38,15 @@ class _DueFormState extends State<_DueForm> {
   late DateTime _dueDate = widget.existing?.dueDate ?? DateTime.now();
   late String? _contactId = widget.existing?.contactId;
   late String? _accountId = widget.existing?.accountId;
+  late String? _categoryId = widget.existing?.categoryId;
+  late final _note = TextEditingController(text: widget.existing?.note ?? '');
   bool _busy = false;
 
   @override
   void dispose() {
     _title.dispose();
     _amount.dispose();
+    _note.dispose();
     super.dispose();
   }
 
@@ -51,9 +54,11 @@ class _DueFormState extends State<_DueForm> {
     if (!_formKey.currentState!.validate()) return;
     final ws = context.read<WorkspaceController>().activeWorkspaceId;
     final user = context.read<AuthController>().user;
+    final dataC = context.read<DataController>();
     if (ws == null || user == null) return;
     setState(() => _busy = true);
     final m = Mutations(Actor.fromUser(user));
+    final note = _note.text.trim().isEmpty ? null : _note.text.trim();
     final data = <String, dynamic>{
       'direction': _direction,
       'title': _title.text.trim(),
@@ -61,12 +66,27 @@ class _DueFormState extends State<_DueForm> {
       'dueDate': Timestamp.fromDate(_dueDate),
       'contactId': _contactId,
       'accountId': _accountId,
+      'categoryId': _categoryId,
+      'note': note,
     };
     try {
       if (widget.existing == null) {
         await m.createDue(ws, data);
       } else {
         await m.updateDue(ws, widget.existing!.id, data);
+        // Cascade the descriptive fields to any transactions already settled
+        // from this due, so the due stays the source of truth.
+        final linked = dataC.transactions.where((t) => t.dueId == widget.existing!.id).toList();
+        final title = _title.text.trim();
+        await m.syncDueLinkedTxns(
+          ws,
+          linked: linked,
+          direction: _direction,
+          categoryId: _categoryId,
+          // Mirror the settle flow's note (note, falling back to the title).
+          note: note ?? (title.isEmpty ? null : title),
+          contactId: _contactId,
+        );
       }
       if (mounted) {
         Navigator.of(context).pop();
@@ -98,6 +118,11 @@ class _DueFormState extends State<_DueForm> {
     final data = context.watch<DataController>();
     final contacts = data.contacts.where((c) => c.connectionUid == null).toList();
     final accounts = data.accounts;
+    // Category list follows the direction: payable settles as an expense,
+    // receivable as income — same split the transaction form uses.
+    final cats = data.categories
+        .where((c) => c.kind == (_direction == 'payable' ? 'expense' : 'income'))
+        .toList();
 
     return Padding(
       padding: EdgeInsets.fromLTRB(
@@ -150,6 +175,24 @@ class _DueFormState extends State<_DueForm> {
                   decoration: const InputDecoration(labelText: 'Due date'),
                   child: Text(formatDate(_dueDate)),
                 ),
+              ),
+              const SizedBox(height: 14),
+              DropdownButtonFormField<String>(
+                // Guard a stale/mismatched category (e.g. after switching
+                // direction) so the field never trips the dropdown assertion.
+                value: cats.any((c) => c.id == _categoryId) ? _categoryId : null,
+                decoration: const InputDecoration(labelText: 'Category (optional)'),
+                items: [
+                  const DropdownMenuItem(value: null, child: Text('—')),
+                  for (final c in cats) DropdownMenuItem(value: c.id, child: Text(c.name)),
+                ],
+                onChanged: (v) => setState(() => _categoryId = v),
+              ),
+              const SizedBox(height: 14),
+              TextFormField(
+                controller: _note,
+                decoration: const InputDecoration(labelText: 'Note (optional)'),
+                textCapitalization: TextCapitalization.sentences,
               ),
               const SizedBox(height: 22),
               _sectionLabel('Linked to (optional)'),
