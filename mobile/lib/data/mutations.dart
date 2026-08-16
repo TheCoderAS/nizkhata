@@ -337,11 +337,17 @@ class Mutations {
     await batch.commit();
   }
 
+  double _round2(double v) => (v * 100).roundToDouble() / 100;
+
   /// Cascade a due's descriptive fields onto the transactions settled from it
-  /// (dueId link). Mirrors category / note / contact, and — if the direction
-  /// changed — flips each settlement line's income/expense type and the txn
-  /// sign (magnitude preserved). Paid amount, account and date are untouched.
-  /// Uses batch.update so createdBy stays immutable (Security Rules).
+  /// (dueId link). Paid magnitude, account and date are untouched. Uses
+  /// batch.update so createdBy stays immutable (Security Rules).
+  ///
+  /// When the due carries full [dueLines] (multi-line dues), each settlement
+  /// transaction's lines are REPLACED by the due's lines scaled to that
+  /// transaction's paid magnitude (so partial payments keep their proportions),
+  /// and the total sign follows [dueSignedTotal]. Without lines, falls back to
+  /// mirroring category / note / contact and flipping type/sign by [direction].
   Future<void> syncDueLinkedTxns(
     String ws, {
     required List<Txn> linked,
@@ -349,22 +355,45 @@ class Mutations {
     String? categoryId,
     String? note,
     String? contactId,
+    List<Map<String, dynamic>>? dueLines,
+    double? dueSignedTotal,
   }) async {
     if (linked.isEmpty) return;
+    final hasLines = dueLines != null && dueLines.isNotEmpty && (dueSignedTotal ?? 0).abs() > 0.005;
     final newType = direction == 'payable' ? 'expense' : 'income';
     final batch = _db.batch();
     for (final t in linked) {
-      final lines = t.lines.map((l) {
-        final m = l.toMap();
-        if (l.type == 'income' || l.type == 'expense') m['type'] = newType;
-        if (categoryId != null) {
-          m['categoryId'] = categoryId;
-        } else {
-          m.remove('categoryId');
-        }
-        return m;
-      }).toList();
-      final signed = (direction == 'payable' ? -1 : 1) * t.totalAmount.abs();
+      List<Map<String, dynamic>> lines;
+      double signed;
+      if (hasLines) {
+        final f = t.totalAmount.abs() / dueSignedTotal!.abs();
+        var i = 0;
+        lines = dueLines.map((l) {
+          final m = Map<String, dynamic>.from(l);
+          m['lineId'] = '${t.id}_l${i++}';
+          m['amount'] = _round2(((m['amount'] as num?)?.toDouble() ?? 0) * f);
+          final tax = m['tax'];
+          if (tax is Map && tax['tdsAmount'] is num) {
+            final t2 = Map<String, dynamic>.from(tax);
+            t2['tdsAmount'] = _round2((t2['tdsAmount'] as num).toDouble() * f);
+            m['tax'] = t2;
+          }
+          return m;
+        }).toList();
+        signed = _round2(dueSignedTotal.sign * t.totalAmount.abs());
+      } else {
+        lines = t.lines.map((l) {
+          final m = l.toMap();
+          if (l.type == 'income' || l.type == 'expense') m['type'] = newType;
+          if (categoryId != null) {
+            m['categoryId'] = categoryId;
+          } else {
+            m.remove('categoryId');
+          }
+          return m;
+        }).toList();
+        signed = (direction == 'payable' ? -1 : 1) * t.totalAmount.abs();
+      }
       batch.update(_db.collection('transactions').doc(t.id), {
         'lines': lines.map(_strip).toList(),
         'totalAmount': signed,

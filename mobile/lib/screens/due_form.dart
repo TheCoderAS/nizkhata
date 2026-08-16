@@ -3,20 +3,26 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../core/format.dart';
+import '../core/theme.dart';
+import '../data/derive.dart';
 import '../data/models.dart';
 import '../data/mutations.dart';
 import '../state/auth_controller.dart';
 import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
+import '../widgets/txn_lines_editor.dart';
 
-/// Create/edit due sheet. Ports the web DueDialog fields.
+/// Create/edit due sheet — a due is authored exactly like a transaction: the
+/// same multi-line editor (typed lines, categories, tax info), plus a due date
+/// and direction. The amount is the computed total of the lines; settling the
+/// due materializes these lines into the real transaction.
 Future<void> showDueForm(BuildContext context, {Due? existing}) {
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     showDragHandle: true,
-    builder: (_) => Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+    builder: (ctx) => Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
       child: _DueForm(existing: existing),
     ),
   );
@@ -33,59 +39,115 @@ class _DueFormState extends State<_DueForm> {
   final _formKey = GlobalKey<FormState>();
   late String _direction = widget.existing?.direction ?? 'payable';
   late final _title = TextEditingController(text: widget.existing?.title ?? '');
-  late final _amount = TextEditingController(
-      text: widget.existing != null ? widget.existing!.amount.toString() : '0');
   late DateTime _dueDate = widget.existing?.dueDate ?? DateTime.now();
   late String? _contactId = widget.existing?.contactId;
   late String? _accountId = widget.existing?.accountId;
-  late String? _categoryId = widget.existing?.categoryId;
   late final _note = TextEditingController(text: widget.existing?.note ?? '');
+  late final List<LineDraft> _lines;
   bool _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final due = widget.existing;
+    if (due != null && due.lines.isNotEmpty) {
+      _lines = [for (final l in due.lines) LineDraft.fromLine(l)];
+    } else if (due != null) {
+      // Legacy single-amount due → synthesize one line from its fields.
+      final row = LineDraft(type: due.direction == 'payable' ? 'expense' : 'income');
+      row.amount.text = amountText(due.amount);
+      row.categoryId = due.categoryId;
+      _lines = [row];
+    } else {
+      _lines = [LineDraft(type: _direction == 'payable' ? 'expense' : 'income')];
+    }
+  }
 
   @override
   void dispose() {
     _title.dispose();
-    _amount.dispose();
     _note.dispose();
+    for (final l in _lines) {
+      l.dispose();
+    }
     super.dispose();
+  }
+
+  List<TxnLine> _txnLines() => [for (var i = 0; i < _lines.length; i++) _lines[i].toTxnLine(i)];
+
+  /// Due-specific validation: the transaction rules minus the account
+  /// requirement (a due's account is optional until it's actually paid).
+  List<String> _errors() => validateLineDrafts(_lines, accountId: _accountId, contactId: _contactId)
+      .where((e) => e != 'Pick an account.')
+      .toList();
+
+  void _onDirectionChanged(String dir) {
+    setState(() {
+      _direction = dir;
+      // Flip plain income/expense lines to match the new direction (their
+      // category kind changes with them, so reset stale categories).
+      final newType = dir == 'payable' ? 'expense' : 'income';
+      for (final l in _lines) {
+        if (l.type == 'income' || l.type == 'expense') {
+          if (l.type != newType) l.categoryId = null;
+          l.type = newType;
+        }
+      }
+    });
   }
 
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
+    if (_errors().isNotEmpty) return;
     final ws = context.read<WorkspaceController>().activeWorkspaceId;
     final user = context.read<AuthController>().user;
     final dataC = context.read<DataController>();
     if (ws == null || user == null) return;
+
+    final signedTotal = computeTotal(_txnLines(), dataC.debtsById);
+    if (signedTotal.abs() <= 0.005) return;
+
     setState(() => _busy = true);
     final m = Mutations(Actor.fromUser(user));
     final note = _note.text.trim().isEmpty ? null : _note.text.trim();
+    final micros = DateTime.now().microsecondsSinceEpoch;
+    final lineMaps = [for (var i = 0; i < _lines.length; i++) _lines[i].toLineMap(i, micros)];
+    // First categorised line doubles as the legacy categoryId (web back-compat).
+    String? firstCategory;
+    for (final l in lineMaps) {
+      if (l['categoryId'] != null) {
+        firstCategory = l['categoryId'] as String;
+        break;
+      }
+    }
     final data = <String, dynamic>{
       'direction': _direction,
       'title': _title.text.trim(),
-      'amount': double.tryParse(_amount.text.trim()) ?? 0,
+      'amount': roundMoney(signedTotal.abs()),
       'dueDate': Timestamp.fromDate(_dueDate),
       'contactId': _contactId,
       'accountId': _accountId,
-      'categoryId': _categoryId,
+      'categoryId': firstCategory,
       'note': note,
+      'lines': lineMaps,
     };
     try {
       if (widget.existing == null) {
         await m.createDue(ws, data);
       } else {
         await m.updateDue(ws, widget.existing!.id, data);
-        // Cascade the descriptive fields to any transactions already settled
-        // from this due, so the due stays the source of truth.
+        // Cascade to any transactions already settled from this due — their
+        // lines are replaced by the due's lines scaled to each paid magnitude.
         final linked = dataC.transactions.where((t) => t.dueId == widget.existing!.id).toList();
         final title = _title.text.trim();
         await m.syncDueLinkedTxns(
           ws,
           linked: linked,
           direction: _direction,
-          categoryId: _categoryId,
-          // Mirror the settle flow's note (note, falling back to the title).
           note: note ?? (title.isEmpty ? null : title),
           contactId: _contactId,
+          dueLines: lineMaps,
+          dueSignedTotal: signedTotal,
         );
       }
       if (mounted) {
@@ -116,13 +178,13 @@ class _DueFormState extends State<_DueForm> {
   @override
   Widget build(BuildContext context) {
     final data = context.watch<DataController>();
+    final ws = context.watch<WorkspaceController>();
+    final currency = ws.activeWorkspace?.baseCurrency ?? 'INR';
     final contacts = data.contacts.where((c) => c.connectionUid == null).toList();
     final accounts = data.accounts;
-    // Category list follows the direction: payable settles as an expense,
-    // receivable as income — same split the transaction form uses.
-    final cats = data.categories
-        .where((c) => c.kind == (_direction == 'payable' ? 'expense' : 'income'))
-        .toList();
+
+    final signedTotal = computeTotal(_txnLines(), data.debtsById);
+    final errors = _errors();
 
     return Padding(
       padding: EdgeInsets.fromLTRB(
@@ -143,7 +205,7 @@ class _DueFormState extends State<_DueForm> {
                   ButtonSegment(value: 'receivable', label: Text('Receivable')),
                 ],
                 selected: {_direction},
-                onSelectionChanged: (s) => setState(() => _direction = s.first),
+                onSelectionChanged: (s) => _onDirectionChanged(s.first),
               ),
               const SizedBox(height: 14),
               TextFormField(
@@ -151,14 +213,6 @@ class _DueFormState extends State<_DueForm> {
                 decoration: const InputDecoration(labelText: 'Title'),
                 textCapitalization: TextCapitalization.sentences,
                 validator: (v) => (v == null || v.trim().isEmpty) ? 'Title is required' : null,
-              ),
-              const SizedBox(height: 14),
-              TextFormField(
-                controller: _amount,
-                decoration: const InputDecoration(labelText: 'Amount', prefixText: '₹ '),
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                validator: (v) =>
-                    (double.tryParse(v?.trim() ?? '') ?? 0) <= 0 ? 'Enter an amount greater than 0' : null,
               ),
               const SizedBox(height: 14),
               InkWell(
@@ -177,27 +231,49 @@ class _DueFormState extends State<_DueForm> {
                 ),
               ),
               const SizedBox(height: 14),
-              DropdownButtonFormField<String>(
-                // Guard a stale/mismatched category (e.g. after switching
-                // direction) so the field never trips the dropdown assertion.
-                value: cats.any((c) => c.id == _categoryId) ? _categoryId : null,
-                decoration: const InputDecoration(labelText: 'Category (optional)'),
-                items: [
-                  const DropdownMenuItem(value: null, child: Text('—')),
-                  for (final c in cats) DropdownMenuItem(value: c.id, child: Text(c.name)),
-                ],
-                onChanged: (v) => setState(() => _categoryId = v),
-              ),
-              const SizedBox(height: 14),
               TextFormField(
                 controller: _note,
                 decoration: const InputDecoration(labelText: 'Note (optional)'),
                 textCapitalization: TextCapitalization.sentences,
               ),
+              const SizedBox(height: 16),
+              // Same line editor as the transaction form — types, categories,
+              // tax info, add/remove lines.
+              TxnLinesEditor(
+                lines: _lines,
+                accountId: _accountId,
+                onChanged: () => setState(() {}),
+              ),
+              const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surfaceContainerHigh.withValues(alpha: 0.4),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('Due amount', style: TextStyle(fontWeight: FontWeight.w600)),
+                    Text(
+                      formatMoney(signedTotal.abs(), currency),
+                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+                    ),
+                  ],
+                ),
+              ),
+              if (errors.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                for (final e in errors)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(e, style: const TextStyle(fontSize: 12, color: AppColors.danger)),
+                  ),
+              ],
               const SizedBox(height: 22),
               _sectionLabel('Linked to (optional)'),
               DropdownButtonFormField<String>(
-                value: _contactId,
+                value: contacts.any((c) => c.id == _contactId) ? _contactId : null,
                 decoration: const InputDecoration(labelText: 'Contact (optional)'),
                 items: [
                   const DropdownMenuItem(value: null, child: Text('—')),
@@ -207,7 +283,7 @@ class _DueFormState extends State<_DueForm> {
               ),
               const SizedBox(height: 14),
               DropdownButtonFormField<String>(
-                value: _accountId,
+                value: accounts.any((a) => a.id == _accountId) ? _accountId : null,
                 decoration: const InputDecoration(labelText: 'Account (optional)'),
                 items: [
                   const DropdownMenuItem(value: null, child: Text('—')),
@@ -219,7 +295,7 @@ class _DueFormState extends State<_DueForm> {
               SizedBox(
                 width: double.infinity,
                 child: FilledButton(
-                  onPressed: _busy ? null : _save,
+                  onPressed: (_busy || errors.isNotEmpty || signedTotal.abs() <= 0.005) ? null : _save,
                   child: _busy
                       ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2))
                       : const Text('Save'),

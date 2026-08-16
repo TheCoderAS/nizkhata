@@ -317,10 +317,12 @@ class Due {
   final DateTime dueDate;
   final String status; // open | partial | settled | cancelled
   // Transaction-shape fields so a due can be settled into a faithful
-  // transaction (category + note). Optional & additive — the web app, which
-  // doesn't read them, keeps working.
+  // transaction. Optional & additive — the web app, which doesn't read them,
+  // keeps working. `lines` holds full typed transaction lines (with tax info);
+  // when empty, the due behaves as a legacy single-amount due.
   final String? categoryId;
   final String? note;
+  final List<TxnLine> lines;
   Due({
     required this.id,
     required this.workspaceId,
@@ -333,9 +335,11 @@ class Due {
     this.accountId,
     this.categoryId,
     this.note,
+    this.lines = const [],
   });
   factory Due.fromDoc(DocumentSnapshot d) {
     final m = d.data() as Map<String, dynamic>;
+    final rawLines = (m['lines'] as List?) ?? const [];
     return Due(
       id: d.id,
       workspaceId: m['workspaceId'] ?? '',
@@ -348,6 +352,10 @@ class Due {
       accountId: m['accountId'],
       categoryId: m['categoryId'],
       note: m['note'],
+      lines: rawLines
+          .whereType<Map>()
+          .map((l) => TxnLine.fromMap(Map<String, dynamic>.from(l)))
+          .toList(),
     );
   }
 }
@@ -393,6 +401,7 @@ class TxnLine {
         if (toAccountId != null) 'toAccountId': toAccountId,
         if (note != null) 'note': note,
         if (external) 'external': external,
+        if (tax != null) 'tax': tax,
       };
 }
 

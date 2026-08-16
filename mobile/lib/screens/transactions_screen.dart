@@ -10,7 +10,7 @@ import '../widgets/common.dart';
 import '../widgets/entity_card_list.dart';
 import 'split_transaction_form.dart';
 import 'transaction_detail.dart';
-import 'transaction_form.dart';
+
 
 const _kLineTypeLabels = <String, String>{
   'income': 'Income',
@@ -82,39 +82,6 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
         _categoryFilter = null;
         _splitOnly = false;
       });
-
-  Future<void> _openAddMenu(BuildContext context) async {
-    await showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      builder: (sheetCtx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.receipt_long_outlined),
-              title: const Text('Quick entry'),
-              subtitle: const Text('A single expense, income, transfer or debt movement.'),
-              onTap: () {
-                Navigator.of(sheetCtx).pop();
-                showTransactionForm(context);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.call_split),
-              title: const Text('Split (multi-line)'),
-              subtitle: const Text('Several typed lines in one transaction.'),
-              onTap: () {
-                Navigator.of(sheetCtx).pop();
-                showSplitTransactionForm(context);
-              },
-            ),
-            const SizedBox(height: 8),
-          ],
-        ),
-      ),
-    );
-  }
 
   Future<void> _openFilters(BuildContext context) async {
     final data = context.read<DataController>();
@@ -247,7 +214,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       appBar: widget.standalone ? AppBar(title: const Text('Transactions')) : null,
       floatingActionButton: canCreate
           ? FloatingActionButton.extended(
-              onPressed: () => _openAddMenu(context),
+              onPressed: () => showSplitTransactionForm(context),
               icon: const Icon(Icons.add),
               label: const Text('Transaction'),
             )
@@ -325,7 +292,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                         ? FilledButton(onPressed: _clearFilters, child: const Text('Clear filters'))
                         : (canCreate
                             ? FilledButton(
-                                onPressed: () => showTransactionForm(context),
+                                onPressed: () => showSplitTransactionForm(context),
                                 child: const Text('Add transaction'))
                             : null),
                   )

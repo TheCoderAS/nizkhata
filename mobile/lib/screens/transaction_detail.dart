@@ -11,7 +11,7 @@ import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
 import '../widgets/revision_history.dart';
 import 'split_transaction_form.dart';
-import 'transaction_form.dart';
+
 
 /// Read-only detail sheet for a transaction. Lists each line and the total,
 /// with Edit (single-line only) / Delete actions in the footer. Mirrors the
@@ -123,11 +123,7 @@ class _TransactionDetail extends StatelessWidget {
                               final nav = Navigator.of(context);
                               final rootContext = nav.context;
                               nav.pop();
-                              if (txn.lines.length == 1) {
-                                showTransactionForm(rootContext, existing: txn);
-                              } else {
-                                showSplitTransactionForm(rootContext, existing: txn);
-                              }
+                              showSplitTransactionForm(rootContext, existing: txn);
                             },
                       icon: const Icon(Icons.edit_outlined),
                       label: const Text('Edit'),
