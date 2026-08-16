@@ -512,6 +512,39 @@ class _DuePaymentSheetState extends State<_DuePaymentSheet> {
     final newSettled = data.settledOf(due.id) + amount;
     setState(() => _busy = true);
     try {
+      // Materialize the transaction FROM the due's stored lines (the due IS
+      // the transaction blueprint). Partial payments scale each line
+      // proportionally. Legacy dues without lines get a single typed line.
+      List<Map<String, dynamic>> lines;
+      double signedTotal;
+      if (due.lines.isNotEmpty && due.amount > 0.005) {
+        final f = amount / due.amount;
+        var i = 0;
+        lines = due.lines.map((l) {
+          final m = l.toMap();
+          m['lineId'] = 'due_${lid}_l${i++}';
+          m['amount'] = roundMoney(l.amount * f);
+          final tax = m['tax'];
+          if (tax is Map && tax['tdsAmount'] is num) {
+            final t2 = Map<String, dynamic>.from(tax);
+            t2['tdsAmount'] = roundMoney((t2['tdsAmount'] as num).toDouble() * f);
+            m['tax'] = t2;
+          }
+          return m;
+        }).toList();
+        final unit = computeTotal(due.lines, data.debtsById);
+        signedTotal = roundMoney(unit.sign * amount);
+      } else {
+        lines = [
+          {
+            'lineId': 'due_$lid',
+            'type': due.direction == 'payable' ? 'expense' : 'income',
+            'amount': amount,
+            'categoryId': due.categoryId,
+          },
+        ];
+        signedTotal = roundMoney(due.direction == 'payable' ? -amount : amount);
+      }
       await Mutations(Actor.fromUser(user)).settleDue(
         ws,
         due.id,
@@ -519,18 +552,9 @@ class _DuePaymentSheetState extends State<_DuePaymentSheet> {
         note: (due.note?.isNotEmpty ?? false) ? due.note : due.title,
         accountId: _accountId!,
         contactId: due.contactId,
-        totalAmount: roundMoney(due.direction == 'payable' ? -amount : amount),
+        totalAmount: signedTotal,
         financialYear: financialYearOf(now, fyStart),
-        lines: [
-          {
-            'lineId': 'due_$lid',
-            'type': due.direction == 'payable' ? 'expense' : 'income',
-            'amount': amount,
-            // Carry the due's category so the settled transaction lands in the
-            // right bucket in reports/categories (the due is a transaction).
-            'categoryId': due.categoryId,
-          },
-        ],
+        lines: lines,
         newStatus: dueStatusFromSettled(due, newSettled),
       );
       if (mounted) {
