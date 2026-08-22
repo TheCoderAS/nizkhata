@@ -279,6 +279,54 @@ class Mutations {
 
   Future<void> deleteTransaction(String ws, String id) => _auditedDelete('transactions', ws, id);
 
+  /// Bulk-create simple single-line transactions from a statement import.
+  /// Committed in chunks (each txn = doc + revision = 2 writes; Firestore
+  /// batches cap at 500 ops) with per-chunk progress via [onProgress].
+  /// Each record: {date: DateTime, amount: signed double, note: String?,
+  /// categoryId: String?, importKey: String}.
+  Future<int> importTransactions(
+    String ws, {
+    required String accountId,
+    required List<Map<String, dynamic>> records,
+    required String Function(DateTime) financialYearOf,
+    void Function(int done, int total)? onProgress,
+  }) async {
+    const chunkSize = 200;
+    var written = 0;
+    for (var start = 0; start < records.length; start += chunkSize) {
+      final chunk = records.sublist(
+          start, start + chunkSize > records.length ? records.length : start + chunkSize);
+      final batch = _db.batch();
+      for (final r in chunk) {
+        final id = newId('transactions');
+        final date = r['date'] as DateTime;
+        final amount = r['amount'] as double;
+        final line = <String, dynamic>{
+          'lineId': '${id}_l0',
+          'type': amount >= 0 ? 'income' : 'expense',
+          'amount': _round2(amount.abs()),
+          if (r['categoryId'] != null) 'categoryId': r['categoryId'],
+        };
+        batch.set(_db.collection('transactions').doc(id), {
+          ..._buildTxnDoc(id, ws, by,
+              date: date,
+              note: r['note'] as String?,
+              accountId: accountId,
+              totalAmount: _round2(amount),
+              financialYear: financialYearOf(date),
+              lines: [line]),
+          'importKey': r['importKey'],
+        });
+        _appendRevision(batch,
+            workspaceId: ws, entityType: 'transactions', entityId: id, action: 'create');
+      }
+      await batch.commit();
+      written += chunk.length;
+      onProgress?.call(written, records.length);
+    }
+    return written;
+  }
+
   /// Edit a transaction. Uses batch.update so createdBy/createdAt stay untouched
   /// (Security Rules enforce their immutability). Optional fields cleared with
   /// FieldValue.delete().
