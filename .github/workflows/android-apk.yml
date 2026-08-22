@@ -185,17 +185,20 @@ jobs:
               s += '''
 
           // Some pub plugins pin an old compileSdk; AndroidX libraries pulled in by
-          // newer plugins demand 36. Force every Android subproject to 36.
+          // newer plugins demand 36. Force every Android subproject to 36. The
+          // scaffold's evaluationDependsOn(":app") has already evaluated :app by
+          // the time this runs, so apply directly there and defer for the rest.
           subprojects {
-              afterEvaluate {
-                  val ext = extensions.findByName("android") ?: return@afterEvaluate
+              fun forceCompileSdk(p: Project) {
+                  val ext = p.extensions.findByName("android") ?: return
                   val forced = runCatching {
                       ext.javaClass.getMethod("compileSdkVersion", Int::class.java).invoke(ext, 36)
                   }.isSuccess || runCatching {
                       ext.javaClass.getMethod("setCompileSdk", java.lang.Integer::class.java).invoke(ext, 36)
                   }.isSuccess
-                  if (forced) logger.lifecycle("compileSdk forced to 36 for " + project.name)
+                  if (forced) p.logger.lifecycle("compileSdk forced to 36 for " + p.name)
               }
+              if (state.executed) forceCompileSdk(this) else afterEvaluate { forceCompileSdk(this) }
           }
           '''.replace('\n          ', '\n')
               open(p, 'w').write(s)
