@@ -173,6 +173,36 @@ jobs:
               open('android/app/build.gradle.kts', 'w').write(s2)
               print('proguardFiles wired into release build type')
           PY2
+          # Newer AndroidX (pulled in transitively via file_picker →
+          # flutter_plugin_android_lifecycle) requires compileSdk 36, but several
+          # pub plugins still pin 31–34 in their own Android modules and fail the
+          # AAR-metadata check. Force every Android subproject to compile
+          # against 36 (compileSdk only — minSdk/targetSdk untouched).
+          python3 - <<'PY3'
+          p = 'android/build.gradle.kts'
+          s = open(p).read()
+          if 'compileSdk forced' not in s:
+              s += '''
+
+          // Some pub plugins pin an old compileSdk; AndroidX libraries pulled in by
+          // newer plugins demand 36. Force every Android subproject to 36.
+          subprojects {
+              afterEvaluate {
+                  val ext = extensions.findByName("android") ?: return@afterEvaluate
+                  val forced = runCatching {
+                      ext.javaClass.getMethod("compileSdkVersion", Int::class.java).invoke(ext, 36)
+                  }.isSuccess || runCatching {
+                      ext.javaClass.getMethod("setCompileSdk", java.lang.Integer::class.java).invoke(ext, 36)
+                  }.isSuccess
+                  if (forced) logger.lifecycle("compileSdk forced to 36 for " + project.name)
+              }
+          }
+          '''.replace('\n          ', '\n')
+              open(p, 'w').write(s)
+              print('subproject compileSdk override appended')
+          else:
+              print('subproject compileSdk override already present')
+          PY3
           # Inject the native home-screen widget sources (provider + layouts).
           mkdir -p android/app/src/main/kotlin
           cp -r android-extras/kotlin/. android/app/src/main/kotlin/
