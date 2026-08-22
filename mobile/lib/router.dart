@@ -11,6 +11,7 @@ import 'screens/contacts_screen.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/debts_screen.dart';
 import 'screens/dues_screen.dart';
+import 'screens/import_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/members_screen.dart';
 import 'screens/more_screen.dart';
@@ -107,6 +108,12 @@ GoRouter buildRouter(AuthController auth) {
           if (raw != null) date = DateTime.tryParse(raw);
           return DuesScreen(standalone: true, initialDate: date, autoAdd: q['add'] == '1');
         },
+      ),
+      // Statement import wizard (standalone — own AppBar/back, like /txns).
+      GoRoute(
+        path: '/import',
+        builder: (_, state) =>
+            ImportScreen(initialAccountId: state.uri.queryParameters['account']),
       ),
       GoRoute(path: '/contacts', builder: (_, __) => const ContactsScreen()),
       GoRoute(

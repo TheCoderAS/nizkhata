@@ -422,6 +422,9 @@ class Txn {
   final String? dueId;
   final String financialYear;
   final List<TxnLine> lines;
+  // Statement-import identity (account|date|amount|ref) — lets a re-imported
+  // statement recognise rows it already created, even after edits to the note.
+  final String? importKey;
   Txn({
     required this.id,
     required this.workspaceId,
@@ -434,6 +437,7 @@ class Txn {
     this.note,
     this.contactId,
     this.dueId,
+    this.importKey,
   });
   factory Txn.fromDoc(DocumentSnapshot d) {
     final m = d.data() as Map<String, dynamic>;
@@ -449,6 +453,7 @@ class Txn {
       hasSplit: m['hasSplit'] == true,
       dueId: m['dueId'],
       financialYear: m['financialYear'] ?? '',
+      importKey: m['importKey'],
       lines: rawLines.map((l) => TxnLine.fromMap(Map<String, dynamic>.from(l))).toList(),
     );
   }

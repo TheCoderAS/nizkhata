@@ -1,7 +1,7 @@
 name: nizkhata
 description: NizKhata — native Android app. Every rupee, accounted for.
 publish_to: "none"
-version: 1.0.24+25
+version: 1.0.25+26
 
 environment:
   sdk: ">=3.4.0 <4.0.0"
@@ -46,6 +46,13 @@ dependencies:
   flutter_timezone: ^4.1.1
   quick_actions: ^1.1.0
   home_widget: ^0.7.0
+
+  # Statement import — all parsing on-device, no backend:
+  # file picking, CSV, XLSX, and PDF text extraction (incl. password-protected).
+  file_picker: ^8.1.4
+  csv: ^6.0.0
+  excel: ^4.0.6
+  syncfusion_flutter_pdf: ^28.1.33
 
 dev_dependencies:
   flutter_test:

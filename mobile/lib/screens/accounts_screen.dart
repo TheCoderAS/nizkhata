@@ -24,6 +24,7 @@ class AccountsScreen extends StatelessWidget {
     final currency = ws.activeWorkspace?.baseCurrency ?? 'INR';
     final canManage = ws.can('accounts.manage');
     final canViewTxns = ws.can('transactions.view');
+    final canImport = ws.can('transactions.create');
     final accounts = [...data.accounts]..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
 
     return Scaffold(
@@ -53,12 +54,14 @@ class AccountsScreen extends StatelessWidget {
                 onSelected: (v) {
                   if (v == 'ledger') context.push('/accounts/${a.id}/ledger');
                   if (v == 'transactions') context.push('/txns?account=${a.id}');
+                  if (v == 'import') context.push('/import?account=${a.id}');
                   if (v == 'edit') showAccountForm(context, existing: a);
                   if (v == 'delete') _confirmDelete(context, a);
                 },
                 itemBuilder: (_) => [
                   const PopupMenuItem(value: 'ledger', child: Text('View ledger')),
                   if (canViewTxns) const PopupMenuItem(value: 'transactions', child: Text('View transactions')),
+                  if (canImport) const PopupMenuItem(value: 'import', child: Text('Import statement')),
                   if (canManage) const PopupMenuItem(value: 'edit', child: Text('Edit')),
                   if (canManage) const PopupMenuItem(value: 'delete', child: Text('Delete')),
                 ],
@@ -174,6 +177,7 @@ void showAccountDetail(BuildContext context, Account a) {
   final currency = ws.activeWorkspace?.baseCurrency ?? 'INR';
   final canManage = ws.can('accounts.manage');
   final canViewTxns = ws.can('transactions.view');
+  final canImport = ws.can('transactions.create');
   final balance = data.balanceOf(a.id);
 
   // Populated metadata fields, in the same display order the web uses per type.
@@ -302,6 +306,20 @@ void showAccountDetail(BuildContext context, Account a) {
                       ),
                   ],
                 ),
+                if (canImport) ...[
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      icon: const Icon(Icons.download_outlined, size: 18),
+                      label: const Text('Import statement'),
+                      onPressed: () {
+                        Navigator.of(sheetCtx).pop();
+                        context.push('/import?account=${a.id}');
+                      },
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
