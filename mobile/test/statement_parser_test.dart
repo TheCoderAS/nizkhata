@@ -184,6 +184,45 @@ void main() {
       expect(rows[0].parseable, false);
       expect(rows[1].parseable, true);
     });
+
+    test('PDF-style split rows: amount on the continuation line merges in', () {
+      final g = grid([
+        ['Date', 'Narration', 'Withdrawal', 'Deposit'],
+        ['01/04/2025', 'UPI-509912345678', '', ''],
+        ['', 'GROCERY MART PVT LTD', '450.00', ''],
+        ['02/04/2025', 'NEFT SALARY', '', ''],
+        ['', 'ACME CORP', '', '50,000.00'],
+      ]);
+      final rows = buildImportRows(g, suggestMapping(g.header), DateOrder.dmy);
+      expect(rows.length, 2);
+      expect(rows[0].amount, -450.00);
+      expect(rows[0].description, 'UPI-509912345678 GROCERY MART PVT LTD');
+      expect(rows[1].amount, 50000.00);
+      expect(rows.every((r) => r.parseable), true);
+    });
+
+    test('a continuation amount never overwrites an existing one', () {
+      final g = grid([
+        ['Date', 'Narration', 'Amount'],
+        ['01/04/2025', 'Coffee', '-90'],
+        ['', 'extra note', '-999'], // balance-column bleed etc — ignored
+      ]);
+      final rows = buildImportRows(g, suggestMapping(g.header), DateOrder.dmy);
+      expect(rows.single.amount, -90);
+      expect(rows.single.description, 'Coffee extra note');
+    });
+
+    test('summary/footer lines are dropped, not merged into transactions', () {
+      final g = grid([
+        ['Date', 'Narration', 'Withdrawal', 'Deposit'],
+        ['01/04/2025', 'ATM WDL', '2,000.00', ''],
+        ['', 'Closing Balance', '', '98,000.00'],
+        ['', 'Page 1 of 2', '', ''],
+      ]);
+      final rows = buildImportRows(g, suggestMapping(g.header), DateOrder.dmy);
+      expect(rows.single.amount, -2000.00);
+      expect(rows.single.description, 'ATM WDL');
+    });
   });
 
   group('importFingerprint', () {
@@ -244,13 +283,13 @@ void main() {
       expect(grid.dataRows.single, ['01/04/2025', 'Grocery & Fruit', '-450.00']);
     });
 
-    test('legacy/encrypted Excel container is rejected with guidance', () {
+    test('an unreadable OLE2 container is rejected with guidance', () {
       final ole2 = Uint8List.fromList(
           [0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1, ...List.filled(64, 0)]);
       expect(
         () => parseStatement(ole2, 'statement.xls'),
         throwsA(isA<StatementUnsupported>()
-            .having((e) => e.message, 'message', contains('CSV or PDF'))),
+            .having((e) => e.message, 'message', contains('CSV'))),
       );
     });
 

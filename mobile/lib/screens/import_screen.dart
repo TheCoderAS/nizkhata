@@ -29,6 +29,9 @@ class ImportScreen extends StatefulWidget {
 
 enum _Step { pick, mapping, review, importing, done }
 
+/// What counts as "already imported" when flagging duplicates.
+enum _DupMode { strict, dateAmount, off }
+
 /// A parsed statement row plus the review screen's state for it.
 class _ReviewRow {
   final ImportRowDraft draft;
@@ -51,9 +54,11 @@ class _ImportScreenState extends State<ImportScreen> {
 
   // Review state.
   List<_ReviewRow> _rows = [];
-  int _unparseable = 0;
   String? _defaultExpenseCat;
   String? _defaultIncomeCat;
+  _DupMode _dupMode = _DupMode.strict;
+  Set<String> _existingStrict = {};
+  Set<String> _existingDateAmount = {};
 
   // Import progress.
   int _importDone = 0;
@@ -196,33 +201,61 @@ class _ImportScreenState extends State<ImportScreen> {
     final drafts = buildImportRows(grid, _mapping, _dateOrder);
     // Identity of everything already in this account: stored importKeys plus
     // recomputed fingerprints, so both prior imports and manual entries match.
-    final existing = <String>{};
+    // Two sets, one per matching strictness the user can pick.
+    final strict = <String>{};
+    final dateAmount = <String>{};
     for (final t in data.transactions) {
       if (t.accountId != accountId) continue;
-      if (t.importKey != null && t.importKey!.isNotEmpty) existing.add(t.importKey!);
-      existing.add(importFingerprint(
+      if (t.importKey != null && t.importKey!.isNotEmpty) strict.add(t.importKey!);
+      strict.add(importFingerprint(
         accountId: accountId,
         date: t.date,
         amount: t.totalAmount,
         refOrDesc: t.note ?? '',
       ));
+      dateAmount.add(importFingerprint(
+        accountId: accountId,
+        date: t.date,
+        amount: t.totalAmount,
+        refOrDesc: '',
+      ));
     }
 
-    final rows = <_ReviewRow>[];
-    var unparseable = 0;
-    for (final d in drafts) {
-      if (!d.parseable) {
-        unparseable++;
-        continue;
-      }
-      final dup = existing.contains(_fingerprintOf(d, accountId));
-      rows.add(_ReviewRow(d, selected: !dup, duplicate: dup));
-    }
     setState(() {
-      _rows = rows;
-      _unparseable = unparseable;
+      _existingStrict = strict;
+      _existingDateAmount = dateAmount;
+      _rows = [for (final d in drafts) _ReviewRow(d, selected: false, duplicate: false)];
+      _applyDupMode();
       _step = _Step.review;
     });
+  }
+
+  /// Recompute every row's duplicate flag (and default selection) for the
+  /// current matching mode. Unreadable rows stay unselected until fixed.
+  void _applyDupMode() {
+    for (final r in _rows) {
+      if (!r.draft.parseable) {
+        r.duplicate = false;
+        r.selected = false;
+        continue;
+      }
+      r.duplicate = _isDuplicate(r.draft);
+      r.selected = !r.duplicate;
+    }
+  }
+
+  bool _isDuplicate(ImportRowDraft d) {
+    final accountId = _accountId;
+    if (accountId == null || !d.parseable) return false;
+    switch (_dupMode) {
+      case _DupMode.off:
+        return false;
+      case _DupMode.strict:
+        return _existingStrict.contains(_fingerprintOf(d, accountId));
+      case _DupMode.dateAmount:
+        return _existingDateAmount.contains(importFingerprint(
+            accountId: accountId, date: d.date!, amount: d.amount!, refOrDesc: ''));
+    }
   }
 
   String _fingerprintOf(ImportRowDraft d, String accountId) => importFingerprint(
@@ -588,7 +621,9 @@ class _ImportScreenState extends State<ImportScreen> {
         totalOut += -a;
       }
     }
+    final readable = _rows.where((r) => r.draft.parseable).toList();
     final dupCount = _rows.where((r) => r.duplicate).length;
+    final unreadable = _rows.length - readable.length;
     final expenseCats =
         data.categories.where((c) => c.kind == 'expense').toList()
           ..sort((a, b) => a.name.compareTo(b.name));
@@ -606,20 +641,23 @@ class _ImportScreenState extends State<ImportScreen> {
                 children: [
                   Expanded(
                     child: Text(
-                      '${selected.length} of ${_rows.length} rows selected'
+                      '${selected.length} of ${readable.length} rows selected'
                       '${dupCount > 0 ? ' · $dupCount duplicate${dupCount == 1 ? '' : 's'}' : ''}'
-                      '${_unparseable > 0 ? ' · $_unparseable unreadable' : ''}',
+                      '${unreadable > 0 ? ' · $unreadable to fix' : ''}',
                       style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant),
                     ),
                   ),
                   TextButton(
-                    onPressed: () => setState(() {
-                      final all = _rows.every((r) => r.selected);
-                      for (final r in _rows) {
-                        r.selected = !all;
-                      }
-                    }),
-                    child: Text(_rows.every((r) => r.selected) ? 'None' : 'All'),
+                    onPressed: readable.isEmpty
+                        ? null
+                        : () => setState(() {
+                              final all = readable.every((r) => r.selected);
+                              for (final r in readable) {
+                                r.selected = !all;
+                              }
+                            }),
+                    child: Text(
+                        readable.isNotEmpty && readable.every((r) => r.selected) ? 'None' : 'All'),
                   ),
                 ],
               ),
@@ -635,6 +673,25 @@ class _ImportScreenState extends State<ImportScreen> {
                         (v) => setState(() => _defaultIncomeCat = v)),
                   ),
                 ],
+              ),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<_DupMode>(
+                value: _dupMode,
+                isExpanded: true,
+                isDense: true,
+                decoration: const InputDecoration(labelText: 'Flag duplicates by', isDense: true),
+                items: const [
+                  DropdownMenuItem(
+                      value: _DupMode.strict,
+                      child: Text('Date + amount + reference/description')),
+                  DropdownMenuItem(value: _DupMode.dateAmount, child: Text('Date + amount only')),
+                  DropdownMenuItem(value: _DupMode.off, child: Text("Don't flag duplicates")),
+                ],
+                onChanged: (v) => setState(() {
+                  _dupMode = v ?? _DupMode.strict;
+                  // Re-flag and reset selection to the new criterion.
+                  _applyDupMode();
+                }),
               ),
               const SizedBox(height: 6),
             ],
@@ -711,7 +768,7 @@ class _ImportScreenState extends State<ImportScreen> {
   Widget _reviewRowTile(_ReviewRow row, String currency) {
     final cs = Theme.of(context).colorScheme;
     final d = row.draft;
-    final amount = d.amount!;
+    final amount = d.amount;
     return InkWell(
       onTap: () => _editRow(row),
       child: Padding(
@@ -720,11 +777,14 @@ class _ImportScreenState extends State<ImportScreen> {
           children: [
             Checkbox(
               value: row.selected,
-              onChanged: (v) => setState(() => row.selected = v ?? false),
+              onChanged: d.parseable
+                  ? (v) => setState(() => row.selected = v ?? false)
+                  : null,
             ),
             SizedBox(
               width: 64,
-              child: Text(_dateFmt.format(d.date!), style: const TextStyle(fontSize: 12.5)),
+              child: Text(d.date != null ? _dateFmt.format(d.date!) : '—',
+                  style: const TextStyle(fontSize: 12.5)),
             ),
             const SizedBox(width: 8),
             Expanded(
@@ -739,7 +799,14 @@ class _ImportScreenState extends State<ImportScreen> {
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(fontSize: 13),
                   ),
-                  if (row.duplicate)
+                  if (!d.parseable)
+                    Text(
+                      d.date == null
+                          ? 'No readable date — tap to fix'
+                          : 'No readable amount — tap to fix',
+                      style: TextStyle(fontSize: 11, color: cs.error),
+                    )
+                  else if (row.duplicate)
                     Text('Duplicate — already in this account',
                         style: TextStyle(fontSize: 11, color: cs.tertiary)),
                 ],
@@ -747,11 +814,13 @@ class _ImportScreenState extends State<ImportScreen> {
             ),
             const SizedBox(width: 8),
             Text(
-              formatMoney(amount.abs(), currency),
+              amount != null ? formatMoney(amount.abs(), currency) : '—',
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
-                color: amount >= 0 ? AppColors.accent2 : AppColors.danger,
+                color: amount == null
+                    ? cs.onSurfaceVariant
+                    : (amount >= 0 ? AppColors.accent2 : AppColors.danger),
               ),
             ),
           ],
@@ -764,10 +833,10 @@ class _ImportScreenState extends State<ImportScreen> {
   Future<void> _editRow(_ReviewRow row) async {
     final data = context.read<DataController>();
     final d = row.draft;
-    var date = d.date!;
-    var isCredit = d.amount! >= 0;
+    var date = d.date ?? DateTime.now();
+    var isCredit = (d.amount ?? -1) >= 0;
     final descCtl = TextEditingController(text: d.description);
-    final amtCtl = TextEditingController(text: d.amount!.abs().toStringAsFixed(2));
+    final amtCtl = TextEditingController(text: d.amount?.abs().toStringAsFixed(2) ?? '');
     var categoryId = row.categoryId;
 
     final saved = await showDialog<bool>(
@@ -852,12 +921,19 @@ class _ImportScreenState extends State<ImportScreen> {
     if (saved == true) {
       final parsed = double.tryParse(amtCtl.text.replaceAll(',', ''));
       setState(() {
+        final wasUnreadable = !d.parseable;
         d.date = date;
         d.description = descCtl.text.trim();
         if (parsed != null && parsed > 0) {
           d.amount = isCredit ? parsed : -parsed;
         }
         row.categoryId = categoryId;
+        // Fixing a row can change its duplicate status — and a just-fixed
+        // unreadable row should become selectable (selected unless duplicate).
+        if (d.parseable) {
+          row.duplicate = _isDuplicate(d);
+          if (wasUnreadable) row.selected = !row.duplicate;
+        }
       });
     }
     descCtl.dispose();

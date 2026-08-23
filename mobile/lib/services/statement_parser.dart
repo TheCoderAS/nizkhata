@@ -13,6 +13,8 @@ import 'package:csv/csv.dart';
 import 'package:excel/excel.dart' as xl;
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 
+import 'xls_decoder.dart';
+
 /// What the picked file turned out to be (by content sniffing, not extension).
 enum StatementKind { csv, excel, pdf, html }
 
@@ -63,12 +65,24 @@ StatementGrid parseStatement(Uint8List bytes, String filename, {String? password
     return _excelGrid(bytes);
   }
   if (_startsWith(bytes, const [0xD0, 0xCF, 0x11, 0xE0])) {
-    // OLE2 compound file: a legacy .xls binary — or a password-protected .xlsx,
-    // which is stored in this same container. Neither can be opened on-device.
-    throw StatementUnsupported(
-        'This file is a legacy or password-protected Excel document, which '
-        "can't be opened on-device. Please export the statement as CSV or PDF "
-        '(or re-save it as an unprotected .xlsx) and try again.');
+    // OLE2 compound file: a legacy .xls binary (readable via our own BIFF
+    // decoder) — or a password-protected Excel file in the same container,
+    // which can't be decrypted on-device.
+    try {
+      final rows = decodeXls(bytes);
+      if (rows.isEmpty) throw StatementUnsupported('The Excel file has no data.');
+      return StatementGrid(
+          kind: StatementKind.excel, rows: rows, headerRow: detectHeaderRow(rows));
+    } on XlsPasswordProtected {
+      throw StatementUnsupported(
+          "This Excel file is password-protected and can't be decrypted "
+          'on-device. Please export the statement as CSV or PDF (or re-save '
+          'it without a password) and try again.');
+    } on XlsUnreadable catch (e) {
+      throw StatementUnsupported(
+          "This legacy Excel file couldn't be read (${e.message}) — "
+          'export the statement as CSV, XLSX or PDF instead.');
+    }
   }
 
   // Text: HTML table disguised as .xls (common bank export) or CSV/TSV.
@@ -594,44 +608,68 @@ class ImportRowDraft {
   bool get parseable => date != null && amount != null && amount!.abs() > 0.004;
 }
 
-/// Run the mapped columns over the grid's data rows. Rows with no date and no
-/// amount but with description text are treated as wrapped continuation lines
-/// and appended to the previous row's description.
+/// Summary/footer lines that end a transaction record instead of extending it.
+final _summaryLineRe = RegExp(
+    r'(opening|closing|available)\s+balance|grand\s+total|^\s*total\b|'
+    r'carried\s+forward|brought\s+forward|statement\s+summary|'
+    r'page\s+\d+\s*(of|/)\s*\d+|end\s+of\s+statement',
+    caseSensitive: false);
+
+/// Run the mapped columns over the grid's data rows, assembling logical
+/// transaction records: a row with a parseable date STARTS a record; dateless
+/// rows EXTEND the current one — wrapped description text is appended, and an
+/// amount/reference lands on a record that doesn't have one yet (bank PDFs
+/// often print one transaction across two text lines, date first, amount on
+/// the continuation). Summary/footer lines close the record so trailing page
+/// noise never leaks into a transaction.
 List<ImportRowDraft> buildImportRows(StatementGrid grid, ColumnMapping m, DateOrder order) {
   String cell(List<String> row, int? i) => (i == null || i < 0 || i >= row.length) ? '' : row[i];
+  double? amountOf(List<String> row) {
+    if (m.splitAmounts) {
+      final debit = parseAmountText(cell(row, m.debit));
+      final credit = parseAmountText(cell(row, m.credit));
+      if (credit != null && credit.abs() > 0.004) return credit.abs();
+      if (debit != null && debit.abs() > 0.004) return -debit.abs();
+      return null;
+    }
+    final v = parseAmountText(cell(row, m.amount));
+    return v != null && v.abs() > 0.004 ? v : null;
+  }
+
   final out = <ImportRowDraft>[];
+  ImportRowDraft? current;
   final data = grid.dataRows;
   for (var i = 0; i < data.length; i++) {
     final row = data[i];
     final date = parseFlexibleDate(cell(row, m.date), order);
-    double? amount;
-    if (m.splitAmounts) {
-      final debit = parseAmountText(cell(row, m.debit));
-      final credit = parseAmountText(cell(row, m.credit));
-      if (credit != null && credit.abs() > 0.004) {
-        amount = credit.abs();
-      } else if (debit != null && debit.abs() > 0.004) {
-        amount = -debit.abs();
-      }
-    } else {
-      amount = parseAmountText(cell(row, m.amount));
-    }
+    final amount = amountOf(row);
     final desc = cell(row, m.description);
-    if (date == null && amount == null) {
-      // Continuation of a wrapped description, or table noise.
-      if (desc.isNotEmpty && out.isNotEmpty) {
-        final prev = out.last;
-        prev.description = prev.description.isEmpty ? desc : '${prev.description} $desc';
-      }
+    final ref = cell(row, m.reference);
+
+    if (date != null) {
+      current = ImportRowDraft(
+        sourceRow: grid.headerRow + 1 + i,
+        date: date,
+        description: desc,
+        amount: amount,
+        reference: ref,
+      );
+      out.add(current);
       continue;
     }
-    out.add(ImportRowDraft(
-      sourceRow: grid.headerRow + 1 + i,
-      date: date,
-      description: desc,
-      amount: amount,
-      reference: cell(row, m.reference),
-    ));
+
+    // Dateless: a continuation of the current record, or noise.
+    if (current == null) continue;
+    if (_summaryLineRe.hasMatch(row.join(' '))) {
+      current = null; // table (or page section) ended — stop extending
+      continue;
+    }
+    if (amount != null && current.amount == null) current.amount = amount;
+    if (desc.isNotEmpty) {
+      current.description =
+          current.description.isEmpty ? desc : '${current.description} $desc';
+    }
+    if (ref.isNotEmpty && current.reference.isEmpty) current.reference = ref;
   }
   return out;
 }
