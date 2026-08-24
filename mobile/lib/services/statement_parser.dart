@@ -10,10 +10,11 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:csv/csv.dart';
-import 'package:excel/excel.dart' as xl;
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 
+import 'office_crypto.dart';
 import 'xls_decoder.dart';
+import 'xlsx_reader.dart';
 
 /// What the picked file turned out to be (by content sniffing, not extension).
 enum StatementKind { csv, excel, pdf, html }
@@ -65,9 +66,28 @@ StatementGrid parseStatement(Uint8List bytes, String filename, {String? password
     return _excelGrid(bytes);
   }
   if (_startsWith(bytes, const [0xD0, 0xCF, 0x11, 0xE0])) {
-    // OLE2 compound file: a legacy .xls binary (readable via our own BIFF
-    // decoder) — or a password-protected Excel file in the same container,
-    // which can't be decrypted on-device.
+    // OLE2 compound file. Two cases:
+    //  (a) a password-encrypted OOXML document (modern .xlsx wrapped in
+    //      EncryptionInfo/EncryptedPackage) — decrypt it here, then parse the
+    //      inner .xlsx zip;
+    //  (b) a legacy binary .xls — read directly with our BIFF decoder.
+    if (isEncryptedOfficeContainer(bytes)) {
+      if (password == null || password.isEmpty) {
+        throw StatementPasswordRequired(wrongPassword: false);
+      }
+      Uint8List decrypted;
+      try {
+        decrypted = decryptOfficeDocument(bytes, password);
+      } on WrongOfficePassword {
+        throw StatementPasswordRequired(wrongPassword: true);
+      } on UnsupportedOfficeEncryption catch (e) {
+        throw StatementUnsupported(
+            "This protected Excel file uses an encryption we can't open "
+            'on-device (${e.message}). Please export the statement as CSV or '
+            'PDF and try again.');
+      }
+      return _excelGrid(decrypted);
+    }
     try {
       final rows = decodeXls(bytes);
       if (rows.isEmpty) throw StatementUnsupported('The Excel file has no data.');
@@ -75,9 +95,9 @@ StatementGrid parseStatement(Uint8List bytes, String filename, {String? password
           kind: StatementKind.excel, rows: rows, headerRow: detectHeaderRow(rows));
     } on XlsPasswordProtected {
       throw StatementUnsupported(
-          "This Excel file is password-protected and can't be decrypted "
-          'on-device. Please export the statement as CSV or PDF (or re-save '
-          'it without a password) and try again.');
+          'This is a password-protected legacy .xls file, whose old encryption '
+          "can't be opened on-device. Re-save it as .xlsx (Excel → Save As), "
+          'or export the statement as CSV or PDF, and try again.');
     } on XlsUnreadable catch (e) {
       throw StatementUnsupported(
           "This legacy Excel file couldn't be read (${e.message}) — "
@@ -171,54 +191,15 @@ void _padRows(List<List<String>> rows) {
 // ---- Excel (.xlsx) ---------------------------------------------------------
 
 StatementGrid _excelGrid(Uint8List bytes) {
-  xl.Excel workbook;
+  final List<List<String>> rows;
   try {
-    workbook = xl.Excel.decodeBytes(bytes);
-  } catch (_) {
+    rows = readXlsx(bytes);
+  } on XlsxError catch (e) {
     throw StatementUnsupported(
-        "This Excel file couldn't be read. If it's password-protected, export "
-        'the statement as CSV or PDF instead.');
+        "This Excel file couldn't be read (${e.message}). If it's "
+        'password-protected, enter its password; otherwise export it as CSV or PDF.');
   }
-  // Pick the sheet with the most non-empty cells.
-  xl.Sheet? bestSheet;
-  var bestCells = -1;
-  for (final sheet in workbook.tables.values) {
-    var cells = 0;
-    for (final row in sheet.rows) {
-      for (final c in row) {
-        if (c != null && _cellText(c.value).isNotEmpty) cells++;
-      }
-    }
-    if (cells > bestCells) {
-      bestCells = cells;
-      bestSheet = sheet;
-    }
-  }
-  if (bestSheet == null || bestCells <= 0) {
-    throw StatementUnsupported('The Excel file has no data.');
-  }
-  final rows = <List<String>>[];
-  for (final raw in bestSheet.rows) {
-    final cells = [for (final c in raw) _cellText(c?.value)];
-    if (cells.any((c) => c.isNotEmpty)) rows.add(cells);
-  }
-  _padRows(rows);
   return StatementGrid(kind: StatementKind.excel, rows: rows, headerRow: detectHeaderRow(rows));
-}
-
-String _two(int n) => n.toString().padLeft(2, '0');
-
-String _cellText(xl.CellValue? v) {
-  if (v == null) return '';
-  if (v is xl.TextCellValue) return v.value.toString().trim();
-  if (v is xl.IntCellValue) return v.value.toString();
-  if (v is xl.DoubleCellValue) return v.value.toString();
-  if (v is xl.BoolCellValue) return v.value.toString();
-  if (v is xl.DateCellValue) return '${v.year}-${_two(v.month)}-${_two(v.day)}';
-  if (v is xl.DateTimeCellValue) return '${v.year}-${_two(v.month)}-${_two(v.day)}';
-  if (v is xl.TimeCellValue) return '';
-  if (v is xl.FormulaCellValue) return '';
-  return v.toString().trim();
 }
 
 // ---- HTML table (files banks mislabel ".xls") ------------------------------
@@ -279,11 +260,14 @@ StatementGrid _pdfGrid(Uint8List bytes, String? password) {
   }
 }
 
-/// Rebuild the transaction table from positioned PDF text: find the header
-/// line by keywords, derive column boundaries from the x-positions of its
-/// word clusters, then assign every following line's words into those columns.
+/// Rebuild the transaction table from positioned PDF text. Column boundaries
+/// are derived from the *data* layout — the vertical whitespace gutters that
+/// persist across the real transaction rows — rather than from where the
+/// header labels happen to sit (bank headers are often centred or wrapped, so
+/// header-derived boundaries misplaced right-aligned amounts). The header line
+/// is still located, to know where the table starts and to label the columns.
 List<List<String>>? _pdfLinesToGrid(List<TextLine> lines) {
-  // Find the most header-like line (≥2 keyword groups matched).
+  // Locate the most header-like line (≥2 keyword groups matched).
   var headerIdx = -1;
   var headerScoreBest = 1;
   for (var i = 0; i < lines.length; i++) {
@@ -291,47 +275,144 @@ List<List<String>>? _pdfLinesToGrid(List<TextLine> lines) {
     if (score > headerScoreBest) {
       headerScoreBest = score;
       headerIdx = i;
-      if (score >= 4) break; // unmistakable header — stop early
+      if (score >= 4) break;
     }
   }
   if (headerIdx < 0) return null;
-
   final headerLine = lines[headerIdx];
-  final clusters = _clusterWords(headerLine);
-  if (clusters.length < 2) return null;
+  final headerNorm = _normText(headerLine.text);
 
-  // Boundary between column i and i+1: midpoint of the gap between clusters.
-  final boundaries = <double>[];
-  for (var i = 0; i + 1 < clusters.length; i++) {
-    boundaries.add((clusters[i].right + clusters[i + 1].left) / 2);
+  // Data rows below the header that clearly look like transactions (carry a
+  // date, or an amount with a decimal). These define the column geometry.
+  final dataLines = <TextLine>[];
+  for (var i = headerIdx + 1; i < lines.length; i++) {
+    if (_normText(lines[i].text) == headerNorm) continue; // repeated page header
+    if (_looksLikeTableRow(lines[i])) dataLines.add(lines[i]);
+  }
+  if (dataLines.length < 2) return null;
+
+  final boundaries = _columnBoundaries(dataLines) ?? _headerBoundaries(headerLine);
+  if (boundaries == null || boundaries.isEmpty) return null;
+
+  int colOf(double centreX) {
+    for (var b = 0; b < boundaries.length; b++) {
+      if (centreX < boundaries[b]) return b;
+    }
+    return boundaries.length;
   }
 
-  final headerCells = [for (final c in clusters) c.text];
-  final headerNorm = _normText(headerCells.join(' '));
-  final rows = <List<String>>[headerCells];
-
-  for (var i = headerIdx + 1; i < lines.length; i++) {
-    final line = lines[i];
-    // Skip repeated page headers (same header re-printed on later pages).
-    final lineNorm = _normText(line.text);
-    if (lineNorm == headerNorm) continue;
-    final cells = List<String>.filled(clusters.length, '');
+  List<String> assign(TextLine line) {
+    final cells = List<String>.filled(boundaries.length + 1, '');
     for (final w in line.wordCollection) {
       final text = w.text.trim();
       if (text.isEmpty) continue;
-      final cx = w.bounds.left + w.bounds.width / 2;
-      var col = boundaries.length; // default: last column
-      for (var b = 0; b < boundaries.length; b++) {
-        if (cx < boundaries[b]) {
-          col = b;
-          break;
-        }
-      }
+      final col = colOf(w.bounds.left + w.bounds.width / 2);
       cells[col] = cells[col].isEmpty ? text : '${cells[col]} $text';
     }
+    return cells;
+  }
+
+  final rows = <List<String>>[assign(headerLine)];
+  for (var i = headerIdx + 1; i < lines.length; i++) {
+    if (_normText(lines[i].text) == headerNorm) continue;
+    final cells = assign(lines[i]);
     if (cells.any((c) => c.isNotEmpty)) rows.add(cells);
   }
   return rows.length > 1 ? rows : null;
+}
+
+/// A line that reads like a transaction row: at least two words and either a
+/// parseable date or a decimal amount somewhere in it.
+bool _looksLikeTableRow(TextLine line) {
+  final words = [for (final w in line.wordCollection) w.text.trim()]
+    ..removeWhere((w) => w.isEmpty);
+  if (words.length < 2) return false;
+  var hasDate = false, hasAmount = false;
+  for (final w in words) {
+    if (!hasDate && parseFlexibleDate(w, DateOrder.dmy) != null) hasDate = true;
+    if (!hasAmount) {
+      final a = parseAmountText(w);
+      if (a != null && (w.contains('.') || w.contains(','))) hasAmount = true;
+    }
+  }
+  return hasDate || hasAmount;
+}
+
+/// Column boundaries from a projection profile: x positions where the data
+/// rows leave a persistent vertical gutter (ink on both sides, empty in the
+/// middle across ≥85% of rows). Returns null if fewer than one gutter is found.
+List<double>? _columnBoundaries(List<TextLine> dataLines) {
+  var minX = double.infinity, maxX = -double.infinity;
+  for (final line in dataLines) {
+    for (final w in line.wordCollection) {
+      if (w.text.trim().isEmpty) continue;
+      if (w.bounds.left < minX) minX = w.bounds.left;
+      if (w.bounds.right > maxX) maxX = w.bounds.right;
+    }
+  }
+  if (!minX.isFinite || maxX <= minX) return null;
+
+  final lo = minX.floor();
+  final width = (maxX.ceil() - lo) + 1;
+  if (width <= 0 || width > 20000) return null;
+  // coverage[x] = how many data rows have ink at column x.
+  final coverage = List<int>.filled(width, 0);
+  for (final line in dataLines) {
+    // Mark this row's covered bins once (union of its words).
+    final marked = List<bool>.filled(width, false);
+    for (final w in line.wordCollection) {
+      if (w.text.trim().isEmpty) continue;
+      final l = (w.bounds.left.floor() - lo).clamp(0, width - 1);
+      final r = (w.bounds.right.ceil() - lo).clamp(0, width - 1);
+      for (var x = l; x <= r; x++) {
+        marked[x] = true;
+      }
+    }
+    for (var x = 0; x < width; x++) {
+      if (marked[x]) coverage[x]++;
+    }
+  }
+
+  final n = dataLines.length;
+  // A bin is "gutter material" if almost no row has ink there. floor() keeps
+  // this at 0 for small statements (so a column populated in only one row is
+  // still recognised as a column, not swallowed into a margin) while tolerating
+  // ~15% description bleed once there are enough rows.
+  final emptyThreshold = (n * 0.15).floor();
+  const minGutter = 3; // points; ignore tiny inter-word gaps
+
+  final boundaries = <double>[];
+  var x = 0;
+  var seenInk = false; // only count gutters between real columns, not margins
+  while (x < width) {
+    if (coverage[x] > emptyThreshold) {
+      seenInk = true;
+      x++;
+      continue;
+    }
+    // Start of a low-coverage run.
+    final start = x;
+    while (x < width && coverage[x] <= emptyThreshold) {
+      x++;
+    }
+    final end = x; // exclusive
+    final hasInkAfter = x < width;
+    if (seenInk && hasInkAfter && (end - start) >= minGutter) {
+      boundaries.add(lo + (start + end) / 2.0);
+    }
+  }
+  return boundaries.isEmpty ? null : boundaries;
+}
+
+/// Fallback: boundaries from the header line's word clusters (used only when
+/// the data-driven profile finds no gutters).
+List<double>? _headerBoundaries(TextLine headerLine) {
+  final clusters = _clusterWords(headerLine);
+  if (clusters.length < 2) return null;
+  return [
+    for (var i = 0; i + 1 < clusters.length; i++)
+      (clusters[i].right + clusters[i + 1].left) / 2,
+  ];
 }
 
 List<String> _lineWordTexts(TextLine line) =>
@@ -675,6 +756,8 @@ List<ImportRowDraft> buildImportRows(StatementGrid grid, ColumnMapping m, DateOr
 }
 
 // ---- dedupe fingerprint ----------------------------------------------------
+
+String _two(int n) => n.toString().padLeft(2, '0');
 
 /// Stable identity of a statement row: account + date + signed amount + the
 /// normalized head of its reference/description. Stored as `importKey` on
