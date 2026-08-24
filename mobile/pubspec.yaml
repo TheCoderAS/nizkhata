@@ -1,7 +1,7 @@
 name: nizkhata
 description: NizKhata — native Android app. Every rupee, accounted for.
 publish_to: "none"
-version: 1.0.26+27
+version: 1.0.27+28
 
 environment:
   sdk: ">=3.4.0 <4.0.0"
@@ -51,8 +51,15 @@ dependencies:
   # file picking, CSV, XLSX, and PDF text extraction (incl. password-protected).
   file_picker: ^10.3.3
   csv: ^6.0.0
-  excel: ^4.0.6
   syncfusion_flutter_pdf: ^28.1.33
+  # xlsx is a zip of XML parts; we read it directly (the `excel` package chokes
+  # on many real-world/openpyxl-authored files) for reliable statement import.
+  archive: ^3.6.0
+  xml: ^6.5.0
+  # AES/SHA for decrypting password-protected Office documents on-device
+  # (ECMA-376 agile/standard encryption). Pure Dart — no platform code.
+  pointycastle: ^4.0.0
+  crypto: ^3.0.0
 
 dev_dependencies:
   flutter_test:
