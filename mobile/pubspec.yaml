@@ -1,7 +1,7 @@
 name: nizkhata
 description: NizKhata — native Android app. Every rupee, accounted for.
 publish_to: "none"
-version: 1.0.27+28
+version: 1.0.28+29
 
 environment:
   sdk: ">=3.4.0 <4.0.0"
@@ -60,6 +60,9 @@ dependencies:
   # (ECMA-376 agile/standard encryption). Pure Dart — no platform code.
   pointycastle: ^4.0.0
   crypto: ^3.0.0
+  # Keystore-backed storage for remembered statement passwords (encrypted at
+  # rest on-device; never leaves the device).
+  flutter_secure_storage: ^9.2.4
 
 dev_dependencies:
   flutter_test:

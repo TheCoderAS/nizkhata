@@ -11,14 +11,16 @@ import '../core/theme.dart';
 import '../data/derive.dart';
 import '../data/models.dart';
 import '../data/mutations.dart';
+import '../services/password_store.dart';
 import '../services/statement_parser.dart';
 import '../state/auth_controller.dart';
 import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
 
-/// Statement import — upload → analyse (password prompt for encrypted PDFs) →
+/// Statement import — upload → analyse (password prompt for encrypted files) →
 /// map columns → review rows in a table with checkboxes and per-row edits →
-/// import. All parsing happens on-device; passwords stay in memory only.
+/// import. All parsing happens on-device; a remembered password is kept only
+/// in the device's encrypted keystore and never leaves the device.
 class ImportScreen extends StatefulWidget {
   final String? initialAccountId;
   const ImportScreen({super.key, this.initialAccountId});
@@ -51,6 +53,7 @@ class _ImportScreenState extends State<ImportScreen> {
   StatementGrid? _grid;
   ColumnMapping _mapping = ColumnMapping();
   DateOrder _dateOrder = DateOrder.dmy;
+  bool _rememberPassword = true;
 
   // Review state.
   List<_ReviewRow> _rows = [];
@@ -91,7 +94,11 @@ class _ImportScreenState extends State<ImportScreen> {
     await _analyze(bytes, file.name);
   }
 
-  Future<void> _analyze(Uint8List bytes, String name, {String? password}) async {
+  /// Analyse the file. If it's password-protected, first silently try any
+  /// password remembered for this account; only prompt if that's missing or
+  /// wrong. [triedRemembered] guards against re-trying the stored password.
+  Future<void> _analyze(Uint8List bytes, String name,
+      {String? password, bool triedRemembered = false}) async {
     setState(() => _busy = true);
     try {
       // Let the spinner paint before the (synchronous) parse work.
@@ -103,6 +110,15 @@ class _ImportScreenState extends State<ImportScreen> {
         order = detectDateOrder(
             grid.dataRows.take(50).map((r) => mapping.date! < r.length ? r[mapping.date!] : ''));
       }
+      // A password that worked is saved for this account when "remember" is on,
+      // or any previously-saved one cleared when the user turned it off.
+      if (password != null && password.isNotEmpty && _accountId != null) {
+        if (_rememberPassword) {
+          await PasswordStore.instance.set(_accountId!, password);
+        } else {
+          await PasswordStore.instance.remove(_accountId!);
+        }
+      }
       setState(() {
         _fileName = name;
         _grid = grid;
@@ -112,9 +128,21 @@ class _ImportScreenState extends State<ImportScreen> {
         _busy = false;
       });
     } on StatementPasswordRequired catch (e) {
+      // Try a remembered password once before bothering the user.
+      if (!triedRemembered && !e.wrongPassword && _accountId != null) {
+        final saved = await PasswordStore.instance.get(_accountId!);
+        if (saved != null && saved.isNotEmpty && mounted) {
+          await _analyze(bytes, name, password: saved, triedRemembered: true);
+          return;
+        }
+      }
       setState(() => _busy = false);
-      final pw = await _askPassword(wrongPassword: e.wrongPassword);
-      if (pw != null && mounted) await _analyze(bytes, name, password: pw);
+      final initial = _accountId != null ? await PasswordStore.instance.get(_accountId!) : null;
+      if (!mounted) return;
+      final pw = await _askPassword(wrongPassword: e.wrongPassword, initial: initial ?? '');
+      if (pw != null && mounted) {
+        await _analyze(bytes, name, password: pw, triedRemembered: true);
+      }
     } on StatementUnsupported catch (e) {
       setState(() => _busy = false);
       _showError(e.message);
@@ -124,8 +152,8 @@ class _ImportScreenState extends State<ImportScreen> {
     }
   }
 
-  Future<String?> _askPassword({required bool wrongPassword}) {
-    final controller = TextEditingController();
+  Future<String?> _askPassword({required bool wrongPassword, String initial = ''}) {
+    final controller = TextEditingController(text: initial);
     var obscure = true;
     return showDialog<String>(
       context: context,
@@ -154,9 +182,17 @@ class _ImportScreenState extends State<ImportScreen> {
                 ),
                 onSubmitted: (v) => Navigator.pop(ctx, v),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 4),
+              CheckboxListTile(
+                value: _rememberPassword,
+                onChanged: (v) => setDlg(() => setState(() => _rememberPassword = v ?? true)),
+                title: const Text('Remember for this account'),
+                contentPadding: EdgeInsets.zero,
+                controlAffinity: ListTileControlAffinity.leading,
+                dense: true,
+              ),
               Text(
-                'Used only to open the file on this device — never stored.',
+                'Kept encrypted on this device only — never uploaded.',
                 style: TextStyle(fontSize: 12, color: Theme.of(ctx).colorScheme.onSurfaceVariant),
               ),
             ],
@@ -329,40 +365,73 @@ class _ImportScreenState extends State<ImportScreen> {
 
   // ---- build ---------------------------------------------------------------
 
+  /// Leaving mid-flow (mapping/review) throws away analysis and row choices, so
+  /// guard the back gesture there. Picking and the final screen leave freely;
+  /// during the write we block back so the import isn't interrupted.
+  bool get _canLeaveFreely => _step == _Step.pick || _step == _Step.done;
+
+  Future<void> _confirmLeave() async {
+    if (_step == _Step.importing) return; // don't interrupt the write
+    final leave = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Discard import?'),
+        content: const Text(
+            'Your column mapping and row selections will be lost. The imported '
+            'transactions so far (if any) are kept.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Keep editing')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Discard'),
+          ),
+        ],
+      ),
+    );
+    if (leave == true && mounted) Navigator.of(context).pop();
+  }
+
   @override
   Widget build(BuildContext context) {
     final ws = context.watch<WorkspaceController>();
     final canCreate = ws.can('transactions.create');
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Import statement'),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(4),
-          child: LinearProgressIndicator(
-            value: switch (_step) {
-              _Step.pick => 0.25,
-              _Step.mapping => 0.5,
-              _Step.review => 0.75,
-              _Step.importing || _Step.done => 1.0,
-            },
-            backgroundColor: Colors.transparent,
+    return PopScope(
+      canPop: _canLeaveFreely || !canCreate,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _confirmLeave();
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Import statement'),
+          bottom: PreferredSize(
+            preferredSize: const Size.fromHeight(4),
+            child: LinearProgressIndicator(
+              value: switch (_step) {
+                _Step.pick => 0.25,
+                _Step.mapping => 0.5,
+                _Step.review => 0.75,
+                _Step.importing || _Step.done => 1.0,
+              },
+              backgroundColor: Colors.transparent,
+            ),
           ),
         ),
+        body: !canCreate
+            ? const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(24),
+                  child: Text("Your role doesn't allow creating transactions."),
+                ),
+              )
+            : switch (_step) {
+                _Step.pick => _buildPick(),
+                _Step.mapping => _buildMapping(),
+                _Step.review => _buildReviewList(),
+                _Step.importing => _buildImporting(),
+                _Step.done => _buildDone(),
+              },
       ),
-      body: !canCreate
-          ? const Center(
-              child: Padding(
-                padding: EdgeInsets.all(24),
-                child: Text("Your role doesn't allow creating transactions."),
-              ),
-            )
-          : switch (_step) {
-              _Step.pick => _buildPick(),
-              _Step.mapping => _buildMapping(),
-              _Step.review => _buildReviewList(),
-              _Step.importing => _buildImporting(),
-              _Step.done => _buildDone(),
-            },
     );
   }
 
