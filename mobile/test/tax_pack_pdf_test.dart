@@ -37,7 +37,10 @@ void main() {
     expect(text, contains('Acme Corp'));
     expect(text, contains('Form 26AS'));
     expect(text, contains('Invoice #1059'));
-    expect(text, contains('verify with your accountant'));
+    expect(text, contains('verify figures with your accountant'));
+    expect(text, contains('Computer-generated statement'));
+    expect(text, contains('Page 1 of')); // paged footer
+    expect(text, contains('Total')); // emphasized totals row in by-head
   });
 
   test('empty sections are skipped without errors', () {

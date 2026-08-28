@@ -6,6 +6,7 @@ import '../data/mutations.dart';
 import '../state/auth_controller.dart';
 import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
+import '../widgets/discard_guard.dart';
 
 /// Open the create/edit budget sheet. Ports the web BudgetDialog fields.
 Future<void> showBudgetForm(BuildContext context, {Budget? existing}) {
@@ -28,6 +29,16 @@ class _BudgetForm extends StatefulWidget {
 }
 
 class _BudgetFormState extends State<_BudgetForm> {
+  @override
+  void initState() {
+    super.initState();
+    _fp0 = _fp();
+  }
+
+  // Unsaved-edit detection: snapshot on open, compare on close.
+  late final String _fp0;
+  String _fp() => ['$_categoryId', _period, _amount.text].join('|');
+
   final _formKey = GlobalKey<FormState>();
   late String? _categoryId = widget.existing?.categoryId;
   late String _period = widget.existing?.period ?? 'monthly';
@@ -71,6 +82,10 @@ class _BudgetFormState extends State<_BudgetForm> {
 
   @override
   Widget build(BuildContext context) {
+    return DiscardGuard(isDirty: () => _fp() != _fp0, child: _buildContent(context));
+  }
+
+  Widget _buildContent(BuildContext context) {
     final data = context.read<DataController>();
     final editing = widget.existing != null;
     final expenseCats = data.categories.where((c) => c.kind == 'expense').toList()

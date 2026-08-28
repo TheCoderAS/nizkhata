@@ -60,6 +60,7 @@ Uint8List buildTaxPackPdf({
 
   final h2 = PdfStandardFont(PdfFontFamily.helvetica, 12, style: PdfFontStyle.bold);
   final body = PdfStandardFont(PdfFontFamily.helvetica, 9);
+  final bodyBold = PdfStandardFont(PdfFontFamily.helvetica, 9, style: PdfFontStyle.bold);
   final small = PdfStandardFont(PdfFontFamily.helvetica, 8);
   final dateFmt = DateFormat('dd MMM yyyy');
 
@@ -78,8 +79,6 @@ Uint8List buildTaxPackPdf({
   y += 30;
 
   var currentPage = page;
-  PdfGridStyle style() =>
-      PdfGridStyle(font: body, cellPadding: PdfPaddings(left: 6, right: 6, top: 3, bottom: 3));
 
   PdfPage section(String title, PdfGrid grid, PdfPage onPage, double atY) {
     onPage.graphics.drawString(title, h2, bounds: Rect.fromLTWH(0, atY, w, 16));
@@ -108,7 +107,13 @@ Uint8List buildTaxPackPdf({
       r.cells[2].value = _money(e.tds, currency);
       r.cells[3].value = '${e.lines}';
     }
-    grid.style = style();
+    final totals = grid.rows.add();
+    totals.cells[0].value = 'Total';
+    totals.cells[1].value = _money(totalTaxable, currency);
+    totals.cells[2].value = _money(totalTds, currency);
+    totals.cells[3].value = '';
+    styleStatementGrid(grid, body: body, bold: bodyBold, rightCols: {1, 2, 3});
+    emphasizeGridRow(totals, bodyBold);
     currentPage = section('Taxable by head', grid, currentPage, y);
   }
 
@@ -126,7 +131,7 @@ Uint8List buildTaxPackPdf({
       r.cells[1].value = _money(e.taxable, currency);
       r.cells[2].value = _money(e.tds, currency);
     }
-    grid.style = style();
+    styleStatementGrid(grid, body: body, bold: bodyBold, rightCols: {1, 2});
     currentPage = section('By contact (cross-check against Form 26AS)', grid, currentPage, y);
   }
 
@@ -151,21 +156,24 @@ Uint8List buildTaxPackPdf({
       r.cells[3].value = _money(e.taxable, currency);
       r.cells[4].value = _money(e.tds, currency);
     }
-    grid.style = style();
+    styleStatementGrid(grid, body: body, bold: bodyBold, rightCols: {3, 4});
     currentPage = section('Taxable-line register (${register.length})', grid, currentPage, y);
   }
 
-  // Footer + disclaimer on every page.
-  for (var i = 0; i < doc.pages.count; i++) {
-    final p = doc.pages[i];
-    final size = p.getClientSize();
-    p.graphics.drawString(
-        'Prepared from your NizKhata records. Please verify with your accountant. '
-        'https://nizkhata.web.app',
-        small,
-        brush: PdfSolidBrush(PdfColor(120, 128, 148)),
-        bounds: Rect.fromLTWH(0, size.height - 12, size.width, 12));
+  // Closing note (new page if the last table ended near the bottom).
+  if (y > currentPage.getClientSize().height - 40) {
+    currentPage = doc.pages.add();
+    y = 0;
   }
+  currentPage.graphics.drawString(
+      'Prepared from your NizKhata records. Please verify figures with your '
+      'accountant before filing.',
+      small,
+      brush: PdfSolidBrush(PdfColor(120, 128, 148)),
+      bounds: Rect.fromLTWH(0, y + 6, w, 24));
+
+  drawPdfPageFooters(
+      doc, 'Computer-generated statement, no signature required | https://nizkhata.web.app');
 
   final bytes = Uint8List.fromList(doc.saveSync());
   doc.dispose();

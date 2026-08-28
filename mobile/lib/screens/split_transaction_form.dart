@@ -10,6 +10,7 @@ import '../state/auth_controller.dart';
 import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
 import '../widgets/txn_lines_editor.dart';
+import '../widgets/discard_guard.dart';
 
 /// THE transaction sheet — create and edit. One form for everything: a header
 /// (date / account / contact / note) plus a dynamic list of typed lines with
@@ -37,6 +38,10 @@ class _TransactionForm extends StatefulWidget {
 }
 
 class _TransactionFormState extends State<_TransactionForm> {
+  // Unsaved-edit detection: snapshot on open, compare on close.
+  late final String _fp0;
+  String _fp() => [_date.toIso8601String(), '$_accountId', '$_contactId', _note.text, for (final r in _lines) lineDraftFingerprint(r)].join('|');
+
   DateTime _date = DateTime.now();
   String? _accountId;
   String? _contactId;
@@ -61,6 +66,7 @@ class _TransactionFormState extends State<_TransactionForm> {
       // Start simple: one line. "Add line" turns it into a split.
       _lines = [LineDraft(type: 'expense')];
     }
+    _fp0 = _fp();
   }
 
   @override
@@ -142,6 +148,10 @@ class _TransactionFormState extends State<_TransactionForm> {
 
   @override
   Widget build(BuildContext context) {
+    return DiscardGuard(isDirty: () => _fp() != _fp0, child: _buildContent(context));
+  }
+
+  Widget _buildContent(BuildContext context) {
     final data = context.watch<DataController>();
     final ws = context.watch<WorkspaceController>();
     final currency = ws.activeWorkspace?.baseCurrency ?? 'INR';

@@ -7,6 +7,7 @@ import '../data/mutations.dart';
 import '../state/auth_controller.dart';
 import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
+import '../widgets/discard_guard.dart';
 
 const _kPurposeLabels = <String, String>{
   'loan': 'Loan',
@@ -38,6 +39,16 @@ class _DebtForm extends StatefulWidget {
 }
 
 class _DebtFormState extends State<_DebtForm> {
+  @override
+  void initState() {
+    super.initState();
+    _fp0 = _fp();
+  }
+
+  // Unsaved-edit detection: snapshot on open, compare on close.
+  late final String _fp0;
+  String _fp() => ['$_contactId', _direction, _purpose, _label.text, _note.text, _opening.text, '$_accountId', _status].join('|');
+
   final _formKey = GlobalKey<FormState>();
   late String? _contactId = widget.existing?.contactId;
   late String _direction = widget.existing?.direction ?? 'owe';
@@ -124,6 +135,10 @@ class _DebtFormState extends State<_DebtForm> {
 
   @override
   Widget build(BuildContext context) {
+    return DiscardGuard(isDirty: () => _fp() != _fp0, child: _buildContent(context));
+  }
+
+  Widget _buildContent(BuildContext context) {
     final data = context.watch<DataController>();
     final contacts = data.contacts.where((c) => c.connectionUid == null).toList();
     final accounts = data.accounts;

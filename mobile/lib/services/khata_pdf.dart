@@ -64,6 +64,7 @@ Uint8List buildKhataPdf({
 
   final h2 = PdfStandardFont(PdfFontFamily.helvetica, 12, style: PdfFontStyle.bold);
   final body = PdfStandardFont(PdfFontFamily.helvetica, 9.5);
+  final bodyBold = PdfStandardFont(PdfFontFamily.helvetica, 9.5, style: PdfFontStyle.bold);
   final small = PdfStandardFont(PdfFontFamily.helvetica, 8);
   final dateFmt = DateFormat('dd MMM yyyy');
 
@@ -78,7 +79,23 @@ Uint8List buildKhataPdf({
   g.drawString(_pdfSafe(contactName),
       PdfStandardFont(PdfFontFamily.helvetica, 16, style: PdfFontStyle.bold),
       bounds: Rect.fromLTWH(0, y, w, 22));
-  y += 26;
+  y += 22;
+  if (entries.isNotEmpty) {
+    var oldest = entries.first.date;
+    var newest = entries.first.date;
+    for (final e in entries) {
+      if (e.date.isBefore(oldest)) oldest = e.date;
+      if (e.date.isAfter(newest)) newest = e.date;
+    }
+    g.drawString(
+        'Statement period: ${dateFmt.format(oldest)} to ${dateFmt.format(newest)}',
+        small,
+        brush: PdfSolidBrush(PdfColor(120, 128, 148)),
+        bounds: Rect.fromLTWH(0, y, w, 12));
+    y += 16;
+  } else {
+    y += 4;
+  }
 
   // Net position banner.
   final owed = net > 0.005;
@@ -99,9 +116,6 @@ Uint8List buildKhataPdf({
   // Sections flow across pages; track where the last layout ended.
   var currentPage = page;
 
-  PdfGridStyle gridStyle() =>
-      PdfGridStyle(font: body, cellPadding: PdfPaddings(left: 6, right: 6, top: 4, bottom: 4));
-
   // Open dues section.
   if (openDues.isNotEmpty) {
     currentPage.graphics.drawString('Outstanding dues', h2, bounds: Rect.fromLTWH(0, y, w, 16));
@@ -120,7 +134,7 @@ Uint8List buildKhataPdf({
       r.cells[2].value =
           '${_money(d.remaining, currency)} ${d.direction == 'receivable' ? '(to receive)' : '(to pay)'}';
     }
-    dueGrid.style = gridStyle();
+    styleStatementGrid(dueGrid, body: body, bold: bodyBold, rightCols: {2});
     final res = dueGrid.draw(page: currentPage, bounds: Rect.fromLTWH(0, y, w, 0));
     if (res != null) {
       currentPage = res.page;
@@ -163,20 +177,12 @@ Uint8List buildKhataPdf({
     r.cells[3].value =
         '${bal >= 0.005 ? '' : (bal <= -0.005 ? '-' : '')}${_money(bal.abs(), currency)}';
   }
-  grid.style = gridStyle();
+  styleStatementGrid(grid, body: body, bold: bodyBold, rightCols: {2, 3});
   currentPage.graphics
       .drawString('Transactions (${entries.length})', h2, bounds: Rect.fromLTWH(0, y, w, 16));
   grid.draw(page: currentPage, bounds: Rect.fromLTWH(0, y + 20, w, 0));
 
-  // Footer on every page.
-  for (var i = 0; i < doc.pages.count; i++) {
-    final p = doc.pages[i];
-    final size = p.getClientSize();
-    p.graphics.drawString(
-        'Made with NizKhata | https://nizkhata.web.app', small,
-        brush: PdfSolidBrush(PdfColor(120, 128, 148)),
-        bounds: Rect.fromLTWH(0, size.height - 12, size.width, 12));
-  }
+  drawPdfPageFooters(doc, 'Made with NizKhata | https://nizkhata.web.app');
 
   final bytes = Uint8List.fromList(doc.saveSync());
   doc.dispose();
