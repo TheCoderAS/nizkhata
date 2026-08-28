@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../core/format.dart';
 import '../core/theme.dart';
@@ -8,6 +9,7 @@ import '../data/derive.dart';
 import '../data/due_settlement.dart';
 import '../data/models.dart';
 import '../data/mutations.dart';
+import '../services/khata_pdf.dart';
 import '../state/auth_controller.dart';
 import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
@@ -408,6 +410,23 @@ class _DueMenu extends StatelessWidget {
           case 'pay':
             showDuePayment(context, due);
             break;
+          case 'remind':
+            final remaining = roundMoney(due.amount - data.settledOf(due.id));
+            final contactName = due.contactId != null
+                ? (data.contactsById[due.contactId]?.name ?? 'there')
+                : 'there';
+            Share.share(buildDueReminderText(
+              contactName: contactName,
+              dueTitle: due.title,
+              remaining: remaining,
+              dueDate: due.dueDate,
+              currency: context
+                      .read<WorkspaceController>()
+                      .activeWorkspace
+                      ?.baseCurrency ??
+                  'INR',
+            ));
+            break;
           case 'contact':
             if (due.contactId != null) context.push('/contacts/${due.contactId}');
             break;
@@ -429,6 +448,9 @@ class _DueMenu extends StatelessWidget {
       },
       itemBuilder: (_) => [
         if (canTxn && settleable) const PopupMenuItem(value: 'pay', child: Text('Record payment')),
+        // A share-sheet nudge for money owed to you — WhatsApp does the rest.
+        if (settleable && due.direction == 'receivable' && hasContact)
+          const PopupMenuItem(value: 'remind', child: Text('Send reminder')),
         if (canViewContacts && hasContact) const PopupMenuItem(value: 'contact', child: Text('View contact')),
         if (canViewTxns && hasContact) const PopupMenuItem(value: 'txns', child: Text('View transactions')),
         if (canManage) const PopupMenuItem(value: 'edit', child: Text('Edit')),

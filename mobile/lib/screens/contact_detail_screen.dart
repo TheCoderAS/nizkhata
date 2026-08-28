@@ -1,11 +1,16 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../core/format.dart';
 import '../core/theme.dart';
 import '../data/derive.dart';
 import '../data/models.dart';
+import '../services/khata_pdf.dart';
 import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
 import '../widgets/common.dart';
@@ -63,6 +68,11 @@ class ContactDetailScreen extends StatelessWidget {
         appBar: AppBar(
           title: Text(contact.name),
           actions: [
+            IconButton(
+              tooltip: 'Share ledger',
+              icon: const Icon(Icons.ios_share),
+              onPressed: () => _shareKhata(context, contact),
+            ),
             if (canViewTxns)
               IconButton(
                 tooltip: 'Open in Transactions',
@@ -446,6 +456,93 @@ class ContactDetailScreen extends StatelessWidget {
           ],
         ),
       );
+
+  // ---- shareable khata -----------------------------------------------------
+
+  /// Everything the ledger artifacts need, computed once from live data.
+  ({
+    double net,
+    List<KhataEntry> entries,
+    List<KhataDueLine> openDues,
+    String currency,
+    String workspaceName,
+  }) _khataData(BuildContext context, Contact contact) {
+    final data = context.read<DataController>();
+    final ws = context.read<WorkspaceController>();
+    final position = data.positionOf(contact.id);
+    final entries = [
+      for (final t in data.transactions.where((t) => t.contactId == contact.id))
+        KhataEntry(t.date, t.note?.isNotEmpty == true ? t.note! : 'Transaction', t.totalAmount),
+    ]..sort((a, b) => b.date.compareTo(a.date));
+    final openDues = [
+      for (final d in data.dues.where((d) =>
+          d.contactId == contact.id && (d.status == 'open' || d.status == 'partial')))
+        KhataDueLine(d.title, d.dueDate, roundMoney(d.amount - data.settledOf(d.id)), d.direction),
+    ]..sort((a, b) => a.dueDate.compareTo(b.dueDate));
+    return (
+      net: position.net,
+      entries: entries,
+      openDues: openDues,
+      currency: ws.activeWorkspace?.baseCurrency ?? 'INR',
+      workspaceName: ws.activeWorkspace?.name ?? 'NizKhata',
+    );
+  }
+
+  void _shareKhata(BuildContext context, Contact contact) {
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetCtx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.picture_as_pdf_outlined),
+              title: const Text('Share ledger as PDF'),
+              subtitle: const Text('Net position, outstanding dues and full history'),
+              onTap: () async {
+                Navigator.pop(sheetCtx);
+                final k = _khataData(context, contact);
+                final bytes = buildKhataPdf(
+                  workspaceName: k.workspaceName,
+                  contactName: contact.name,
+                  net: k.net,
+                  entries: k.entries,
+                  openDues: k.openDues,
+                  currency: k.currency,
+                );
+                final dir = await getTemporaryDirectory();
+                final safe = contact.name.replaceAll(RegExp(r'[^A-Za-z0-9]+'), '-').toLowerCase();
+                final file = File('${dir.path}/ledger-$safe.pdf');
+                await file.writeAsBytes(bytes);
+                await Share.shareXFiles(
+                  [XFile(file.path, name: 'ledger-$safe.pdf', mimeType: 'application/pdf')],
+                  text: 'Ledger — ${contact.name}',
+                );
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.chat_outlined),
+              title: const Text('Share summary as text'),
+              subtitle: const Text('Short WhatsApp-ready standing + recent entries'),
+              onTap: () {
+                Navigator.pop(sheetCtx);
+                final k = _khataData(context, contact);
+                Share.share(buildKhataText(
+                  contactName: contact.name,
+                  net: k.net,
+                  entries: k.entries,
+                  openDues: k.openDues,
+                  currency: k.currency,
+                ));
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 const _lineTypeLabels = <String, String>{
