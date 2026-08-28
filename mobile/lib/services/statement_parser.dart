@@ -494,7 +494,9 @@ class ColumnMapping {
   int? debit; // separate withdrawal column
   int? credit; // separate deposit column
   int? reference;
-  ColumnMapping({this.date, this.description, this.amount, this.debit, this.credit, this.reference});
+  int? balance; // running balance — used for reconciliation, never imported
+  ColumnMapping(
+      {this.date, this.description, this.amount, this.debit, this.credit, this.reference, this.balance});
 
   /// Two-column (debit/credit) mode vs single-amount mode.
   bool get splitAmounts => debit != null || credit != null;
@@ -507,7 +509,24 @@ ColumnMapping suggestMapping(List<String> header) {
   final cells = [for (final h in header) h.toLowerCase()];
 
   bool freeFor(int i) =>
-      i != m.date && i != m.description && i != m.debit && i != m.credit && i != m.amount && i != m.reference;
+      i != m.date &&
+      i != m.description &&
+      i != m.debit &&
+      i != m.credit &&
+      i != m.amount &&
+      i != m.reference &&
+      i != m.balance;
+
+  // Balance first, so amount/debit/credit guesses never claim the balance
+  // column (their keyword checks also exclude 'balance', belt and braces).
+  for (var i = 0; i < cells.length; i++) {
+    final h = cells[i];
+    if (h.isEmpty) continue;
+    if (m.balance == null && h.contains('balance')) {
+      m.balance = i;
+      break;
+    }
+  }
 
   for (var i = 0; i < cells.length; i++) {
     final h = cells[i];
@@ -677,6 +696,7 @@ class ImportRowDraft {
   String description;
   double? amount; // signed: money in > 0, money out < 0
   String reference;
+  double? balance; // running balance after this row (reconciliation only)
   final int sourceRow;
   ImportRowDraft({
     required this.sourceRow,
@@ -684,6 +704,7 @@ class ImportRowDraft {
     this.description = '',
     this.amount,
     this.reference = '',
+    this.balance,
   });
 
   bool get parseable => date != null && amount != null && amount!.abs() > 0.004;
@@ -726,6 +747,7 @@ List<ImportRowDraft> buildImportRows(StatementGrid grid, ColumnMapping m, DateOr
     final amount = amountOf(row);
     final desc = cell(row, m.description);
     final ref = cell(row, m.reference);
+    final balance = m.balance != null ? parseAmountText(cell(row, m.balance)) : null;
 
     if (date != null) {
       current = ImportRowDraft(
@@ -734,6 +756,7 @@ List<ImportRowDraft> buildImportRows(StatementGrid grid, ColumnMapping m, DateOr
         description: desc,
         amount: amount,
         reference: ref,
+        balance: balance,
       );
       out.add(current);
       continue;
@@ -746,6 +769,7 @@ List<ImportRowDraft> buildImportRows(StatementGrid grid, ColumnMapping m, DateOr
       continue;
     }
     if (amount != null && current.amount == null) current.amount = amount;
+    if (balance != null && current.balance == null) current.balance = balance;
     if (desc.isNotEmpty) {
       current.description =
           current.description.isEmpty ? desc : '${current.description} $desc';

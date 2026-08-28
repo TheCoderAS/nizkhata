@@ -361,6 +361,8 @@ class Mutations {
   }
 
   /// Settle a due: create the txn and flip the due status in one batch.
+  /// [importKey] is stamped when the settlement came from a statement import,
+  /// so re-importing the same statement flags the row as a duplicate.
   Future<void> settleDue(
     String ws,
     String dueId, {
@@ -372,20 +374,24 @@ class Mutations {
     required String financialYear,
     required List<Map<String, dynamic>> lines,
     required String newStatus,
+    String? importKey,
   }) async {
     final batch = _db.batch();
     final txnId = newId('transactions');
     batch.set(
       _db.collection('transactions').doc(txnId),
-      _buildTxnDoc(txnId, ws, by,
-          date: date,
-          note: note,
-          accountId: accountId,
-          contactId: contactId,
-          totalAmount: totalAmount,
-          dueId: dueId,
-          financialYear: financialYear,
-          lines: lines),
+      {
+        ..._buildTxnDoc(txnId, ws, by,
+            date: date,
+            note: note,
+            accountId: accountId,
+            contactId: contactId,
+            totalAmount: totalAmount,
+            dueId: dueId,
+            financialYear: financialYear,
+            lines: lines),
+        if (importKey != null) 'importKey': importKey,
+      },
     );
     _appendRevision(batch, workspaceId: ws, entityType: 'transactions', entityId: txnId, action: 'create');
     batch.update(_db.collection('dues').doc(dueId), {
