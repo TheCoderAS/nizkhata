@@ -79,6 +79,8 @@
     .cta svg { flex: none; }
     .cta-sub { margin-top: 12px; font-size: 13px; color: var(--muted); }
     .cta-sub a { color: var(--muted); }
+    .alt-dl { margin-top: 8px; font-size: 12.5px; color: var(--muted); }
+    .alt-dl a { color: var(--muted); }
     .features {
       margin-top: 52px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
       width: 100%; text-align: left;
@@ -123,7 +125,8 @@
       </svg>
       Download for Android
     </a>
-    <p class="cta-sub">Always the latest version · <a href="https://github.com/TheCoderAS/nizkhata/releases">release notes</a></p>
+    <p class="cta-sub"><span id="dl-meta">Always the latest version</span> · <a href="https://github.com/TheCoderAS/nizkhata/releases">release notes</a></p>
+    <p class="alt-dl">Older 32-bit phone? <a id="dl-32" href="https://github.com/TheCoderAS/nizkhata/releases/latest/download/app-release-32bit.apk">Get the 32-bit APK</a><span id="dl-32-size"></span></p>
 
     <div class="features">
       <div class="feature">
@@ -152,5 +155,42 @@
 
     <footer>NIZKHATA · ANDROID</footer>
   </main>
+
+  <script>
+    // Upgrade the download links to the versioned assets (nizkhata_vX.Y.Z.apk)
+    // so the saved file says which version it is, and show the version and
+    // download size next to each button. If this lookup fails for any reason,
+    // the static hrefs above still serve the stable app-release*.apk aliases.
+    (function () {
+      function mb(bytes) { return (bytes / 1048576).toFixed(1) + ' MB'; }
+      fetch('https://api.github.com/repos/TheCoderAS/nizkhata/releases/latest')
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (rel) {
+          if (!rel || !rel.assets) return;
+          var main = rel.assets.find(function (a) {
+            return /^nizkhata_v[\d.]+\.apk$/.test(a.name);
+          });
+          var alt = rel.assets.find(function (a) {
+            return /^nizkhata_v[\d.]+_32bit\.apk$/.test(a.name);
+          });
+          if (main) {
+            var cta = document.querySelector('a.cta');
+            if (cta) cta.href = main.browser_download_url;
+            var meta = document.getElementById('dl-meta');
+            if (meta) {
+              meta.textContent =
+                (rel.tag_name ? rel.tag_name + ' · ' : '') + mb(main.size) + ' · 64-bit';
+            }
+          }
+          if (alt) {
+            var a32 = document.getElementById('dl-32');
+            if (a32) a32.href = alt.browser_download_url;
+            var s32 = document.getElementById('dl-32-size');
+            if (s32) s32.textContent = ' (' + mb(alt.size) + ')';
+          }
+        })
+        .catch(function () { /* static links keep working */ });
+    })();
+  </script>
 </body>
 </html>
