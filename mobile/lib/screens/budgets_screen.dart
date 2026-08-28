@@ -11,6 +11,7 @@ import '../state/auth_controller.dart';
 import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
 import '../widgets/common.dart';
+import '../widgets/undo_delete.dart';
 import 'budget_form.dart';
 
 class BudgetsScreen extends StatelessWidget {
@@ -248,10 +249,12 @@ class _BudgetCard extends StatelessWidget {
               Navigator.pop(ctx);
               if (ws == null || user == null) return;
               try {
-                await Mutations(Actor.fromUser(user)).deleteBudget(ws, p.budget.id);
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Budget deleted')));
-                }
+                await deleteWithUndo(context,
+                    actor: Actor.fromUser(user),
+                    collection: 'budgets',
+                    workspaceId: ws,
+                    id: p.budget.id,
+                    label: 'Budget');
               } catch (e) {
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Delete failed: $e')));

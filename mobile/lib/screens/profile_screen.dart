@@ -10,6 +10,7 @@ import '../core/format.dart';
 import '../core/theme.dart';
 import '../data/models.dart';
 import '../data/mutations.dart';
+import '../services/app_lock.dart';
 import '../state/auth_controller.dart';
 import '../state/theme_controller.dart';
 import '../state/workspace_controller.dart';
@@ -105,6 +106,11 @@ class ProfileScreen extends StatelessWidget {
               showSelectedIcon: false,
               onSelectionChanged: (s) => context.read<ThemeController>().setMode(s.first),
             ),
+          ),
+          const SizedBox(height: 16),
+          const SectionCard(
+            title: 'Security',
+            child: _AppLockTile(),
           ),
           const SizedBox(height: 16),
           SectionCard(
@@ -250,6 +256,61 @@ class ProfileScreen extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// App-lock toggle: requires the device to support biometrics or credentials;
+/// enabling verifies once so a typo-free setup can't lock the user out.
+class _AppLockTile extends StatefulWidget {
+  const _AppLockTile();
+
+  @override
+  State<_AppLockTile> createState() => _AppLockTileState();
+}
+
+class _AppLockTileState extends State<_AppLockTile> {
+  bool _enabled = false;
+  bool _supported = true;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    () async {
+      final enabled = await AppLock.isEnabled();
+      final supported = await AppLock.isSupported();
+      if (mounted) {
+        setState(() {
+          _enabled = enabled;
+          _supported = supported;
+          _loading = false;
+        });
+      }
+    }();
+  }
+
+  Future<void> _toggle(bool value) async {
+    if (value) {
+      // Prove it works before turning it on.
+      final ok = await AppLock.authenticate();
+      if (!ok) return;
+    }
+    await AppLock.setEnabled(value);
+    if (mounted) setState(() => _enabled = value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SwitchListTile(
+      contentPadding: EdgeInsets.zero,
+      secondary: const Icon(Icons.fingerprint),
+      title: const Text('App lock'),
+      subtitle: Text(_supported
+          ? 'Require fingerprint or device PIN when opening the app'
+          : 'Set up a screen lock on this device first'),
+      value: _enabled,
+      onChanged: _loading || !_supported ? null : _toggle,
     );
   }
 }

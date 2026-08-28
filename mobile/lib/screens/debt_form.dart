@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart' show Timestamp;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -47,7 +48,7 @@ class _DebtFormState extends State<_DebtForm> {
 
   // Unsaved-edit detection: snapshot on open, compare on close.
   late final String _fp0;
-  String _fp() => ['$_contactId', _direction, _purpose, _label.text, _note.text, _opening.text, '$_accountId', _status].join('|');
+  String _fp() => ['$_contactId', _direction, _purpose, _label.text, _note.text, _opening.text, _interest.text, '$_accountId', _status].join('|');
 
   final _formKey = GlobalKey<FormState>();
   late String? _contactId = widget.existing?.contactId;
@@ -55,6 +56,8 @@ class _DebtFormState extends State<_DebtForm> {
   late String _purpose = widget.existing?.purpose ?? 'loan';
   late final _label = TextEditingController(text: widget.existing?.label ?? '');
   late final _note = TextEditingController(text: widget.existing?.note ?? '');
+  late final _interest = TextEditingController(
+      text: widget.existing?.interestRate != null ? widget.existing!.interestRate.toString() : '');
   late final _opening = TextEditingController(
       text: widget.existing != null ? widget.existing!.principal.toString() : '0');
   String? _accountId; // null = External / none
@@ -68,6 +71,7 @@ class _DebtFormState extends State<_DebtForm> {
     _label.dispose();
     _note.dispose();
     _opening.dispose();
+    _interest.dispose();
     super.dispose();
   }
 
@@ -87,6 +91,7 @@ class _DebtFormState extends State<_DebtForm> {
         await m.updateDebt(ws, widget.existing!.id, {
           'label': _label.text.trim().isEmpty ? null : _label.text.trim(),
           'note': _note.text.trim().isEmpty ? null : _note.text.trim(),
+          'interestRate': double.tryParse(_interest.text.trim()),
           'principal': amount,
           'status': _status,
         });
@@ -101,6 +106,10 @@ class _DebtFormState extends State<_DebtForm> {
             'principal': amount,
             'label': _label.text.trim().isEmpty ? null : _label.text.trim(),
             'note': _note.text.trim().isEmpty ? null : _note.text.trim(),
+            'interestRate': double.tryParse(_interest.text.trim()),
+            'interestFrom': widget.existing == null && double.tryParse(_interest.text.trim()) != null
+                ? Timestamp.fromDate(DateTime.now())
+                : null,
           },
           openingAmount: amount,
           accountId: _accountId,
@@ -224,6 +233,15 @@ class _DebtFormState extends State<_DebtForm> {
                 controller: _note,
                 decoration: const InputDecoration(labelText: 'Note (optional)'),
                 maxLines: 3,
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _interest,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(
+                  labelText: 'Interest rate (% p.a., optional)',
+                  helperText: 'Simple interest, shown as an estimate. Never auto-posted.',
+                ),
               ),
               if (_isEdit)
                 const Padding(

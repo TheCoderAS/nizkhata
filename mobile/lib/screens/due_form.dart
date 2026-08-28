@@ -39,11 +39,12 @@ class _DueForm extends StatefulWidget {
 class _DueFormState extends State<_DueForm> {
   // Unsaved-edit detection: snapshot on open, compare on close.
   late final String _fp0;
-  String _fp() => [_title.text, _dueDate.toIso8601String(), '$_contactId', '$_accountId', _note.text, for (final r in _lines) lineDraftFingerprint(r)].join('|');
+  String _fp() => [_title.text, _dueDate.toIso8601String(), '$_contactId', '$_accountId', _note.text, _recurrence, for (final r in _lines) lineDraftFingerprint(r)].join('|');
 
   final _formKey = GlobalKey<FormState>();
   late final _title = TextEditingController(text: widget.existing?.title ?? '');
   late DateTime _dueDate = widget.existing?.dueDate ?? DateTime.now();
+  late String _recurrence = widget.existing?.recurrence ?? '';
   late String? _contactId = widget.existing?.contactId;
   late String? _accountId = widget.existing?.accountId;
   late final _note = TextEditingController(text: widget.existing?.note ?? '');
@@ -126,6 +127,10 @@ class _DueFormState extends State<_DueForm> {
       'categoryId': firstCategory,
       'note': note,
       'lines': lineMaps,
+      'recurrence': _recurrence.isEmpty ? null : _recurrence,
+      'recurrenceId': _recurrence.isEmpty
+          ? null
+          : (widget.existing?.recurrenceId ?? widget.existing?.id),
     };
     try {
       if (widget.existing == null) {
@@ -270,6 +275,18 @@ class _DueFormState extends State<_DueForm> {
               ],
               const SizedBox(height: 22),
               _sectionLabel('Linked to (optional)'),
+              DropdownButtonFormField<String>(
+                value: _recurrence,
+                decoration: const InputDecoration(labelText: 'Repeats'),
+                items: const [
+                  DropdownMenuItem(value: '', child: Text('Does not repeat')),
+                  DropdownMenuItem(value: 'weekly', child: Text('Weekly')),
+                  DropdownMenuItem(value: 'monthly', child: Text('Monthly')),
+                  DropdownMenuItem(value: 'yearly', child: Text('Yearly')),
+                ],
+                onChanged: (v) => setState(() => _recurrence = v ?? ''),
+              ),
+              const SizedBox(height: 12),
               DropdownButtonFormField<String>(
                 value: contacts.any((c) => c.id == _contactId) ? _contactId : null,
                 decoration: const InputDecoration(labelText: 'Contact (optional)'),

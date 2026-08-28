@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../core/format.dart';
+import '../data/derive.dart';
 import '../data/models.dart';
 import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
@@ -87,6 +88,24 @@ class _DebtDetail extends StatelessWidget {
             _row(context, 'Status', debt.status),
             _row(context, 'Principal', formatMoney(debt.principal, currency)),
             _row(context, 'Outstanding', formatMoney(outstanding, currency)),
+            if (debt.interestRate != null && debt.interestRate! > 0) ...[
+              _row(context, 'Interest rate', '${debt.interestRate}% p.a. (simple)'),
+              _row(
+                context,
+                'Interest accrued',
+                // Estimate on the CURRENT outstanding since interestFrom (or
+                // today when unset) — informational, never posted as a txn.
+                formatMoney(
+                    roundMoney(outstanding *
+                        debt.interestRate! /
+                        100 *
+                        DateTime.now()
+                            .difference(debt.interestFrom ?? DateTime.now())
+                            .inDays /
+                        365),
+                    currency),
+              ),
+            ],
             if (debt.note?.isNotEmpty == true) _row(context, 'Note', debt.note!),
             if (canTxn && settleable) ...[
               const SizedBox(height: 12),

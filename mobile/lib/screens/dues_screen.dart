@@ -16,6 +16,7 @@ import '../state/workspace_controller.dart';
 import '../widgets/common.dart';
 import '../widgets/entity_card_list.dart';
 import '../widgets/discard_guard.dart';
+import '../widgets/undo_delete.dart';
 import 'due_detail.dart';
 import 'due_form.dart';
 
@@ -495,10 +496,12 @@ void _confirmDelete(BuildContext context, Due due) {
             Navigator.pop(ctx);
             if (ws == null || user == null) return;
             try {
-              await Mutations(Actor.fromUser(user)).deleteDue(ws, due.id);
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Due deleted')));
-              }
+              await deleteWithUndo(context,
+                  actor: Actor.fromUser(user),
+                  collection: 'dues',
+                  workspaceId: ws,
+                  id: due.id,
+                  label: 'Due');
             } catch (e) {
               if (context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Delete failed: $e')));

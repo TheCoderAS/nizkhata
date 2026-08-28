@@ -2,6 +2,9 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import '../data/mutations.dart';
+import '../services/recurrence.dart';
+import '../state/auth_controller.dart';
 
 import '../core/format.dart';
 import '../core/theme.dart';
@@ -75,6 +78,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
+        ..._attentionItems(context, data, ws, currency, now),
         _periodSelector(),
         if (period == PeriodKind.custom) ...[
           const SizedBox(height: 12),
@@ -445,6 +449,189 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ),
       ),
     );
+  }
+
+  // ---- Needs attention ------------------------------------------------------
+
+  /// The dashboard's to-do strip: overdue receivables, dues this week,
+  /// uncategorised transactions, stale statement imports, and recurring
+  /// transactions whose next occurrence has arrived. Hidden when all clear.
+  List<Widget> _attentionItems(BuildContext context, DataController data,
+      WorkspaceController ws, String currency, DateTime now) {
+    final items = <Widget>[];
+    final today = DateTime(now.year, now.month, now.day);
+
+    // Overdue receivables + dues in the next 7 days.
+    var overdueCount = 0;
+    var overdueAmount = 0.0;
+    var weekCount = 0;
+    for (final d in data.dues) {
+      final st = dueStatusFromSettled(d, data.settledOf(d.id));
+      if (st != 'open' && st != 'partial') continue;
+      final remaining = d.amount - data.settledOf(d.id);
+      if (remaining <= 0.005) continue;
+      if (d.direction == 'receivable' && d.dueDate.isBefore(today)) {
+        overdueCount++;
+        overdueAmount += remaining;
+      } else if (!d.dueDate.isBefore(today) &&
+          d.dueDate.isBefore(today.add(const Duration(days: 8)))) {
+        weekCount++;
+      }
+    }
+    if (overdueCount > 0) {
+      items.add(_attentionTile(
+        icon: Icons.notifications_active_outlined,
+        color: AppColors.danger,
+        title: '$overdueCount overdue receivable${overdueCount == 1 ? '' : 's'}',
+        subtitle: '${formatMoney(overdueAmount, currency)} waiting to be collected',
+        onTap: () => context.go('/dues'),
+      ));
+    }
+    if (weekCount > 0) {
+      items.add(_attentionTile(
+        icon: Icons.event_outlined,
+        color: AppColors.brand,
+        title: '$weekCount due${weekCount == 1 ? '' : 's'} in the next 7 days',
+        subtitle: 'See the calendar for the full picture',
+        onTap: () => context.push('/calendar'),
+      ));
+    }
+
+    // Uncategorised transactions (imports mostly).
+    final uncategorized = data.transactions
+        .where((t) => t.lines.any((l) =>
+            (l.type == 'expense' || l.type == 'income') && l.categoryId == null))
+        .length;
+    if (uncategorized > 0 && ws.can('transactions.edit')) {
+      items.add(_attentionTile(
+        icon: Icons.category_outlined,
+        color: AppColors.accent2,
+        title: '$uncategorized uncategorised transaction${uncategorized == 1 ? '' : 's'}',
+        subtitle: 'Categorise in bulk, grouped by merchant',
+        onTap: () => context.push('/categorize'),
+      ));
+    }
+
+    // Stale statement imports: accounts that HAVE imported history whose
+    // newest imported transaction is over 30 days old.
+    if (ws.can('transactions.create')) {
+      for (final a in data.accounts) {
+        DateTime? lastImport;
+        for (final t in data.transactions) {
+          if (t.accountId != a.id || t.importKey == null) continue;
+          if (lastImport == null || t.date.isAfter(lastImport)) lastImport = t.date;
+        }
+        if (lastImport == null) continue;
+        final days = today.difference(DateTime(lastImport.year, lastImport.month, lastImport.day)).inDays;
+        if (days > 30) {
+          items.add(_attentionTile(
+            icon: Icons.upload_file_outlined,
+            color: AppColors.brandTo,
+            title: '${a.name}: statement due for import',
+            subtitle: 'Last imported $days days ago',
+            onTap: () => context.push('/import?account=${a.id}'),
+          ));
+        }
+      }
+    }
+
+    // Recurring transactions whose next occurrence has arrived (suggest only).
+    if (ws.can('transactions.create')) {
+      for (final s in recurringTxnSuggestions(data.transactions, now)) {
+        items.add(_attentionTile(
+          icon: Icons.repeat,
+          color: AppColors.accent2,
+          title: 'Add "${s.template.note ?? 'Transaction'}" for ${formatDate(s.nextDate)}',
+          subtitle:
+              'Recurring ${s.template.recurrence} · ${formatMoney(s.template.totalAmount, currency)}',
+          onTap: () => _addRecurringTxn(context, s),
+        ));
+      }
+    }
+
+    if (items.isEmpty) return const [];
+    return [
+      SectionCard(
+        title: 'Needs attention',
+        child: Column(children: items),
+      ),
+      const SizedBox(height: 12),
+    ];
+  }
+
+  Widget _attentionTile({
+    required IconData icon,
+    required Color color,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      dense: true,
+      leading: Container(
+        width: 34,
+        height: 34,
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.14),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Icon(icon, size: 18, color: color),
+      ),
+      title: Text(title, style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600)),
+      subtitle: Text(subtitle, style: const TextStyle(fontSize: 12)),
+      trailing: const Icon(Icons.chevron_right, size: 18),
+      onTap: onTap,
+    );
+  }
+
+  Future<void> _addRecurringTxn(BuildContext context, TxnSuggestion s) async {
+    final wsC = context.read<WorkspaceController>();
+    final wsId = wsC.activeWorkspaceId;
+    final fyStart = wsC.activeWorkspace?.fyStartMonth ?? 4;
+    final user = context.read<AuthController>().user;
+    final currency = wsC.activeWorkspace?.baseCurrency ?? 'INR';
+    if (wsId == null || user == null) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Add recurring transaction?'),
+        content: Text('"${s.template.note ?? 'Transaction'}" for '
+            '${formatDate(s.nextDate)}, ${formatMoney(s.template.totalAmount, currency)}.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Not now')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Add')),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    final micros = DateTime.now().microsecondsSinceEpoch;
+    var i = 0;
+    final lines = [
+      for (final l in s.template.lines)
+        (l.toMap()..['lineId'] = 'rec_${micros}_l${i++}'),
+    ];
+    try {
+      await Mutations(Actor.fromUser(user)).createTransaction(
+        wsId,
+        date: s.nextDate,
+        note: s.template.note,
+        accountId: s.template.accountId,
+        contactId: s.template.contactId,
+        totalAmount: s.template.totalAmount,
+        financialYear: financialYearOf(s.nextDate, fyStart),
+        lines: lines,
+        recurrence: s.template.recurrence,
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Transaction added')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $e')));
+      }
+    }
   }
 }
 

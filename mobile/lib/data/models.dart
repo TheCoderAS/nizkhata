@@ -284,6 +284,9 @@ class Debt {
   final String? note;
   final double principal;
   final String status; // open | settled
+  // Optional simple interest (annual %, informational — never auto-posted).
+  final double? interestRate;
+  final DateTime? interestFrom;
   Debt({
     required this.id,
     required this.workspaceId,
@@ -294,6 +297,8 @@ class Debt {
     required this.status,
     this.label,
     this.note,
+    this.interestRate,
+    this.interestFrom,
   });
   factory Debt.fromDoc(DocumentSnapshot d) {
     final m = d.data() as Map<String, dynamic>;
@@ -307,6 +312,8 @@ class Debt {
       status: m['status'] ?? 'open',
       label: m['label'],
       note: m['note'],
+      interestRate: (m['interestRate'] as num?)?.toDouble(),
+      interestFrom: m['interestFrom'] != null ? _ts(m['interestFrom']) : null,
     );
   }
 }
@@ -328,6 +335,11 @@ class Due {
   final String? categoryId;
   final String? note;
   final List<TxnLine> lines;
+  // Recurrence: 'monthly' | 'weekly' | 'yearly'. The recurrence engine creates
+  // the next instance (deterministic id) once this one settles or falls due.
+  // recurrenceId groups all instances of one series (the first due's id).
+  final String? recurrence;
+  final String? recurrenceId;
   Due({
     required this.id,
     required this.workspaceId,
@@ -341,6 +353,8 @@ class Due {
     this.categoryId,
     this.note,
     this.lines = const [],
+    this.recurrence,
+    this.recurrenceId,
   });
   factory Due.fromDoc(DocumentSnapshot d) {
     final m = d.data() as Map<String, dynamic>;
@@ -357,6 +371,8 @@ class Due {
       accountId: m['accountId'],
       categoryId: m['categoryId'],
       note: m['note'],
+      recurrence: m['recurrence'],
+      recurrenceId: m['recurrenceId'],
       lines: rawLines
           .whereType<Map>()
           .map((l) => TxnLine.fromMap(Map<String, dynamic>.from(l)))
@@ -425,6 +441,9 @@ class Txn {
   // Statement-import identity (account|date|amount|ref) — lets a re-imported
   // statement recognise rows it already created, even after edits to the note.
   final String? importKey;
+  // 'monthly' | 'weekly' | 'yearly': the attention strip suggests (never
+  // auto-creates) the next occurrence of this transaction when it comes due.
+  final String? recurrence;
   Txn({
     required this.id,
     required this.workspaceId,
@@ -438,6 +457,7 @@ class Txn {
     this.contactId,
     this.dueId,
     this.importKey,
+    this.recurrence,
   });
   factory Txn.fromDoc(DocumentSnapshot d) {
     final m = d.data() as Map<String, dynamic>;
@@ -454,6 +474,7 @@ class Txn {
       dueId: m['dueId'],
       financialYear: m['financialYear'] ?? '',
       importKey: m['importKey'],
+      recurrence: m['recurrence'],
       lines: rawLines.map((l) => TxnLine.fromMap(Map<String, dynamic>.from(l))).toList(),
     );
   }

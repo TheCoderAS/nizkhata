@@ -83,6 +83,8 @@ class MoreScreen extends StatelessWidget {
                 _navTile(context, Icons.bar_chart_outlined, 'Reports', '/reports'),
               ],
               const Divider(height: 1),
+              _navTile(context, Icons.calendar_month_outlined, 'Calendar', '/calendar'),
+              const Divider(height: 1),
               _navTile(context, Icons.history, 'Activity', '/activity'),
               if (ws.can('shared.view')) ...[
                 const Divider(height: 1),

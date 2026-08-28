@@ -11,6 +11,7 @@ import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
 import '../widgets/common.dart';
 import '../widgets/entity_card_list.dart';
+import '../widgets/undo_delete.dart';
 import 'contact_form.dart';
 
 class ContactsScreen extends StatefulWidget {
@@ -180,11 +181,12 @@ class _ContactsScreenState extends State<ContactsScreen> {
               Navigator.pop(ctx);
               if (ws == null || user == null) return;
               try {
-                await Mutations(Actor.fromUser(user)).deleteContact(ws, c.id);
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context)
-                      .showSnackBar(const SnackBar(content: Text('Contact deleted')));
-                }
+                await deleteWithUndo(context,
+                    actor: Actor.fromUser(user),
+                    collection: 'contacts',
+                    workspaceId: ws,
+                    id: c.id,
+                    label: 'Contact');
               } catch (e) {
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Delete failed: $e')));

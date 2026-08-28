@@ -146,6 +146,67 @@ class Mutations {
     await batch.commit();
   }
 
+  /// Read the document's current data (for the Undo snackbar), then delete it.
+  /// Returns the entity fields (audit fields stripped) or null if unreadable.
+  Future<Map<String, dynamic>?> deleteWithSnapshot(String col, String ws, String id) async {
+    Map<String, dynamic>? snapshot;
+    try {
+      final doc = await _db.collection(col).doc(id).get();
+      final data = doc.data();
+      if (data != null) {
+        snapshot = Map<String, dynamic>.from(data)
+          ..remove('createdAt')
+          ..remove('createdBy')
+          ..remove('updatedAt')
+          ..remove('updatedBy')
+          ..remove('id')
+          ..remove('workspaceId');
+      }
+    } catch (_) {
+      // Undo becomes unavailable; the delete still proceeds.
+    }
+    await _auditedDelete(col, ws, id);
+    return snapshot;
+  }
+
+  /// Undo a delete: recreate the document under its original id with the
+  /// captured fields (fresh audit stamps — the restorer owns the restore).
+  Future<void> restoreEntity(String col, String ws, String id, Map<String, dynamic> data) =>
+      _auditedCreate(col, ws, data, id: id);
+
+  /// Bulk-set the category on every uncategorised income/expense line of the
+  /// given transactions (used by the bulk categorisation flow). Chunked
+  /// batches; lines that already have a category are left untouched.
+  Future<void> bulkSetTxnCategory(String ws, List<Txn> txns, String categoryId) async {
+    const chunkSize = 200;
+    for (var start = 0; start < txns.length; start += chunkSize) {
+      final chunk = txns.sublist(
+          start, start + chunkSize > txns.length ? txns.length : start + chunkSize);
+      final batch = _db.batch();
+      for (final t in chunk) {
+        final lines = t.lines.map((l) {
+          final m = l.toMap();
+          if ((l.type == 'expense' || l.type == 'income') && l.categoryId == null) {
+            m['categoryId'] = categoryId;
+          }
+          return _strip(m);
+        }).toList();
+        batch.update(_db.collection('transactions').doc(t.id), {
+          'lines': lines,
+          'updatedBy': by.toMap(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+        _appendRevision(batch,
+            workspaceId: ws,
+            entityType: 'transactions',
+            entityId: t.id,
+            action: 'update',
+            changedFields: ['lines']);
+      }
+      await batch.commit();
+    }
+  }
+
   /// Link (or clear) the contact that represents a member. Deliberately a raw
   /// single-field update: the self-service security rule only allows the
   /// `linkedContactId` key to change on one's own membership.
@@ -206,8 +267,10 @@ class Mutations {
   Future<void> deleteBudget(String ws, String id) => _auditedDelete('budgets', ws, id);
 
   // ---- dues ----
-  Future<String> createDue(String ws, Map<String, dynamic> data) =>
-      _auditedCreate('dues', ws, {...data, 'status': 'open'});
+  /// [id] lets the recurrence engine use deterministic instance ids so a
+  /// concurrent run on another device cannot create duplicates.
+  Future<String> createDue(String ws, Map<String, dynamic> data, {String? id}) =>
+      _auditedCreate('dues', ws, {...data, 'status': 'open'}, id: id);
   Future<void> updateDue(String ws, String id, Map<String, dynamic> data) => _auditedUpdate('dues', ws, id, data);
   Future<void> deleteDue(String ws, String id) => _auditedDelete('dues', ws, id);
 
@@ -257,20 +320,24 @@ class Mutations {
     String? dueId,
     required String financialYear,
     required List<Map<String, dynamic>> lines,
+    String? recurrence,
   }) async {
     final id = newId('transactions');
     final batch = _db.batch();
     batch.set(
       _db.collection('transactions').doc(id),
-      _buildTxnDoc(id, ws, by,
-          date: date,
-          note: note,
-          accountId: accountId,
-          contactId: contactId,
-          totalAmount: totalAmount,
-          dueId: dueId,
-          financialYear: financialYear,
-          lines: lines),
+      {
+        ..._buildTxnDoc(id, ws, by,
+            date: date,
+            note: note,
+            accountId: accountId,
+            contactId: contactId,
+            totalAmount: totalAmount,
+            dueId: dueId,
+            financialYear: financialYear,
+            lines: lines),
+        if (recurrence != null) 'recurrence': recurrence,
+      },
     );
     _appendRevision(batch, workspaceId: ws, entityType: 'transactions', entityId: id, action: 'create');
     await batch.commit();
@@ -341,6 +408,7 @@ class Mutations {
     String? dueId,
     required String financialYear,
     required List<Map<String, dynamic>> lines,
+    String? recurrence,
   }) async {
     final batch = _db.batch();
     batch.update(_db.collection('transactions').doc(id), {
@@ -355,6 +423,7 @@ class Mutations {
       'note': note ?? FieldValue.delete(),
       'contactId': contactId ?? FieldValue.delete(),
       'dueId': dueId ?? FieldValue.delete(),
+      'recurrence': recurrence ?? FieldValue.delete(),
     });
     _appendRevision(batch, workspaceId: ws, entityType: 'transactions', entityId: id, action: 'update');
     await batch.commit();

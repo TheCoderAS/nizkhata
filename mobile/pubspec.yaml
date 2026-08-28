@@ -1,7 +1,7 @@
 name: nizkhata
 description: NizKhata — native Android app. Every rupee, accounted for.
 publish_to: "none"
-version: 1.0.34+35
+version: 1.0.35+36
 
 environment:
   sdk: ">=3.4.0 <4.0.0"
@@ -63,6 +63,8 @@ dependencies:
   # Keystore-backed storage for remembered statement passwords (encrypted at
   # rest on-device; never leaves the device).
   flutter_secure_storage: ^9.2.4
+  # Biometric/device-credential app lock.
+  local_auth: ^2.3.0
 
 dev_dependencies:
   flutter_test:

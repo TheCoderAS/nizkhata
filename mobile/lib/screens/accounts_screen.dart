@@ -12,6 +12,7 @@ import '../state/workspace_controller.dart';
 import '../widgets/common.dart';
 import '../widgets/entity_card_list.dart';
 import '../widgets/revision_history.dart';
+import '../widgets/undo_delete.dart';
 import 'account_form.dart';
 
 class AccountsScreen extends StatelessWidget {
@@ -148,10 +149,12 @@ class AccountsScreen extends StatelessWidget {
               Navigator.pop(ctx);
               if (ws == null || user == null) return;
               try {
-                await Mutations(Actor.fromUser(user)).deleteAccount(ws, a.id);
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Account deleted')));
-                }
+                await deleteWithUndo(context,
+                    actor: Actor.fromUser(user),
+                    collection: 'accounts',
+                    workspaceId: ws,
+                    id: a.id,
+                    label: 'Account');
               } catch (e) {
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Delete failed: $e')));

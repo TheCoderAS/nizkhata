@@ -8,12 +8,16 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:quick_actions/quick_actions.dart';
 
+import 'package:cloud_firestore/cloud_firestore.dart' show Timestamp;
+
 import 'core/theme.dart';
 import 'firebase_options.dart';
 import 'data/models.dart';
 import 'data/mutations.dart';
 import 'router.dart';
+import 'services/app_lock.dart';
 import 'services/due_reminders.dart';
+import 'services/recurrence.dart';
 import 'services/widget_sync.dart';
 import 'state/auth_controller.dart';
 import 'state/data_controller.dart';
@@ -191,7 +195,48 @@ class _RootState extends State<_Root> {
       WidgetSync.sync(data.dues, data.settledOf, currency);
       _updateShortcuts();
       _attemptAutoLink();
+      _materializeRecurringDues();
     });
+  }
+
+  /// Create the next instance of any recurring due that has settled or fallen
+  /// due. Deterministic instance ids make this safe to run on every device on
+  /// every sync — a second run (or a second device) is a no-op.
+  Future<void> _materializeRecurringDues() async {
+    final data = _data;
+    final ws = _ws;
+    final user = context.read<AuthController>().user;
+    final wsId = ws?.activeWorkspaceId;
+    if (data == null || ws == null || wsId == null || user == null) return;
+    if (!ws.can('dues.manage')) return;
+    final missing = missingDueInstances(data.dues, DateTime.now());
+    if (missing.isEmpty) return;
+    final m = Mutations(Actor.fromUser(user));
+    for (final inst in missing) {
+      final t = inst.template;
+      try {
+        await m.createDue(
+          wsId,
+          {
+            'direction': t.direction,
+            'title': t.title,
+            'amount': t.amount,
+            'dueDate': Timestamp.fromDate(inst.dueDate),
+            'contactId': t.contactId,
+            'accountId': t.accountId,
+            'categoryId': t.categoryId,
+            'note': t.note,
+            'lines': [for (final l in t.lines) l.toMap()],
+            'recurrence': t.recurrence,
+            'recurrenceId': t.recurrenceId ?? t.id,
+          },
+          id: inst.id,
+        );
+      } catch (_) {
+        // A concurrent device may have created it first — that's the point of
+        // the deterministic id; skip quietly.
+      }
+    }
   }
 
   @override
@@ -204,13 +249,15 @@ class _RootState extends State<_Root> {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp.router(
-      title: 'NizKhata',
-      debugShowCheckedModeBanner: false,
-      theme: buildLightTheme(),
-      darkTheme: buildDarkTheme(),
-      themeMode: context.watch<ThemeController>().mode,
-      routerConfig: router,
+    return LockGate(
+      child: MaterialApp.router(
+        title: 'NizKhata',
+        debugShowCheckedModeBanner: false,
+        theme: buildLightTheme(),
+        darkTheme: buildDarkTheme(),
+        themeMode: context.watch<ThemeController>().mode,
+        routerConfig: router,
+      ),
     );
   }
 }

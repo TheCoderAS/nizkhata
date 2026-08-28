@@ -12,7 +12,10 @@ import '../core/format.dart';
 import '../core/theme.dart';
 import '../data/derive.dart';
 import '../data/models.dart';
+import '../data/mutations.dart';
+import '../data/settle_up.dart';
 import '../services/khata_pdf.dart';
+import '../state/auth_controller.dart';
 import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
 import '../widgets/common.dart';
@@ -226,17 +229,133 @@ class ContactDetailScreen extends StatelessWidget {
     return Card(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        child: Row(
+        child: Column(
           children: [
-            cell('Net', position.net, toneColor(netTone)),
-            divider(),
-            cell('In', position.totalIn, AppColors.accent2),
-            divider(),
-            cell('Out', position.totalOut, AppColors.danger),
+            Row(
+              children: [
+                cell('Net', position.net, toneColor(netTone)),
+                divider(),
+                cell('In', position.totalIn, AppColors.accent2),
+                divider(),
+                cell('Out', position.totalOut, AppColors.danger),
+              ],
+            ),
+            Builder(builder: (context) {
+              final data = context.watch<DataController>();
+              final ws = context.watch<WorkspaceController>();
+              if (!ws.can('transactions.create')) return const SizedBox.shrink();
+              final plan = buildSettleUpPlan(contactId, data.debts, data.transactions,
+                  lineIdSeed: 0);
+              if (plan.isEmpty || plan.signedTotal.abs() <= 0.005) {
+                return const SizedBox.shrink();
+              }
+              final currency = ws.activeWorkspace?.baseCurrency ?? 'INR';
+              return Padding(
+                padding: const EdgeInsets.only(top: 10),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.handshake_outlined, size: 18),
+                    label: Text(plan.signedTotal > 0
+                        ? 'Settle up: collect ${formatMoney(plan.signedTotal, currency)}'
+                        : 'Settle up: pay ${formatMoney(plan.signedTotal.abs(), currency)}'),
+                    onPressed: () => _confirmSettleUp(context, plan),
+                  ),
+                ),
+              );
+            }),
           ],
         ),
       ),
     );
+  }
+
+  /// One transaction that closes every open debt with this contact (repayment
+  /// lines for each), previewed before posting.
+  Future<void> _confirmSettleUp(BuildContext context, SettleUpPlan stale) async {
+    final data = context.read<DataController>();
+    final wsC = context.read<WorkspaceController>();
+    final wsId = wsC.activeWorkspaceId;
+    final fyStart = wsC.activeWorkspace?.fyStartMonth ?? 4;
+    final currency = wsC.activeWorkspace?.baseCurrency ?? 'INR';
+    final user = context.read<AuthController>().user;
+    if (wsId == null || user == null) return;
+    // Rebuild fresh (data may have moved since the button rendered).
+    final seed = DateTime.now().microsecondsSinceEpoch;
+    final plan = buildSettleUpPlan(contactId, data.debts, data.transactions, lineIdSeed: seed);
+    if (plan.isEmpty) return;
+    final accounts = data.accounts;
+    if (accounts.isEmpty) return;
+    String? accountId = accounts.first.id;
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDlg) => AlertDialog(
+          title: const Text('Settle up debts?'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('One transaction will close ${plan.debts.length} open '
+                  'debt${plan.debts.length == 1 ? '' : 's'}:'),
+              const SizedBox(height: 8),
+              for (final d in plan.debts)
+                Text(
+                  '- ${d.label?.isNotEmpty == true ? d.label : _purposeLabels[d.purpose] ?? d.purpose}'
+                  ' (${d.direction == 'owed' ? 'they owe' : 'you owe'})',
+                  style: const TextStyle(fontSize: 13),
+                ),
+              const SizedBox(height: 10),
+              Text(
+                plan.signedTotal > 0
+                    ? 'Net: you collect ${formatMoney(plan.signedTotal, currency)}'
+                    : 'Net: you pay ${formatMoney(plan.signedTotal.abs(), currency)}',
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                value: accountId,
+                isExpanded: true,
+                decoration: const InputDecoration(labelText: 'Account', isDense: true),
+                items: [
+                  for (final a in accounts)
+                    DropdownMenuItem(value: a.id, child: Text(a.name, overflow: TextOverflow.ellipsis)),
+                ],
+                onChanged: (v) => setDlg(() => accountId = v),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Post settle-up')),
+          ],
+        ),
+      ),
+    );
+    if (ok != true || accountId == null || !context.mounted) return;
+    try {
+      final now = DateTime.now();
+      final contactName = data.contactsById[contactId]?.name ?? '';
+      await Mutations(Actor.fromUser(user)).createTransaction(
+        wsId,
+        date: now,
+        note: 'Settle-up with $contactName',
+        accountId: accountId!,
+        contactId: contactId,
+        totalAmount: plan.signedTotal,
+        financialYear: financialYearOf(now, fyStart),
+        lines: plan.lines,
+      );
+      if (context.mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Settle-up recorded')));
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $e')));
+      }
+    }
   }
 
   Widget _transactionsTab(BuildContext context, DataController data, List<Txn> txns, String currency) {
