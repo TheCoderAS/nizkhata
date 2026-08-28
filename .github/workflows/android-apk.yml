@@ -343,6 +343,9 @@ jobs:
           OUT=build/app/outputs/flutter-apk
           cp "$OUT/app-release.apk" "$OUT/nizkhata_${VERSION}.apk"
           cp "$OUT/app-armeabi-v7a-release.apk" "$OUT/nizkhata_${VERSION}_32bit.apk"
+          # Stable 32-bit alias, mirroring app-release.apk: lets the landing
+          # page link releases/latest/download/app-release-32bit.apk statically.
+          cp "$OUT/app-armeabi-v7a-release.apk" "$OUT/app-release-32bit.apk"
           ls -lh "$OUT"
 
       - name: Upload APK artifact
@@ -376,6 +379,7 @@ jobs:
           files: |
             mobile/build/app/outputs/flutter-apk/nizkhata_*.apk
             mobile/build/app/outputs/flutter-apk/app-release.apk
+            mobile/build/app/outputs/flutter-apk/app-release-32bit.apk
 
       # Manual dispatch with a version input publishes a permanent, versioned
       # release (creates the tag via the runner token — no local tag push needed).
@@ -390,3 +394,4 @@ jobs:
           files: |
             mobile/build/app/outputs/flutter-apk/nizkhata_*.apk
             mobile/build/app/outputs/flutter-apk/app-release.apk
+            mobile/build/app/outputs/flutter-apk/app-release-32bit.apk
