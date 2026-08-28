@@ -152,5 +152,29 @@
 
     <footer>NIZKHATA · ANDROID</footer>
   </main>
+
+  <script>
+    // Upgrade the download link to the versioned asset (nizkhata_vX.Y.Z.apk)
+    // so the saved file says which version it is. If this lookup fails for any
+    // reason, the static href above still serves the stable app-release.apk.
+    (function () {
+      fetch('https://api.github.com/repos/TheCoderAS/nizkhata/releases/latest')
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (rel) {
+          if (!rel || !rel.assets) return;
+          var asset = rel.assets.find(function (a) {
+            return /^nizkhata_v[\d.]+\.apk$/.test(a.name);
+          });
+          if (!asset) return;
+          var cta = document.querySelector('a.cta');
+          if (cta) cta.href = asset.browser_download_url;
+          var sub = document.querySelector('.cta-sub');
+          if (sub && rel.tag_name) {
+            sub.insertAdjacentText('afterbegin', rel.tag_name + ' · ');
+          }
+        })
+        .catch(function () { /* static link keeps working */ });
+    })();
+  </script>
 </body>
 </html>
