@@ -6,9 +6,13 @@ import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:nizkhata/services/khata_pdf.dart';
 
 void main() {
+  // A realistic mix: a lend (moves the position), a tagged-only expense
+  // (does NOT move it), and a partial repayment. Σ deltas = 17,549.50 = net.
   final entries = [
-    KhataEntry(DateTime(2025, 4, 20), 'Rent April', 18000),
-    KhataEntry(DateTime(2025, 4, 2), 'Grocery split', -450.50),
+    KhataEntry(DateTime(2025, 4, 20), 'Part repayment received', 450.50,
+        positionDelta: -450.50),
+    KhataEntry(DateTime(2025, 4, 2), 'Grocery split', -220, positionDelta: 0),
+    KhataEntry(DateTime(2025, 4, 1), 'Rent April lent', -18000, positionDelta: 18000),
   ];
   final dues = [
     KhataDueLine('Rent May', DateTime(2025, 5, 5), 18000, 'receivable'),
@@ -36,15 +40,21 @@ void main() {
     expect(text, contains('Rent May'));
     expect(text, contains('Rent April'));
     expect(text, contains('Balance')); // running-balance column header
-    // Oldest entry −450.50 → newest +18,000 ⇒ closing running balance:
-    expect(text, contains('17,549.50'));
+    // The ledger reconciles with the banner: lend 18,000, tagged-only
+    // expense (no movement), repayment 450.50 ⇒ closing balance = net.
+    expect(text, contains('17,549.50')); // newest row balance == banner net
+    expect('17,549.50'.allMatches(text).length, 2,
+        reason: 'net appears in the banner AND as the closing ledger balance');
+    expect('18,000.00'.allMatches(text).length, greaterThanOrEqualTo(3),
+        reason: 'lend amount, its balance, and the unchanged balance on the '
+            'tagged-only row');
     expect(text, contains('nizkhata.web.app'));
   });
 
   test('many entries paginate without errors', () {
     final big = [
       for (var i = 0; i < 120; i++)
-        KhataEntry(DateTime(2025, 1, 1).add(Duration(days: i)), 'Entry number $i', (i % 2 == 0 ? 1 : -1) * (100.0 + i)),
+        KhataEntry(DateTime(2025, 1, 1).add(Duration(days: i)), 'Entry number $i', (i % 2 == 0 ? 1 : -1) * (100.0 + i), positionDelta: (i % 2 == 0 ? 1 : -1) * (100.0 + i)),
     ];
     final bytes = buildKhataPdf(
       workspaceName: 'Biz',

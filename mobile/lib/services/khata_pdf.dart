@@ -22,8 +22,12 @@ class KhataDueLine {
 class KhataEntry {
   final DateTime date;
   final String description;
-  final double amount; // signed: + money in (they paid you), − money out
-  KhataEntry(this.date, this.description, this.amount);
+  final double amount; // signed account effect: + money in, − money out
+  /// How this entry changed the mutual position (net > 0 = they owe you).
+  /// Zero for activity that is merely tagged to the contact (their share of a
+  /// grocery bill, a recharge) without lending/borrowing/repaying anything.
+  final double positionDelta;
+  KhataEntry(this.date, this.description, this.amount, {this.positionDelta = 0});
 }
 
 const _navy = Color(0xFF141A2A);
@@ -124,14 +128,19 @@ Uint8List buildKhataPdf({
     }
   }
 
-  // Ledger table — with a khata-style running balance: accumulate oldest to
-  // newest, then show each row's balance-after in the newest-first listing.
+  // Ledger table with the khata balance: the running MUTUAL POSITION (who
+  // owes whom), accumulated oldest to newest from each entry's positionDelta,
+  // so the newest row's balance equals the net in the banner. Rows that are
+  // only tagged activity keep the balance unchanged. The listing is the exact
+  // reverse of the accumulation order, so balances read consistently even for
+  // several entries on the same date.
   final chronological = [...entries]..sort((a, b) => a.date.compareTo(b.date));
-  final runningAfter = <KhataEntry, double>{};
+  final display = chronological.reversed.toList();
+  final balanceAfter = <double>[];
   var running = 0.0;
   for (final e in chronological) {
-    running += e.amount;
-    runningAfter[e] = running;
+    running += e.positionDelta;
+    balanceAfter.add(running);
   }
   final grid = PdfGrid();
   grid.columns.add(count: 4);
@@ -144,12 +153,15 @@ Uint8List buildKhataPdf({
   grid.columns[0].width = 70;
   grid.columns[2].width = 88;
   grid.columns[3].width = 88;
-  for (final e in entries) {
+  for (var i = 0; i < display.length; i++) {
+    final e = display[i];
+    final bal = balanceAfter[display.length - 1 - i];
     final r = grid.rows.add();
     r.cells[0].value = dateFmt.format(e.date);
     r.cells[1].value = _pdfSafe(e.description);
     r.cells[2].value = '${e.amount >= 0 ? '+' : '-'}${_money(e.amount.abs(), currency)}';
-    r.cells[3].value = _money(runningAfter[e] ?? 0, currency);
+    r.cells[3].value =
+        '${bal >= 0.005 ? '' : (bal <= -0.005 ? '-' : '')}${_money(bal.abs(), currency)}';
   }
   grid.style = gridStyle();
   currentPage.graphics
