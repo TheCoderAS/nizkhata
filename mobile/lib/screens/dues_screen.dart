@@ -425,6 +425,7 @@ class _DueMenu extends StatelessWidget {
                       .activeWorkspace
                       ?.baseCurrency ??
                   'INR',
+              direction: due.direction,
             ));
             break;
           case 'contact':
@@ -448,8 +449,9 @@ class _DueMenu extends StatelessWidget {
       },
       itemBuilder: (_) => [
         if (canTxn && settleable) const PopupMenuItem(value: 'pay', child: Text('Record payment')),
-        // A share-sheet nudge for money owed to you — WhatsApp does the rest.
-        if (settleable && due.direction == 'receivable' && hasContact)
+        // A share-sheet message about this due — a payment nudge when they owe
+        // you, a heads-up when you owe them. WhatsApp does the rest.
+        if (settleable && hasContact)
           const PopupMenuItem(value: 'remind', child: Text('Send reminder')),
         if (canViewContacts && hasContact) const PopupMenuItem(value: 'contact', child: Text('View contact')),
         if (canViewTxns && hasContact) const PopupMenuItem(value: 'txns', child: Text('View transactions')),

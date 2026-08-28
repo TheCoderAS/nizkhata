@@ -472,10 +472,43 @@ class ContactDetailScreen extends StatelessWidget {
     final data = context.read<DataController>();
     final ws = context.read<WorkspaceController>();
     final position = data.positionOf(contact.id);
-    final entries = [
-      for (final t in data.transactions.where((t) => t.contactId == contact.id))
-        KhataEntry(t.date, t.note?.isNotEmpty == true ? t.note! : 'Transaction', t.totalAmount),
-    ]..sort((a, b) => b.date.compareTo(a.date));
+
+    // The ledger must reconcile with the net position banner, which is the
+    // DEBT position (borrow/lend/repayment on this contact's debts). So each
+    // entry carries its position delta, and the entry set covers every
+    // transaction that either is tagged to the contact or touches one of
+    // their debts (a repayment can live on an untagged transaction).
+    final contactDebts = {
+      for (final d in data.debts.where((d) => d.contactId == contact.id)) d.id: d,
+    };
+    double positionDeltaOf(Txn t) {
+      var v = 0.0;
+      for (final l in t.lines) {
+        final debt = contactDebts[l.debtId];
+        if (debt == null) continue;
+        final establishing = debt.direction == 'owe' ? 'borrow' : 'lend';
+        final sign = debt.direction == 'owed' ? 1 : -1;
+        if (l.type == establishing) {
+          v += sign * l.amount;
+        } else if (l.type == 'repayment') {
+          v -= sign * l.amount;
+        }
+      }
+      return v;
+    }
+
+    final entries = <KhataEntry>[];
+    for (final t in data.transactions) {
+      final delta = positionDeltaOf(t);
+      if (t.contactId != contact.id && delta.abs() < 0.005) continue;
+      entries.add(KhataEntry(
+        t.date,
+        t.note?.isNotEmpty == true ? t.note! : 'Transaction',
+        t.totalAmount,
+        positionDelta: roundMoney(delta),
+      ));
+    }
+    entries.sort((a, b) => b.date.compareTo(a.date));
     final openDues = [
       for (final d in data.dues.where((d) =>
           d.contactId == contact.id && (d.status == 'open' || d.status == 'partial')))
