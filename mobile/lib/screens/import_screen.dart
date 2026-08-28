@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
@@ -5,12 +6,15 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/format.dart';
 import '../core/theme.dart';
 import '../data/derive.dart';
+import '../data/due_settlement.dart';
 import '../data/models.dart';
 import '../data/mutations.dart';
+import '../services/import_learning.dart';
 import '../services/password_store.dart';
 import '../services/statement_parser.dart';
 import '../state/auth_controller.dart';
@@ -40,6 +44,9 @@ class _ReviewRow {
   bool selected;
   bool duplicate;
   String? categoryId; // per-row override; falls back to the defaults
+  bool categorySuggested = false; // categoryId came from learned history
+  String? matchedDueId; // open due this row appears to settle
+  bool linkDue = false; // import as a settlement of matchedDueId
   _ReviewRow(this.draft, {required this.selected, required this.duplicate});
 }
 
@@ -54,6 +61,7 @@ class _ImportScreenState extends State<ImportScreen> {
   ColumnMapping _mapping = ColumnMapping();
   DateOrder _dateOrder = DateOrder.dmy;
   bool _rememberPassword = true;
+  bool _profileApplied = false; // saved mapping profile matched this file
 
   // Review state.
   List<_ReviewRow> _rows = [];
@@ -67,6 +75,7 @@ class _ImportScreenState extends State<ImportScreen> {
   int _importDone = 0;
   int _importTotal = 0;
   int _imported = 0;
+  int _settled = 0; // rows imported as due settlements
 
   static final _dateFmt = DateFormat('dd MMM yy');
 
@@ -104,11 +113,35 @@ class _ImportScreenState extends State<ImportScreen> {
       // Let the spinner paint before the (synchronous) parse work.
       await Future<void>.delayed(const Duration(milliseconds: 30));
       final grid = parseStatement(bytes, name, password: password);
-      final mapping = suggestMapping(grid.header);
+      var mapping = suggestMapping(grid.header);
       var order = DateOrder.dmy;
       if (mapping.date != null) {
         order = detectDateOrder(
             grid.dataRows.take(50).map((r) => mapping.date! < r.length ? r[mapping.date!] : ''));
+      }
+      // A bank's statement format rarely changes: if a saved mapping profile
+      // matches this file's header layout, apply it wholesale so month two
+      // is one tap. A changed layout falls back to the fresh suggestion.
+      _profileApplied = false;
+      final profile = await _loadProfile();
+      if (profile != null && profile['header'] == _headerKey(grid.header)) {
+        int? col(String k) => (profile[k] as num?)?.toInt();
+        mapping = ColumnMapping(
+          date: col('date'),
+          description: col('desc'),
+          amount: col('amount'),
+          debit: col('debit'),
+          credit: col('credit'),
+          reference: col('ref'),
+          balance: col('balance'),
+        );
+        final oi = (profile['order'] as num?)?.toInt() ?? 0;
+        if (oi >= 0 && oi < DateOrder.values.length) order = DateOrder.values[oi];
+        final di = (profile['dup'] as num?)?.toInt() ?? 0;
+        if (di >= 0 && di < _DupMode.values.length) _dupMode = _DupMode.values[di];
+        _defaultExpenseCat = profile['expCat'] as String?;
+        _defaultIncomeCat = profile['incCat'] as String?;
+        _profileApplied = true;
       }
       // A password that worked is saved for this account when "remember" is on,
       // or any previously-saved one cleared when the user turned it off.
@@ -226,6 +259,51 @@ class _ImportScreenState extends State<ImportScreen> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
+  // ---- mapping profile (per account, local) --------------------------------
+
+  String _headerKey(List<String> header) =>
+      header.map((h) => h.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '')).join('|');
+
+  Future<Map<String, dynamic>?> _loadProfile() async {
+    final accountId = _accountId;
+    if (accountId == null) return null;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString('import_profile_$accountId');
+      if (raw == null) return null;
+      return Map<String, dynamic>.from(jsonDecode(raw) as Map);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _saveProfile() async {
+    final accountId = _accountId;
+    final grid = _grid;
+    if (accountId == null || grid == null) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(
+          'import_profile_$accountId',
+          jsonEncode({
+            'header': _headerKey(grid.header),
+            'date': _mapping.date,
+            'desc': _mapping.description,
+            'amount': _mapping.amount,
+            'debit': _mapping.debit,
+            'credit': _mapping.credit,
+            'ref': _mapping.reference,
+            'balance': _mapping.balance,
+            'order': _dateOrder.index,
+            'dup': _dupMode.index,
+            'expCat': _defaultExpenseCat,
+            'incCat': _defaultIncomeCat,
+          }));
+    } catch (_) {
+      // Best-effort convenience — never block an import on prefs.
+    }
+  }
+
   // ---- step 2 → 3: build review rows --------------------------------------
 
   void _buildReview() {
@@ -257,10 +335,66 @@ class _ImportScreenState extends State<ImportScreen> {
       ));
     }
 
+    final rows = [for (final d in drafts) _ReviewRow(d, selected: false, duplicate: false)];
+
+    // Learned categories: the user's own categorized history is the training
+    // data — suggest a category for each row by narration-token overlap.
+    final memory = CategoryMemory.fromTransactions(data.transactions);
+    if (!memory.isEmpty) {
+      final catsById = {for (final c in data.categories) c.id: c};
+      for (final r in rows) {
+        if (!r.draft.parseable) continue;
+        final suggestion = memory.suggest(
+            r.draft.description.isNotEmpty ? r.draft.description : r.draft.reference);
+        if (suggestion == null) continue;
+        // Only apply when the category's kind matches the row's direction.
+        final kind = catsById[suggestion]?.kind;
+        final wantKind = r.draft.amount! < 0 ? 'expense' : 'income';
+        if (kind == wantKind) {
+          r.categoryId = suggestion;
+          r.categorySuggested = true;
+        }
+      }
+    }
+
+    // Due matching: a row whose sign matches an open due's direction and whose
+    // magnitude equals that due's remaining amount (to the paise) very likely
+    // IS its settlement. Each due links to at most one row.
+    final usedDues = <String>{};
+    final candidates = data.dues
+        .where((d) => d.status == 'open' || d.status == 'partial')
+        .toList();
+    final byDate = [...rows.where((r) => r.draft.parseable)]
+      ..sort((a, b) => a.draft.date!.compareTo(b.draft.date!));
+    for (final r in byDate) {
+      final amount = r.draft.amount!;
+      Due? best;
+      Duration? bestGap;
+      for (final due in candidates) {
+        if (usedDues.contains(due.id)) continue;
+        final remaining = due.amount - data.settledOf(due.id);
+        if (remaining <= 0.005) continue;
+        final signOk = due.direction == 'payable' ? amount < 0 : amount > 0;
+        if (!signOk) continue;
+        if ((amount.abs() - remaining).abs() > 0.01) continue;
+        final gap = (r.draft.date!.difference(due.dueDate)).abs();
+        if (gap > const Duration(days: 92)) continue;
+        if (bestGap == null || gap < bestGap) {
+          best = due;
+          bestGap = gap;
+        }
+      }
+      if (best != null) {
+        usedDues.add(best.id);
+        r.matchedDueId = best.id;
+        r.linkDue = true;
+      }
+    }
+
     setState(() {
       _existingStrict = strict;
       _existingDateAmount = dateAmount;
-      _rows = [for (final d in drafts) _ReviewRow(d, selected: false, duplicate: false)];
+      _rows = rows;
       _applyDupMode();
       _step = _Step.review;
     });
@@ -313,9 +447,14 @@ class _ImportScreenState extends State<ImportScreen> {
 
     final picked = _rows.where((r) => r.selected).toList();
     if (picked.isEmpty) return;
+    final data = context.read<DataController>();
+
+    final settleRows =
+        picked.where((r) => r.linkDue && r.matchedDueId != null).toList();
+    final plainRows = picked.where((r) => !(r.linkDue && r.matchedDueId != null)).toList();
 
     final records = <Map<String, dynamic>>[
-      for (final r in picked)
+      for (final r in plainRows)
         {
           'date': r.draft.date!,
           'amount': r.draft.amount!,
@@ -329,21 +468,62 @@ class _ImportScreenState extends State<ImportScreen> {
     setState(() {
       _step = _Step.importing;
       _importDone = 0;
-      _importTotal = records.length;
+      _importTotal = picked.length;
+      _settled = 0;
     });
     try {
-      final n = await Mutations(Actor.fromUser(user)).importTransactions(
-        ws,
-        accountId: accountId,
-        records: records,
-        financialYearOf: (d) => financialYearOf(d, fyStart),
-        onProgress: (done, total) {
-          if (mounted) setState(() => _importDone = done);
-        },
-      );
+      final m = Mutations(Actor.fromUser(user));
+      // Due settlements first — each materializes the due's lines (scaled for
+      // partials) and flips the due's status, exactly like Record payment.
+      var done = 0;
+      for (final r in settleRows) {
+        Due? due;
+        for (final d in data.dues) {
+          if (d.id == r.matchedDueId) {
+            due = d;
+            break;
+          }
+        }
+        if (due == null) continue;
+        final amount = r.draft.amount!.abs();
+        final newSettled = data.settledOf(due.id) + amount;
+        final draft = buildDueSettlement(due, amount, data.debtsById,
+            lineIdSeed: r.draft.date!.microsecondsSinceEpoch + done);
+        await m.settleDue(
+          ws,
+          due.id,
+          date: r.draft.date!,
+          note: _noteOf(r.draft) ?? due.title,
+          accountId: accountId,
+          contactId: due.contactId,
+          totalAmount: draft.signedTotal,
+          financialYear: financialYearOf(r.draft.date!, fyStart),
+          lines: draft.lines,
+          newStatus: dueStatusFromSettled(due, newSettled),
+          importKey: _fingerprintOf(r.draft, accountId),
+        );
+        done++;
+        if (mounted) setState(() => _importDone = done);
+      }
+      final settledCount = done;
+
+      final n = records.isEmpty
+          ? 0
+          : await m.importTransactions(
+              ws,
+              accountId: accountId,
+              records: records,
+              financialYearOf: (d) => financialYearOf(d, fyStart),
+              onProgress: (bulkDone, total) {
+                if (mounted) setState(() => _importDone = settledCount + bulkDone);
+              },
+            );
+      // Next month's import starts pre-configured.
+      await _saveProfile();
       if (mounted) {
         setState(() {
-          _imported = n;
+          _imported = settledCount + n;
+          _settled = settledCount;
           _step = _Step.done;
         });
       }
@@ -573,9 +753,22 @@ class _ImportScreenState extends State<ImportScreen> {
         ),
         const SizedBox(height: 6),
         Text(
-          'Match the statement\'s columns. We\'ve guessed from the headers — adjust if needed.',
+          _profileApplied
+              ? 'Applied your saved mapping for this account — adjust if the bank changed its format.'
+              : 'Match the statement\'s columns. We\'ve guessed from the headers — adjust if needed.',
           style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant),
         ),
+        if (_profileApplied) ...[
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Icon(Icons.bookmark_added_outlined, size: 16, color: cs.primary),
+              const SizedBox(width: 6),
+              Text('Saved mapping applied',
+                  style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: cs.primary)),
+            ],
+          ),
+        ],
         const SizedBox(height: 18),
         _colDropdown(
           label: 'Date column',
@@ -650,6 +843,11 @@ class _ImportScreenState extends State<ImportScreen> {
           label: 'Reference column (optional)',
           value: _mapping.reference,
           onChanged: (v) => setState(() => _mapping.reference = v),
+        ),
+        _colDropdown(
+          label: 'Balance column (optional — enables reconciliation)',
+          value: _mapping.balance,
+          onChanged: (v) => setState(() => _mapping.balance = v),
         ),
         const SizedBox(height: 10),
         Row(
@@ -761,6 +959,7 @@ class _ImportScreenState extends State<ImportScreen> {
                   _applyDupMode();
                 }),
               ),
+              _reconciliationCard(data, currency, selected),
               const SizedBox(height: 6),
             ],
           ),
@@ -817,6 +1016,62 @@ class _ImportScreenState extends State<ImportScreen> {
     );
   }
 
+  /// Statement closing balance (row with the latest date that carries one) vs
+  /// the app's balance after importing the current selection. A zero delta is
+  /// the strongest signal the account is fully reconciled; a non-zero one
+  /// means unticked rows, missing older history, or duplicates.
+  Widget _reconciliationCard(DataController data, String currency, List<_ReviewRow> selected) {
+    final accountId = _accountId;
+    if (_mapping.balance == null || accountId == null) return const SizedBox.shrink();
+    ImportRowDraft? closing;
+    for (final r in _rows) {
+      final d = r.draft;
+      if (d.date == null || d.balance == null) continue;
+      if (closing == null || d.date!.isAfter(closing.date!)) closing = d;
+    }
+    if (closing == null) return const SizedBox.shrink();
+
+    final cs = Theme.of(context).colorScheme;
+    var projected = data.balanceOf(accountId);
+    for (final r in selected) {
+      projected += r.draft.amount!;
+    }
+    projected = roundMoney(projected);
+    final statement = closing.balance!;
+    final delta = roundMoney(projected - statement);
+    final matched = delta.abs() < 0.01;
+
+    return Container(
+      margin: const EdgeInsets.only(top: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+      decoration: BoxDecoration(
+        color: (matched ? AppColors.accent2 : cs.tertiary).withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+            color: (matched ? AppColors.accent2 : cs.tertiary).withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        children: [
+          Icon(matched ? Icons.verified_outlined : Icons.difference_outlined,
+              size: 18, color: matched ? AppColors.accent2 : cs.tertiary),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              matched
+                  ? 'Reconciled: after import, this account will match the '
+                      'statement closing balance (${formatMoney(statement, currency)}).'
+                  : 'Statement closes at ${formatMoney(statement, currency)}; after '
+                      'import the app shows ${formatMoney(projected, currency)} '
+                      '(${delta > 0 ? '+' : ''}${formatMoney(delta, currency)}). Unticked '
+                      'rows or missing older history can explain the gap.',
+              style: TextStyle(fontSize: 12, color: cs.onSurface),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _miniCatDropdown(String label, List<AppCategory> cats, String? value,
       void Function(String?) onChanged) {
     final valid = cats.any((c) => c.id == value) ? value : null;
@@ -835,8 +1090,27 @@ class _ImportScreenState extends State<ImportScreen> {
 
   Widget _reviewRowTile(_ReviewRow row, String currency) {
     final cs = Theme.of(context).colorScheme;
+    final data = context.read<DataController>();
     final d = row.draft;
     final amount = d.amount;
+    String? dueTitle;
+    if (row.matchedDueId != null) {
+      for (final due in data.dues) {
+        if (due.id == row.matchedDueId) {
+          dueTitle = due.title;
+          break;
+        }
+      }
+    }
+    String? catName;
+    if (row.categorySuggested && row.categoryId != null) {
+      for (final c in data.categories) {
+        if (c.id == row.categoryId) {
+          catName = c.name;
+          break;
+        }
+      }
+    }
     return InkWell(
       onTap: () => _editRow(row),
       child: Padding(
@@ -877,6 +1151,25 @@ class _ImportScreenState extends State<ImportScreen> {
                   else if (row.duplicate)
                     Text('Duplicate — already in this account',
                         style: TextStyle(fontSize: 11, color: cs.tertiary)),
+                  if (dueTitle != null)
+                    GestureDetector(
+                      onTap: () => setState(() => row.linkDue = !row.linkDue),
+                      child: Text(
+                        row.linkDue
+                            ? '✓ Settles due: $dueTitle (tap to unlink)'
+                            : 'Matches due: $dueTitle (tap to link)',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: row.linkDue ? AppColors.accent2 : cs.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                  // Settlement rows take their lines from the due, so the
+                  // learned category only applies to plain rows.
+                  if (catName != null && !row.linkDue)
+                    Text('Category: $catName (from your history)',
+                        style: TextStyle(fontSize: 11, color: cs.primary)),
                 ],
               ),
             ),
@@ -996,11 +1289,27 @@ class _ImportScreenState extends State<ImportScreen> {
           d.amount = isCredit ? parsed : -parsed;
         }
         row.categoryId = categoryId;
+        row.categorySuggested = false; // the user has reviewed this row
+
         // Fixing a row can change its duplicate status — and a just-fixed
         // unreadable row should become selectable (selected unless duplicate).
         if (d.parseable) {
           row.duplicate = _isDuplicate(d);
           if (wasUnreadable) row.selected = !row.duplicate;
+          // An edited amount may no longer settle the matched due exactly.
+          if (row.matchedDueId != null && row.linkDue) {
+            Due? due;
+            for (final x in data.dues) {
+              if (x.id == row.matchedDueId) {
+                due = x;
+                break;
+              }
+            }
+            if (due != null) {
+              final remaining = due.amount - data.settledOf(due.id);
+              if ((d.amount!.abs() - remaining).abs() > 0.01) row.linkDue = false;
+            }
+          }
         }
       });
     }
@@ -1044,7 +1353,12 @@ class _ImportScreenState extends State<ImportScreen> {
             Text('$_imported transaction${_imported == 1 ? '' : 's'} imported',
                 style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
             const SizedBox(height: 6),
-            Text('They\'re in the account ledger now.',
+            Text(
+                _settled > 0
+                    ? '$_settled due${_settled == 1 ? '' : 's'} settled along the way. '
+                        'They\'re in the account ledger now.'
+                    : 'They\'re in the account ledger now.',
+                textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant)),
             const SizedBox(height: 24),
             FilledButton.icon(
