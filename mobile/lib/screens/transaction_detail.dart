@@ -10,6 +10,7 @@ import '../state/auth_controller.dart';
 import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
 import '../widgets/revision_history.dart';
+import '../widgets/undo_delete.dart';
 import 'debt_detail.dart';
 import 'due_detail.dart';
 import 'split_transaction_form.dart';
@@ -343,11 +344,14 @@ void _confirmDelete(BuildContext context, Txn txn) {
             Navigator.pop(ctx);
             if (ws == null || user == null) return;
             try {
-              await Mutations(Actor.fromUser(user)).deleteTransaction(ws, txn.id);
+              if (context.mounted) Navigator.of(context).pop(); // close the detail sheet
               if (context.mounted) {
-                Navigator.of(context).pop(); // close the detail sheet
-                ScaffoldMessenger.of(context)
-                    .showSnackBar(const SnackBar(content: Text('Transaction deleted')));
+                await deleteWithUndo(context,
+                    actor: Actor.fromUser(user),
+                    collection: 'transactions',
+                    workspaceId: ws,
+                    id: txn.id,
+                    label: 'Transaction');
               }
             } catch (e) {
               if (context.mounted) {

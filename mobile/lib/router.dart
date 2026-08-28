@@ -10,6 +10,8 @@ import 'screens/contact_detail_screen.dart';
 import 'screens/contacts_screen.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/debts_screen.dart';
+import 'screens/calendar_screen.dart';
+import 'screens/categorize_screen.dart';
 import 'screens/dues_screen.dart';
 import 'screens/import_screen.dart';
 import 'screens/login_screen.dart';
@@ -109,6 +111,8 @@ GoRouter buildRouter(AuthController auth) {
           return DuesScreen(standalone: true, initialDate: date, autoAdd: q['add'] == '1');
         },
       ),
+      GoRoute(path: '/categorize', builder: (_, __) => const CategorizeScreen()),
+      GoRoute(path: '/calendar', builder: (_, __) => const CalendarScreen()),
       // Statement import wizard (standalone — own AppBar/back, like /txns).
       GoRoute(
         path: '/import',

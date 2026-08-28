@@ -40,11 +40,12 @@ class _TransactionForm extends StatefulWidget {
 class _TransactionFormState extends State<_TransactionForm> {
   // Unsaved-edit detection: snapshot on open, compare on close.
   late final String _fp0;
-  String _fp() => [_date.toIso8601String(), '$_accountId', '$_contactId', _note.text, for (final r in _lines) lineDraftFingerprint(r)].join('|');
+  String _fp() => [_date.toIso8601String(), '$_accountId', '$_contactId', _note.text, _recurrence, for (final r in _lines) lineDraftFingerprint(r)].join('|');
 
   DateTime _date = DateTime.now();
   String? _accountId;
   String? _contactId;
+  String _recurrence = '';
   final _note = TextEditingController();
   late final List<LineDraft> _lines;
   bool _busy = false;
@@ -59,6 +60,7 @@ class _TransactionFormState extends State<_TransactionForm> {
       _date = txn.date;
       _accountId = txn.accountId;
       _contactId = txn.contactId;
+      _recurrence = txn.recurrence ?? '';
       _note.text = txn.note ?? '';
       _lines = [for (final l in txn.lines) LineDraft.fromLine(l)];
       if (_lines.isEmpty) _lines.add(LineDraft(type: 'expense'));
@@ -120,6 +122,7 @@ class _TransactionFormState extends State<_TransactionForm> {
           totalAmount: total,
           financialYear: financialYearOf(_date, fyStart),
           lines: lines,
+          recurrence: _recurrence.isEmpty ? null : _recurrence,
         );
       } else {
         await m.createTransaction(
@@ -131,6 +134,7 @@ class _TransactionFormState extends State<_TransactionForm> {
           totalAmount: total,
           financialYear: financialYearOf(_date, fyStart),
           lines: lines,
+          recurrence: _recurrence.isEmpty ? null : _recurrence,
         );
       }
       if (mounted) {
@@ -213,6 +217,20 @@ class _TransactionFormState extends State<_TransactionForm> {
               TextFormField(
                 controller: _note,
                 decoration: const InputDecoration(labelText: 'Note (optional)'),
+              ),
+              const SizedBox(height: 14),
+              // Recurring transactions are suggested on the dashboard when the
+              // next occurrence arrives — never auto-created.
+              DropdownButtonFormField<String>(
+                value: _recurrence,
+                decoration: const InputDecoration(labelText: 'Repeats'),
+                items: const [
+                  DropdownMenuItem(value: '', child: Text('Does not repeat')),
+                  DropdownMenuItem(value: 'weekly', child: Text('Weekly')),
+                  DropdownMenuItem(value: 'monthly', child: Text('Monthly')),
+                  DropdownMenuItem(value: 'yearly', child: Text('Yearly')),
+                ],
+                onChanged: (v) => setState(() => _recurrence = v ?? ''),
               ),
               const SizedBox(height: 16),
               TxnLinesEditor(

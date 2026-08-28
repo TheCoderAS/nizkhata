@@ -12,6 +12,7 @@ import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
 import '../widgets/common.dart';
 import '../widgets/entity_card_list.dart';
+import '../widgets/undo_delete.dart';
 import 'debt_detail.dart';
 import 'debt_form.dart';
 
@@ -382,10 +383,12 @@ void _confirmDelete(BuildContext context, Debt debt) {
             Navigator.pop(ctx);
             if (ws == null || user == null) return;
             try {
-              await Mutations(Actor.fromUser(user)).deleteDebt(ws, debt.id);
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Debt deleted')));
-              }
+              await deleteWithUndo(context,
+                  actor: Actor.fromUser(user),
+                  collection: 'debts',
+                  workspaceId: ws,
+                  id: debt.id,
+                  label: 'Debt');
             } catch (e) {
               if (context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Delete failed: $e')));

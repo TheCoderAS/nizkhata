@@ -12,6 +12,7 @@ import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
 import '../widgets/common.dart';
 import '../widgets/entity_card_list.dart';
+import '../widgets/undo_delete.dart';
 import 'category_form.dart';
 
 class CategoriesScreen extends StatefulWidget {
@@ -308,10 +309,12 @@ class _CategoryList extends StatelessWidget {
               Navigator.pop(ctx);
               if (ws == null || user == null) return;
               try {
-                await Mutations(Actor.fromUser(user)).deleteCategory(ws, c.id);
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Category deleted')));
-                }
+                await deleteWithUndo(context,
+                    actor: Actor.fromUser(user),
+                    collection: 'categories',
+                    workspaceId: ws,
+                    id: c.id,
+                    label: 'Category');
               } catch (e) {
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Delete failed: $e')));

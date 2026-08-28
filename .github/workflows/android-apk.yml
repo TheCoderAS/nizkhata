@@ -97,9 +97,11 @@ jobs:
               s = s.replace('</activity>', applink + '</activity>', 1)
               print('App Links intent-filter added')
           # Due reminders: notification + boot + exact-alarm permissions.
+          # USE_BIOMETRIC: the app-lock (local_auth) fingerprint/credential gate.
           for perm in ['android.permission.POST_NOTIFICATIONS',
                        'android.permission.RECEIVE_BOOT_COMPLETED',
                        'android.permission.USE_EXACT_ALARM',
+                       'android.permission.USE_BIOMETRIC',
                        'android.permission.VIBRATE']:
               if perm not in s:
                   s = re.sub(r'(<manifest[^>]*>)',
@@ -206,6 +208,21 @@ jobs:
           else:
               print('subproject compileSdk override already present')
           PY3
+          # local_auth (app lock) requires the activity to be a FragmentActivity.
+          python3 - <<'PYLOCK'
+          import glob
+          for p in glob.glob('android/app/src/main/kotlin/**/MainActivity.kt', recursive=True):
+              s = open(p).read()
+              if 'FlutterFragmentActivity' not in s:
+                  s = s.replace('io.flutter.embedding.android.FlutterActivity',
+                                'io.flutter.embedding.android.FlutterFragmentActivity')
+                  s = s.replace('MainActivity : FlutterActivity',
+                                'MainActivity : FlutterFragmentActivity')
+                  s = s.replace('MainActivity: FlutterActivity',
+                                'MainActivity: FlutterFragmentActivity')
+                  open(p, 'w').write(s)
+                  print('MainActivity -> FlutterFragmentActivity:', p)
+          PYLOCK
           # Inject the native home-screen widget sources (provider + layouts).
           mkdir -p android/app/src/main/kotlin
           cp -r android-extras/kotlin/. android/app/src/main/kotlin/
