@@ -31,7 +31,8 @@ void main() {
     final pages = doc.pages.count;
     doc.dispose();
     expect(pages, greaterThan(1)); // 60-row register paginates
-    expect(text, contains('Tax pack . FY 2025-26'));
+    expect(text, contains('NizKhata')); // white header wordmark, unclipped
+    expect(text, contains('Tax pack for FY 2025-26'));
     expect(text, contains('194J'));
     expect(text, contains('Acme Corp'));
     expect(text, contains('Form 26AS'));

@@ -4,10 +4,12 @@
 // Syncfusion and passed to the share sheet; no infra involved.
 
 import 'dart:typed_data';
-import 'dart:ui' show Color, Rect;
+import 'dart:ui' show Rect;
 
 import 'package:intl/intl.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
+
+import 'pdf_brand.dart';
 
 class TaxHeadSummary {
   final String label;
@@ -33,35 +35,11 @@ class TaxRegisterRow {
   TaxRegisterRow(this.date, this.description, this.headLabel, this.taxable, this.tds);
 }
 
-const _brand = Color(0xFF4F46E5);
-const _navy = Color(0xFF141A2A);
-
-PdfColor _c(Color c) =>
-    PdfColor((c.r * 255).round(), (c.g * 255).round(), (c.b * 255).round());
-
 String _money(double v, String currency) => NumberFormat.currency(
         locale: 'en_IN', symbol: currency == 'INR' ? 'Rs ' : '$currency ', decimalDigits: 2)
     .format(v);
 
-/// Latin-1-only sanitizer (standard PDF fonts) — smart punctuation to ASCII.
-String _pdfSafe(String s) {
-  const map = {
-    '—': '-', '–': '-', '−': '-', '‘': "'", '’': "'",
-    '“': '"', '”': '"', '…': '...', '₹': 'Rs ', ' ': ' ', '•': '-', '·': '.',
-  };
-  final b = StringBuffer();
-  for (final r in s.runes) {
-    final ch = String.fromCharCode(r);
-    if (map.containsKey(ch)) {
-      b.write(map[ch]);
-    } else if (r <= 0xFF) {
-      b.write(ch);
-    } else {
-      b.write('?');
-    }
-  }
-  return b.toString();
-}
+String _pdfSafe(String s) => pdfSafe(s);
 
 Uint8List buildTaxPackPdf({
   required String workspaceName,
@@ -72,6 +50,7 @@ Uint8List buildTaxPackPdf({
   required List<TaxHeadSummary> heads,
   required List<TaxContactSummary> contacts,
   required List<TaxRegisterRow> register,
+  Uint8List? logoPng,
 }) {
   final doc = PdfDocument();
   doc.pageSettings.margins.all = 36;
@@ -79,23 +58,18 @@ Uint8List buildTaxPackPdf({
   final g = page.graphics;
   final w = page.getClientSize().width;
 
-  final titleFont = PdfStandardFont(PdfFontFamily.helvetica, 20, style: PdfFontStyle.bold);
   final h2 = PdfStandardFont(PdfFontFamily.helvetica, 12, style: PdfFontStyle.bold);
   final body = PdfStandardFont(PdfFontFamily.helvetica, 9);
   final small = PdfStandardFont(PdfFontFamily.helvetica, 8);
   final dateFmt = DateFormat('dd MMM yyyy');
 
-  // Header band.
-  g.drawRectangle(brush: PdfSolidBrush(_c(_navy)), bounds: Rect.fromLTWH(-36, -36, w + 72, 96));
-  g.drawString('NizKhata', titleFont,
-      brush: PdfSolidBrush(_c(_brand)), bounds: Rect.fromLTWH(0, -14, w, 26));
-  g.drawString(_pdfSafe('Tax pack . FY $fy . $workspaceName'),
-      PdfStandardFont(PdfFontFamily.helvetica, 10),
-      brush: PdfBrushes.white, bounds: Rect.fromLTWH(0, 14, w, 16));
-  g.drawString('Generated ${dateFmt.format(DateTime.now())}', small,
-      brush: PdfSolidBrush(PdfColor(154, 163, 184)), bounds: Rect.fromLTWH(0, 32, w, 12));
-
-  var y = 78.0;
+  var y = drawPdfBrandHeader(
+    g,
+    width: w,
+    subtitle: 'Tax pack for FY $fy ($workspaceName)',
+    generatedOn: 'Generated ${dateFmt.format(DateTime.now())}',
+    logoPng: logoPng,
+  );
   g.drawString(
       _pdfSafe('Total taxable: ${_money(totalTaxable, currency)}    '
           'Total TDS: ${_money(totalTds, currency)}'),
@@ -186,8 +160,8 @@ Uint8List buildTaxPackPdf({
     final p = doc.pages[i];
     final size = p.getClientSize();
     p.graphics.drawString(
-        'Prepared from your NizKhata records - please verify with your accountant. '
-        'nizkhata.web.app',
+        'Prepared from your NizKhata records. Please verify with your accountant. '
+        'https://nizkhata.web.app',
         small,
         brush: PdfSolidBrush(PdfColor(120, 128, 148)),
         bounds: Rect.fromLTWH(0, size.height - 12, size.width, 12));

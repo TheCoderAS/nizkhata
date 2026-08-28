@@ -2,9 +2,11 @@
 // spend by category, and by-contact totals. CSV export gated by reports.export.
 
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:go_router/go_router.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
@@ -855,10 +857,15 @@ class _TaxTab extends StatelessWidget {
     final contactNames = byContactTaxable.keys.toList()
       ..sort((a, b) => (byContactTds[b] ?? 0).compareTo(byContactTds[a] ?? 0));
 
+    Uint8List? logo;
+    try {
+      logo = (await rootBundle.load('assets/icon.png')).buffer.asUint8List();
+    } catch (_) {}
     final bytes = buildTaxPackPdf(
       workspaceName: ws.activeWorkspace?.name ?? 'NizKhata',
       fy: fy,
       currency: currency,
+      logoPng: logo,
       totalTaxable: totalTaxable,
       totalTds: totalTds,
       heads: [
