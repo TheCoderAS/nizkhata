@@ -64,11 +64,13 @@ void main() {
   test('khata text summary reads correctly for both directions', () {
     final receive = buildKhataText(
         contactName: 'Rahul', net: 500, entries: entries, openDues: dues, currency: 'INR');
-    expect(receive, contains('To receive'));
+    expect(receive, contains('pending to be received'));
     expect(receive, contains('Rent May'));
+    expect(receive, contains('https://nizkhata.web.app'));
+    expect(receive, isNot(contains('—'))); // humanized: no em-dashes
     final pay = buildKhataText(
         contactName: 'Rahul', net: -500, entries: entries, openDues: const [], currency: 'INR');
-    expect(pay, contains('To pay'));
+    expect(pay, contains('pending to be paid'));
     final even = buildKhataText(
         contactName: 'Rahul', net: 0, entries: const [], openDues: const [], currency: 'INR');
     expect(even, contains('All settled'));

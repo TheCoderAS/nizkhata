@@ -66,7 +66,7 @@ Uint8List buildTaxPackPdf({
   var y = drawPdfBrandHeader(
     g,
     width: w,
-    subtitle: 'Tax pack . FY $fy . $workspaceName',
+    subtitle: 'Tax pack for FY $fy ($workspaceName)',
     generatedOn: 'Generated ${dateFmt.format(DateTime.now())}',
     logoPng: logoPng,
   );
@@ -160,8 +160,8 @@ Uint8List buildTaxPackPdf({
     final p = doc.pages[i];
     final size = p.getClientSize();
     p.graphics.drawString(
-        'Prepared from your NizKhata records - please verify with your accountant. '
-        'nizkhata.web.app',
+        'Prepared from your NizKhata records. Please verify with your accountant. '
+        'https://nizkhata.web.app',
         small,
         brush: PdfSolidBrush(PdfColor(120, 128, 148)),
         bounds: Rect.fromLTWH(0, size.height - 12, size.width, 12));

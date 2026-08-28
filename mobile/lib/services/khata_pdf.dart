@@ -66,7 +66,7 @@ Uint8List buildKhataPdf({
   var y = drawPdfBrandHeader(
     g,
     width: w,
-    subtitle: 'Ledger statement . $workspaceName',
+    subtitle: 'Ledger statement from $workspaceName',
     generatedOn: 'Generated ${dateFmt.format(DateTime.now())}',
     logoPng: logoPng,
   );
@@ -83,7 +83,7 @@ Uint8List buildKhataPdf({
       brush: PdfSolidBrush(settled ? PdfColor(230, 232, 238) : _c(owed ? _green : _red)),
       bounds: Rect.fromLTWH(0, y, w, 30));
   final bannerText = settled
-      ? 'All settled — no outstanding balance.'
+      ? 'All settled. Nothing pending.'
       : owed
           ? 'To receive from $contactName: ${_money(net.abs(), currency)}'
           : 'To pay to $contactName: ${_money(net.abs(), currency)}';
@@ -161,7 +161,7 @@ Uint8List buildKhataPdf({
     final p = doc.pages[i];
     final size = p.getClientSize();
     p.graphics.drawString(
-        'Generated with NizKhata - nizkhata.web.app', small,
+        'Made with NizKhata | https://nizkhata.web.app', small,
         brush: PdfSolidBrush(PdfColor(120, 128, 148)),
         bounds: Rect.fromLTWH(0, size.height - 12, size.width, 12));
   }
@@ -182,33 +182,33 @@ String buildKhataText({
 }) {
   final dateFmt = DateFormat('dd MMM');
   final b = StringBuffer();
-  b.writeln('*Ledger — $contactName*');
+  b.writeln('*Khata: $contactName*');
   if (net.abs() <= 0.005) {
-    b.writeln('All settled. ✅');
+    b.writeln('All settled, nothing pending.');
   } else if (net > 0) {
-    b.writeln('To receive: ${_money(net, currency)}');
+    b.writeln('${_money(net, currency)} is pending to be received.');
   } else {
-    b.writeln('To pay: ${_money(net.abs(), currency)}');
+    b.writeln('${_money(net.abs(), currency)} is pending to be paid.');
   }
   if (openDues.isNotEmpty) {
-    b.writeln('\n*Outstanding:*');
+    b.writeln('\nPending items:');
     for (final d in openDues) {
       b.writeln(
-          '• ${d.title} — ${_money(d.remaining, currency)} (due ${dateFmt.format(d.dueDate)})');
+          '- ${d.title}: ${_money(d.remaining, currency)} (due ${dateFmt.format(d.dueDate)})');
     }
   }
   if (entries.isNotEmpty) {
-    b.writeln('\n*Recent:*');
+    b.writeln('\nRecent entries:');
     for (final e in entries.take(recent)) {
       b.writeln(
-          '• ${dateFmt.format(e.date)} ${e.description} — ${e.amount >= 0 ? '+' : '-'}${_money(e.amount.abs(), currency)}');
+          '- ${dateFmt.format(e.date)}: ${e.description}, ${e.amount >= 0 ? '+' : '-'}${_money(e.amount.abs(), currency)}');
     }
   }
-  b.writeln('\n_Shared via NizKhata_');
+  b.writeln('\nSent from NizKhata: https://nizkhata.web.app');
   return b.toString();
 }
 
-/// Gentle payment-reminder text for an open due.
+/// Payment-reminder text for an open due, written the way a person would.
 String buildDueReminderText({
   required String contactName,
   required String dueTitle,
@@ -218,7 +218,9 @@ String buildDueReminderText({
 }) {
   final dateFmt = DateFormat('dd MMM yyyy');
   final overdue = dueDate.isBefore(DateTime.now());
-  return 'Hi $contactName, a gentle reminder: ${_money(remaining, currency)} '
-      'for "$dueTitle" ${overdue ? 'was due on' : 'is due by'} ${dateFmt.format(dueDate)}. '
-      'Thank you! 🙏\n\n_Sent via NizKhata_';
+  return 'Hi $contactName, hope you are doing well! Just a reminder that '
+      '${_money(remaining, currency)} for "$dueTitle" '
+      '${overdue ? 'was due on' : 'is due by'} ${dateFmt.format(dueDate)}. '
+      'Please clear it when you get a chance. Thank you!\n\n'
+      'Sent from NizKhata: https://nizkhata.web.app';
 }
