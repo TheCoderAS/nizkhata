@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 
@@ -12,7 +14,9 @@ void main() {
     KhataDueLine('Rent May', DateTime(2025, 5, 5), 18000, 'receivable'),
   ];
 
-  test('khata PDF renders with position, dues and ledger', () {
+  test('khata PDF renders with position, dues, ledger and running balance', () {
+    // Real logo asset — proves the white header + PdfBitmap path end-to-end.
+    final logo = File('assets/icon.png').readAsBytesSync();
     final bytes = buildKhataPdf(
       workspaceName: 'Family',
       contactName: 'Rahul Sharma',
@@ -20,15 +24,20 @@ void main() {
       entries: entries,
       openDues: dues,
       currency: 'INR',
+      logoPng: logo,
     );
     expect(bytes.length, greaterThan(1000));
     // Round-trip through the PDF text extractor to prove real content.
     final doc = PdfDocument(inputBytes: bytes);
     final text = PdfTextExtractor(doc).extractText();
     doc.dispose();
+    expect(text, contains('NizKhata')); // header wordmark at positive y
     expect(text, contains('Rahul Sharma'));
     expect(text, contains('Rent May'));
     expect(text, contains('Rent April'));
+    expect(text, contains('Balance')); // running-balance column header
+    // Oldest entry −450.50 → newest +18,000 ⇒ closing running balance:
+    expect(text, contains('17,549.50'));
     expect(text, contains('nizkhata.web.app'));
   });
 

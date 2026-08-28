@@ -1,6 +1,8 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:go_router/go_router.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
@@ -488,6 +490,16 @@ class ContactDetailScreen extends StatelessWidget {
     );
   }
 
+  /// App logo bytes for PDF branding; a missing asset never blocks a share.
+  static Future<Uint8List?> _appLogoBytes() async {
+    try {
+      final data = await rootBundle.load('assets/icon.png');
+      return data.buffer.asUint8List();
+    } catch (_) {
+      return null;
+    }
+  }
+
   void _shareKhata(BuildContext context, Contact contact) {
     showModalBottomSheet<void>(
       context: context,
@@ -503,6 +515,7 @@ class ContactDetailScreen extends StatelessWidget {
               onTap: () async {
                 Navigator.pop(sheetCtx);
                 final k = _khataData(context, contact);
+                final logo = await _appLogoBytes();
                 final bytes = buildKhataPdf(
                   workspaceName: k.workspaceName,
                   contactName: contact.name,
@@ -510,6 +523,7 @@ class ContactDetailScreen extends StatelessWidget {
                   entries: k.entries,
                   openDues: k.openDues,
                   currency: k.currency,
+                  logoPng: logo,
                 );
                 final dir = await getTemporaryDirectory();
                 final safe = contact.name.replaceAll(RegExp(r'[^A-Za-z0-9]+'), '-').toLowerCase();

@@ -9,6 +9,8 @@ import 'dart:ui' show Color, Rect;
 import 'package:intl/intl.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 
+import 'pdf_brand.dart';
+
 class KhataDueLine {
   final String title;
   final DateTime dueDate;
@@ -24,13 +26,11 @@ class KhataEntry {
   KhataEntry(this.date, this.description, this.amount);
 }
 
-const _brand = Color(0xFF4F46E5);
 const _navy = Color(0xFF141A2A);
 const _green = Color(0xFF10B981);
 const _red = Color(0xFFEF4444);
 
-PdfColor _c(Color c) =>
-    PdfColor((c.r * 255).round(), (c.g * 255).round(), (c.b * 255).round());
+PdfColor _c(Color c) => pdfColorOf(c);
 
 String _money(double v, String currency) {
   final f = NumberFormat.currency(
@@ -38,31 +38,11 @@ String _money(double v, String currency) {
   return f.format(v);
 }
 
-/// Syncfusion's standard PDF fonts cover Latin-1 only; any other code unit
-/// throws at layout time. Map common typography to ASCII and blank the rest so
-/// arbitrary contact names and narrations can never crash PDF generation.
-String _pdfSafe(String s) {
-  const map = {
-    '—': '-', '–': '-', '−': '-', '‘': "'", '’': "'",
-    '“': '"', '”': '"', '…': '...', '₹': 'Rs ', ' ': ' ',
-    '•': '-', '·': '.',
-  };
-  final b = StringBuffer();
-  for (final r in s.runes) {
-    final ch = String.fromCharCode(r);
-    if (map.containsKey(ch)) {
-      b.write(map[ch]);
-    } else if (r <= 0xFF) {
-      b.write(ch);
-    } else {
-      b.write('?');
-    }
-  }
-  return b.toString();
-}
+String _pdfSafe(String s) => pdfSafe(s);
 
 /// Build the ledger PDF. [net] > 0 means the contact owes the workspace owner;
 /// [entries] newest-first; [openDues] outstanding items to highlight.
+/// [logoPng] is the app logo (assets/icon.png bytes); omitted in pure tests.
 Uint8List buildKhataPdf({
   required String workspaceName,
   required String contactName,
@@ -70,6 +50,7 @@ Uint8List buildKhataPdf({
   required List<KhataEntry> entries,
   required List<KhataDueLine> openDues,
   required String currency,
+  Uint8List? logoPng,
 }) {
   final doc = PdfDocument();
   doc.pageSettings.margins.all = 36;
@@ -77,24 +58,21 @@ Uint8List buildKhataPdf({
   final g = page.graphics;
   final w = page.getClientSize().width;
 
-  final title = PdfStandardFont(PdfFontFamily.helvetica, 20, style: PdfFontStyle.bold);
   final h2 = PdfStandardFont(PdfFontFamily.helvetica, 12, style: PdfFontStyle.bold);
   final body = PdfStandardFont(PdfFontFamily.helvetica, 9.5);
   final small = PdfStandardFont(PdfFontFamily.helvetica, 8);
   final dateFmt = DateFormat('dd MMM yyyy');
 
-  // Header band.
-  g.drawRectangle(brush: PdfSolidBrush(_c(_navy)), bounds: Rect.fromLTWH(-36, -36, w + 72, 96));
-  g.drawString('NizKhata', title, brush: PdfSolidBrush(_c(_brand)),
-      bounds: Rect.fromLTWH(0, -14, w, 26));
-  g.drawString(_pdfSafe('Ledger statement . $workspaceName'),
-      PdfStandardFont(PdfFontFamily.helvetica, 10),
-      brush: PdfBrushes.white, bounds: Rect.fromLTWH(0, 14, w, 16));
-  g.drawString('Generated ${dateFmt.format(DateTime.now())}', small,
-      brush: PdfSolidBrush(PdfColor(154, 163, 184)), bounds: Rect.fromLTWH(0, 32, w, 12));
+  var y = drawPdfBrandHeader(
+    g,
+    width: w,
+    subtitle: 'Ledger statement . $workspaceName',
+    generatedOn: 'Generated ${dateFmt.format(DateTime.now())}',
+    logoPng: logoPng,
+  );
 
-  var y = 78.0;
-  g.drawString(_pdfSafe(contactName), PdfStandardFont(PdfFontFamily.helvetica, 16, style: PdfFontStyle.bold),
+  g.drawString(_pdfSafe(contactName),
+      PdfStandardFont(PdfFontFamily.helvetica, 16, style: PdfFontStyle.bold),
       bounds: Rect.fromLTWH(0, y, w, 22));
   y += 26;
 
@@ -146,21 +124,32 @@ Uint8List buildKhataPdf({
     }
   }
 
-  // Ledger table.
+  // Ledger table — with a khata-style running balance: accumulate oldest to
+  // newest, then show each row's balance-after in the newest-first listing.
+  final chronological = [...entries]..sort((a, b) => a.date.compareTo(b.date));
+  final runningAfter = <KhataEntry, double>{};
+  var running = 0.0;
+  for (final e in chronological) {
+    running += e.amount;
+    runningAfter[e] = running;
+  }
   final grid = PdfGrid();
-  grid.columns.add(count: 3);
+  grid.columns.add(count: 4);
   grid.headers.add(1);
   final gh = grid.headers[0];
   gh.cells[0].value = 'Date';
   gh.cells[1].value = 'Description';
   gh.cells[2].value = 'Amount';
-  grid.columns[0].width = 76;
-  grid.columns[2].width = 100;
+  gh.cells[3].value = 'Balance';
+  grid.columns[0].width = 70;
+  grid.columns[2].width = 88;
+  grid.columns[3].width = 88;
   for (final e in entries) {
     final r = grid.rows.add();
     r.cells[0].value = dateFmt.format(e.date);
     r.cells[1].value = _pdfSafe(e.description);
     r.cells[2].value = '${e.amount >= 0 ? '+' : '-'}${_money(e.amount.abs(), currency)}';
+    r.cells[3].value = _money(runningAfter[e] ?? 0, currency);
   }
   grid.style = gridStyle();
   currentPage.graphics
