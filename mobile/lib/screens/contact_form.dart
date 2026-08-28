@@ -5,6 +5,7 @@ import '../data/models.dart';
 import '../data/mutations.dart';
 import '../state/auth_controller.dart';
 import '../state/workspace_controller.dart';
+import '../widgets/discard_guard.dart';
 
 /// Open the create/edit contact sheet. Ports the web ContactDialog fields.
 Future<void> showContactForm(BuildContext context, {Contact? existing}) {
@@ -38,6 +39,16 @@ class _EmailRow {
 }
 
 class _ContactFormState extends State<_ContactForm> {
+  @override
+  void initState() {
+    super.initState();
+    _fp0 = _fp();
+  }
+
+  // Unsaved-edit detection: snapshot on open, compare on close.
+  late final String _fp0;
+  String _fp() => [_type, _relationship, _name.text, _phone.text, _address.text, _notes.text, for (final e in _emails) '${e.label}:${e.controller.text}'].join('|');
+
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _name =
       TextEditingController(text: widget.existing?.name ?? '');
@@ -144,6 +155,10 @@ class _ContactFormState extends State<_ContactForm> {
 
   @override
   Widget build(BuildContext context) {
+    return DiscardGuard(isDirty: () => _fp() != _fp0, child: _buildContent(context));
+  }
+
+  Widget _buildContent(BuildContext context) {
     return Padding(
       padding: EdgeInsets.fromLTRB(
           20, 4, 20, 20 + MediaQuery.of(context).padding.bottom),

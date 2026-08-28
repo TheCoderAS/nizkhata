@@ -15,6 +15,7 @@ import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
 import '../widgets/common.dart';
 import '../widgets/entity_card_list.dart';
+import '../widgets/discard_guard.dart';
 import 'due_detail.dart';
 import 'due_form.dart';
 
@@ -531,6 +532,10 @@ class _DuePaymentSheet extends StatefulWidget {
 }
 
 class _DuePaymentSheetState extends State<_DuePaymentSheet> {
+  // Unsaved-edit detection: snapshot on open, compare on close.
+  late final String _fp0;
+  String _fp() => [_amount.text, '$_accountId'].join('|');
+
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _amount;
   String? _accountId;
@@ -543,6 +548,7 @@ class _DuePaymentSheetState extends State<_DuePaymentSheet> {
     final remaining = widget.due.amount - data.settledOf(widget.due.id);
     _amount = TextEditingController(text: (remaining > 0 ? remaining : 0).toString());
     _accountId = widget.due.accountId;
+    _fp0 = _fp();
   }
 
   @override
@@ -598,6 +604,10 @@ class _DuePaymentSheetState extends State<_DuePaymentSheet> {
 
   @override
   Widget build(BuildContext context) {
+    return DiscardGuard(isDirty: () => _fp() != _fp0, child: _buildContent(context));
+  }
+
+  Widget _buildContent(BuildContext context) {
     final data = context.watch<DataController>();
     final accounts = data.accounts;
     return Padding(

@@ -11,6 +11,7 @@ import '../state/auth_controller.dart';
 import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
 import '../widgets/txn_lines_editor.dart';
+import '../widgets/discard_guard.dart';
 
 /// Create/edit due sheet — a due is authored exactly like a transaction: the
 /// same multi-line editor (typed lines, categories, tax info), plus a due date
@@ -36,6 +37,10 @@ class _DueForm extends StatefulWidget {
 }
 
 class _DueFormState extends State<_DueForm> {
+  // Unsaved-edit detection: snapshot on open, compare on close.
+  late final String _fp0;
+  String _fp() => [_title.text, _dueDate.toIso8601String(), '$_contactId', '$_accountId', _note.text, for (final r in _lines) lineDraftFingerprint(r)].join('|');
+
   final _formKey = GlobalKey<FormState>();
   late final _title = TextEditingController(text: widget.existing?.title ?? '');
   late DateTime _dueDate = widget.existing?.dueDate ?? DateTime.now();
@@ -62,6 +67,7 @@ class _DueFormState extends State<_DueForm> {
       // income to make it a receivable — direction is derived from the lines.
       _lines = [LineDraft(type: 'expense')];
     }
+    _fp0 = _fp();
   }
 
   @override
@@ -167,6 +173,10 @@ class _DueFormState extends State<_DueForm> {
 
   @override
   Widget build(BuildContext context) {
+    return DiscardGuard(isDirty: () => _fp() != _fp0, child: _buildContent(context));
+  }
+
+  Widget _buildContent(BuildContext context) {
     final data = context.watch<DataController>();
     final ws = context.watch<WorkspaceController>();
     final currency = ws.activeWorkspace?.baseCurrency ?? 'INR';

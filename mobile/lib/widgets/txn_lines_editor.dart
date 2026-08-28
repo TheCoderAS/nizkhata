@@ -413,3 +413,17 @@ class TxnLinesEditor extends StatelessWidget {
     );
   }
 }
+
+/// Stable fingerprint of a draft line — used by form sheets to detect unsaved
+/// edits (compared against a snapshot taken when the sheet opened).
+String lineDraftFingerprint(LineDraft r) => [
+      r.type,
+      r.amount.text,
+      r.categoryId,
+      r.toAccountId,
+      r.debtId,
+      r.taxable,
+      r.taxHead,
+      r.tds.text,
+      r.taxInclusive,
+    ].join('|');
