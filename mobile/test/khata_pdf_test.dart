@@ -76,20 +76,46 @@ void main() {
     expect(even, contains('All settled'));
   });
 
-  test('due reminder text: overdue vs upcoming wording', () {
-    final overdue = buildDueReminderText(
+  test('due reminder text adapts to direction and timing', () {
+    final askOverdue = buildDueReminderText(
         contactName: 'Rahul',
         dueTitle: 'Rent April',
         remaining: 18000,
         dueDate: DateTime(2020, 4, 5),
-        currency: 'INR');
-    expect(overdue, contains('was due on'));
-    final upcoming = buildDueReminderText(
+        currency: 'INR',
+        direction: 'receivable');
+    expect(askOverdue, contains('was due on'));
+    expect(askOverdue, contains('Please clear it'));
+    expect(askOverdue, contains('https://nizkhata.web.app'));
+
+    final askUpcoming = buildDueReminderText(
         contactName: 'Rahul',
         dueTitle: 'Rent later',
         remaining: 18000,
         dueDate: DateTime.now().add(const Duration(days: 10)),
-        currency: 'INR');
-    expect(upcoming, contains('is due by'));
+        currency: 'INR',
+        direction: 'receivable');
+    expect(askUpcoming, contains('is due by'));
+
+    // Payable: a heads-up that YOU owe, never a request for them to pay.
+    final oweUpcoming = buildDueReminderText(
+        contactName: 'Sonali',
+        dueTitle: 'Partner RD - Aug',
+        remaining: 5000,
+        dueDate: DateTime.now().add(const Duration(days: 3)),
+        currency: 'INR',
+        direction: 'payable');
+    expect(oweUpcoming, contains('from my side'));
+    expect(oweUpcoming, contains('I will make the payment'));
+    expect(oweUpcoming, isNot(contains('Please clear it')));
+
+    final oweOverdue = buildDueReminderText(
+        contactName: 'Sonali',
+        dueTitle: 'Partner RD - Jul',
+        remaining: 5000,
+        dueDate: DateTime(2020, 7, 31),
+        currency: 'INR',
+        direction: 'payable');
+    expect(oweOverdue, contains('Sorry for the delay'));
   });
 }

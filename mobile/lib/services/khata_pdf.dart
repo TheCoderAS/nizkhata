@@ -208,19 +208,32 @@ String buildKhataText({
   return b.toString();
 }
 
-/// Payment-reminder text for an open due, written the way a person would.
+/// Payment message for an open due, written the way a person would. For a
+/// receivable due it politely asks the contact to pay; for a payable due it's
+/// a heads-up that you owe them and will clear it.
 String buildDueReminderText({
   required String contactName,
   required String dueTitle,
   required double remaining,
   required DateTime dueDate,
   required String currency,
+  required String direction, // payable | receivable
 }) {
   final dateFmt = DateFormat('dd MMM yyyy');
   final overdue = dueDate.isBefore(DateTime.now());
-  return 'Hi $contactName, hope you are doing well! Just a reminder that '
-      '${_money(remaining, currency)} for "$dueTitle" '
-      '${overdue ? 'was due on' : 'is due by'} ${dateFmt.format(dueDate)}. '
-      'Please clear it when you get a chance. Thank you!\n\n'
-      'Sent from NizKhata: https://nizkhata.web.app';
+  final amount = _money(remaining, currency);
+  final when = dateFmt.format(dueDate);
+  final String body;
+  if (direction == 'receivable') {
+    body = 'Hi $contactName, hope you are doing well! Just a reminder that '
+        '$amount for "$dueTitle" ${overdue ? 'was due on' : 'is due by'} $when. '
+        'Please clear it when you get a chance. Thank you!';
+  } else if (overdue) {
+    body = 'Hi $contactName, $amount for "$dueTitle" was due on $when from my '
+        'side. Sorry for the delay, I will clear it soon. Thanks for your patience!';
+  } else {
+    body = 'Hi $contactName, just a note that $amount for "$dueTitle" is due '
+        'by $when from my side. I will make the payment on time.';
+  }
+  return '$body\n\nSent from NizKhata: https://nizkhata.web.app';
 }

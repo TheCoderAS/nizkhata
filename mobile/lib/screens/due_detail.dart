@@ -95,7 +95,7 @@ class _DueDetail extends StatelessWidget {
                 ),
               ),
             ],
-            if (settleable && due.direction == 'receivable' && contact != null) ...[
+            if (settleable && contact != null) ...[
               const SizedBox(height: 8),
               SizedBox(
                 width: double.infinity,
@@ -106,6 +106,7 @@ class _DueDetail extends StatelessWidget {
                     remaining: roundMoney(remaining > 0 ? remaining : 0),
                     dueDate: due.dueDate,
                     currency: currency,
+                    direction: due.direction,
                   )),
                   icon: const Icon(Icons.notifications_active_outlined, size: 18),
                   label: const Text('Send reminder'),
