@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>NizKhata — Every rupee, accounted for.</title>
+  <meta name="description" content="NizKhata is a shared money ledger for Android: track transactions, dues and debts with real contacts, import bank statements on-device, and share workspaces with role-based access." />
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+  <link rel="icon" type="image/png" sizes="48x48" href="/favicon-48.png" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+  <meta property="og:title" content="NizKhata — Every rupee, accounted for." />
+  <meta property="og:description" content="The shared money ledger for Android. Dues, debts, statement import and shared workspaces — all your money, one khata." />
+  <meta property="og:image" content="https://nizkhata.web.app/og-image.png" />
+  <meta property="og:url" content="https://nizkhata.web.app" />
+  <meta property="og:type" content="website" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --bg: #141A2A;
+      --surface: rgba(255, 255, 255, 0.05);
+      --border: rgba(255, 255, 255, 0.10);
+      --text: #E8EBF4;
+      --muted: #9AA3B8;
+      --brand: #4F46E5;
+      --brand-to: #7C3AED;
+      --accent: #10B981;
+    }
+    html, body { height: 100%; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+    }
+    .blob {
+      position: fixed; border-radius: 50%; pointer-events: none; z-index: 0;
+      filter: blur(10px);
+    }
+    .blob.b1 { top: -140px; left: -100px; width: 380px; height: 380px;
+      background: radial-gradient(circle, rgba(79,70,229,.35), transparent 70%); }
+    .blob.b2 { top: -40px; right: -120px; width: 340px; height: 340px;
+      background: radial-gradient(circle, rgba(124,58,237,.28), transparent 70%); }
+    .blob.b3 { bottom: -160px; right: -80px; width: 400px; height: 400px;
+      background: radial-gradient(circle, rgba(16,185,129,.12), transparent 70%); }
+    main {
+      position: relative; z-index: 1;
+      max-width: 560px; margin: 0 auto; padding: 56px 28px 40px;
+      display: flex; flex-direction: column; align-items: center; text-align: center;
+      min-height: 100%;
+    }
+    .logo-tile {
+      width: 112px; height: 112px; border-radius: 30px;
+      background: var(--surface); border: 1px solid var(--border);
+      box-shadow: 0 0 80px 6px rgba(79, 70, 229, 0.45);
+      display: grid; place-items: center; padding: 16px;
+    }
+    .logo-tile img { width: 100%; height: 100%; object-fit: contain; }
+    h1 {
+      margin-top: 26px; font-size: 40px; font-weight: 800; letter-spacing: -1px;
+      background: linear-gradient(90deg, var(--brand), var(--brand-to));
+      -webkit-background-clip: text; background-clip: text; color: transparent;
+    }
+    .tagline { margin-top: 8px; font-size: 16px; color: var(--muted); }
+    .pills { margin-top: 28px; display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+    .pill {
+      padding: 7px 14px; border-radius: 999px; font-size: 13px;
+      background: var(--surface); border: 1px solid var(--border); color: var(--text);
+    }
+    .cta {
+      margin-top: 40px; display: inline-flex; align-items: center; gap: 10px;
+      padding: 17px 32px; border-radius: 18px; text-decoration: none;
+      font-size: 17px; font-weight: 600; color: #fff;
+      background: linear-gradient(90deg, var(--brand), var(--brand-to));
+      box-shadow: 0 8px 32px rgba(79, 70, 229, 0.45);
+      transition: transform .15s ease, box-shadow .15s ease;
+    }
+    .cta:hover { transform: translateY(-2px); box-shadow: 0 12px 40px rgba(79, 70, 229, 0.55); }
+    .cta svg { flex: none; }
+    .cta-sub { margin-top: 12px; font-size: 13px; color: var(--muted); }
+    .cta-sub a { color: var(--muted); }
+    .features {
+      margin-top: 52px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+      width: 100%; text-align: left;
+    }
+    .feature {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 16px; padding: 16px;
+    }
+    .feature h3 { font-size: 14px; font-weight: 700; margin-bottom: 6px; }
+    .feature p { font-size: 12.5px; line-height: 1.5; color: var(--muted); }
+    .install-note {
+      margin-top: 36px; font-size: 12.5px; line-height: 1.6; color: var(--muted);
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 14px; padding: 14px 18px;
+    }
+    footer { margin-top: 48px; font-size: 11px; letter-spacing: .6px; color: rgba(154,163,184,.6); }
+    @media (max-width: 480px) {
+      h1 { font-size: 32px; }
+      .features { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="blob b1"></div>
+  <div class="blob b2"></div>
+  <div class="blob b3"></div>
+  <main>
+    <div class="logo-tile"><img src="/logo.png" alt="NizKhata logo" /></div>
+    <h1>NizKhata</h1>
+    <p class="tagline">Every rupee, accounted for.</p>
+
+    <div class="pills">
+      <span class="pill">📒 Track dues &amp; debts</span>
+      <span class="pill">🏦 Import bank statements</span>
+      <span class="pill">👥 Shared workspaces</span>
+      <span class="pill">🧾 Tax-aware</span>
+    </div>
+
+    <a class="cta" href="https://github.com/TheCoderAS/nizkhata/releases/latest/download/app-release.apk">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+      </svg>
+      Download for Android
+    </a>
+    <p class="cta-sub">Always the latest version · <a href="https://github.com/TheCoderAS/nizkhata/releases">release notes</a></p>
+
+    <div class="features">
+      <div class="feature">
+        <h3>A real shared ledger</h3>
+        <p>Transactions, dues and debts tied to actual contacts — with partial settlements, split lines and a full audit history.</p>
+      </div>
+      <div class="feature">
+        <h3>Statement import</h3>
+        <p>Pull transactions from CSV, Excel or PDF statements — including password-protected files. Parsed entirely on your device.</p>
+      </div>
+      <div class="feature">
+        <h3>Work together</h3>
+        <p>Invite family or partners into a workspace with role-based access — members can be limited to just their own records.</p>
+      </div>
+      <div class="feature">
+        <h3>Never miss a due</h3>
+        <p>Due-day reminders, a home-screen widget and quick actions keep what's owed — to you and by you — in sight.</p>
+      </div>
+    </div>
+
+    <p class="install-note">
+      <strong>Installing:</strong> your phone may ask you to allow installs from your browser
+      the first time — that's normal for apps distributed outside the Play Store.
+      Your data lives in your own account and syncs securely via Firebase.
+    </p>
+
+    <footer>NIZKHATA · ANDROID</footer>
+  </main>
+</body>
+</html>
