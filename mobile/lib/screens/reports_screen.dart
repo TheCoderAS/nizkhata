@@ -14,6 +14,7 @@ import '../core/format.dart';
 import '../core/theme.dart';
 import '../data/derive.dart';
 import '../data/models.dart';
+import '../services/tax_pack_pdf.dart';
 import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
 import '../widgets/common.dart';
@@ -771,6 +772,21 @@ class _TaxTab extends StatelessWidget {
                   ],
                 )),
             const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.tonalIcon(
+                icon: const Icon(Icons.picture_as_pdf_outlined, size: 18),
+                label: Text('Export tax pack (PDF) — FY $fy'),
+                onPressed: () => _shareTaxPack(context,
+                    taxableByHead: taxableByHead,
+                    tdsByHead: tdsByHead,
+                    linesByHead: linesByHead,
+                    heads: heads,
+                    totalTaxable: totalTaxable,
+                    totalTds: totalTds),
+              ),
+            ),
+            const SizedBox(height: 8),
           ],
           SectionCard(
             title: 'By head',
@@ -796,6 +812,73 @@ class _TaxTab extends StatelessWidget {
         ],
         const SizedBox(height: 24),
       ],
+    );
+  }
+
+  /// The CA-ready FY pack: by-head summary, TDS by contact (26AS cross-check)
+  /// and the full taxable-line register, rendered to PDF on-device and shared.
+  Future<void> _shareTaxPack(
+    BuildContext context, {
+    required Map<String, double> taxableByHead,
+    required Map<String, double> tdsByHead,
+    required Map<String, int> linesByHead,
+    required List<String> heads,
+    required double totalTaxable,
+    required double totalTds,
+  }) async {
+    final data = context.read<DataController>();
+    final ws = context.read<WorkspaceController>();
+
+    final byContactTaxable = <String, double>{};
+    final byContactTds = <String, double>{};
+    final register = <TaxRegisterRow>[];
+    for (final t in txns) {
+      final contactName =
+          t.contactId != null ? (data.contactsById[t.contactId]?.name ?? 'Unknown') : '(no contact)';
+      for (final line in t.lines) {
+        final tax = line.tax;
+        if (tax == null || tax['taxable'] != true) continue;
+        final head = (tax['head'] as String?) ?? 'other';
+        final tds = (tax['tdsAmount'] is num) ? (tax['tdsAmount'] as num).toDouble() : 0.0;
+        byContactTaxable[contactName] = (byContactTaxable[contactName] ?? 0) + line.amount;
+        byContactTds[contactName] = (byContactTds[contactName] ?? 0) + tds;
+        register.add(TaxRegisterRow(
+          t.date,
+          t.note?.isNotEmpty == true ? t.note! : 'Transaction',
+          _taxHeadLabel(head),
+          roundMoney(line.amount),
+          roundMoney(tds),
+        ));
+      }
+    }
+    register.sort((a, b) => a.date.compareTo(b.date));
+    final contactNames = byContactTaxable.keys.toList()
+      ..sort((a, b) => (byContactTds[b] ?? 0).compareTo(byContactTds[a] ?? 0));
+
+    final bytes = buildTaxPackPdf(
+      workspaceName: ws.activeWorkspace?.name ?? 'NizKhata',
+      fy: fy,
+      currency: currency,
+      totalTaxable: totalTaxable,
+      totalTds: totalTds,
+      heads: [
+        for (final h in heads)
+          TaxHeadSummary(_taxHeadLabel(h), roundMoney(taxableByHead[h] ?? 0),
+              roundMoney(tdsByHead[h] ?? 0), linesByHead[h] ?? 0),
+      ],
+      contacts: [
+        for (final n in contactNames)
+          TaxContactSummary(
+              n, roundMoney(byContactTaxable[n] ?? 0), roundMoney(byContactTds[n] ?? 0)),
+      ],
+      register: register,
+    );
+    final dir = await getTemporaryDirectory();
+    final file = File('${dir.path}/tax-pack-$fy.pdf');
+    await file.writeAsBytes(bytes);
+    await Share.shareXFiles(
+      [XFile(file.path, name: 'tax-pack-$fy.pdf', mimeType: 'application/pdf')],
+      text: 'Tax pack — FY $fy',
     );
   }
 }
