@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../core/format.dart';
 import '../data/derive.dart';
 import '../data/models.dart';
+import '../services/khata_pdf.dart';
 import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
 import '../widgets/revision_history.dart';
@@ -90,6 +92,23 @@ class _DueDetail extends StatelessWidget {
                   },
                   icon: const Icon(Icons.payments_outlined, size: 18),
                   label: const Text('Record payment'),
+                ),
+              ),
+            ],
+            if (settleable && due.direction == 'receivable' && contact != null) ...[
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () => Share.share(buildDueReminderText(
+                    contactName: contact,
+                    dueTitle: due.title,
+                    remaining: roundMoney(remaining > 0 ? remaining : 0),
+                    dueDate: due.dueDate,
+                    currency: currency,
+                  )),
+                  icon: const Icon(Icons.notifications_active_outlined, size: 18),
+                  label: const Text('Send reminder'),
                 ),
               ),
             ],
