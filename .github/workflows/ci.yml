@@ -1,8 +1,9 @@
 name: CI
 
-# Quality gate. Runs on PRs into main so broken code can't merge. We do NOT
-# run on push:main — the PR run already gated the code and Deploy (deploy.yml)
-# does its own build on merge, so a second CI run on main would be redundant.
+# Quality gate. Runs on PRs into main so broken changes can't merge. The web
+# app was retired in favour of the native Android app (mobile/, built by
+# android-apk.yml); what remains here is the static landing page and the
+# Firestore Security Rules shared by all clients.
 
 run-name: Build and Test PR
 
@@ -15,40 +16,37 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Kept under its historical name so branch-protection required checks stay
+  # satisfied. Validates the landing page + firebase config instead of the
+  # retired React build.
   verify:
     name: Typecheck · Test · Build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Typecheck
-        run: npm run typecheck
-
-      - name: Unit tests
-        run: npm test
-
-      - name: Production build
-        run: npm run build
-        env:
-          VITE_USE_EMULATORS: "false"
-          # Firebase web config values are public (they ship in the client
-          # bundle); access is enforced by Security Rules, not these keys.
-          VITE_FIREBASE_API_KEY: AIzaSyAiCtL1MqHDuzpNvCRGIpnuEY1vJTHN03I
-          VITE_FIREBASE_AUTH_DOMAIN: nizkhata.firebaseapp.com
-          VITE_FIREBASE_PROJECT_ID: nizkhata
-          VITE_FIREBASE_STORAGE_BUCKET: nizkhata.firebasestorage.app
-          VITE_FIREBASE_MESSAGING_SENDER_ID: "626552427608"
-          VITE_FIREBASE_APP_ID: 1:626552427608:web:de49ec934a647fce06a62d
-          VITE_FIREBASE_MEASUREMENT_ID: G-N6JH009E7Q
+      - name: Validate landing page and firebase.json
+        run: |
+          node -e "
+            const fs = require('fs');
+            const html = fs.readFileSync('landing/index.html', 'utf8');
+            const must = [
+              'releases/latest/download/app-release.apk',
+              '<title>',
+              'og:image',
+            ];
+            for (const m of must) {
+              if (!html.includes(m)) { console.error('landing/index.html missing: ' + m); process.exit(1); }
+            }
+            const fb = JSON.parse(fs.readFileSync('firebase.json', 'utf8'));
+            if (fb.hosting.public !== 'landing') { console.error('hosting.public must be landing'); process.exit(1); }
+            const rw = (fb.hosting.rewrites || []).some(r => r.source === '/.well-known/assetlinks.json');
+            if (!rw) { console.error('assetlinks rewrite missing — Android App Links would break'); process.exit(1); }
+            for (const f of ['landing/well-known-assetlinks.json', 'landing/logo.png', 'landing/robots.txt']) {
+              if (!fs.existsSync(f)) { console.error('missing asset: ' + f); process.exit(1); }
+            }
+            console.log('landing page OK');
+          "
 
   rules-tests:
     name: Firestore Security Rules
