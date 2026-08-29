@@ -12,6 +12,7 @@ import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
 import '../widgets/common.dart';
 import '../widgets/entity_card_list.dart';
+import '../widgets/row_actions.dart';
 import '../widgets/undo_delete.dart';
 import 'category_form.dart';
 
@@ -98,26 +99,6 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Categories'),
-          actions: [
-            PopupMenuButton<PeriodKind>(
-              initialValue: _period,
-              tooltip: 'Period',
-              onSelected: (v) => setState(() => _period = v),
-              itemBuilder: (_) => _periodOptions
-                  .map((k) => PopupMenuItem(value: k, child: Text(periodLabels[k]!)))
-                  .toList(),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(periodLabels[_period]!),
-                    const Icon(Icons.arrow_drop_down),
-                  ],
-                ),
-              ),
-            ),
-          ],
           bottom: const TabBar(
             tabs: [
               Tab(text: 'Expense'),
@@ -134,6 +115,27 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
             : null,
         body: Column(
           children: [
+            // Period selector for the Net column — visible chips instead of a
+            // dropdown hidden behind an app-bar menu.
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    for (final k in _periodOptions)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 6),
+                        child: ChoiceChip(
+                          label: Text(periodLabels[k]!),
+                          selected: _period == k,
+                          onSelected: (_) => setState(() => _period = k),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
             if (_period == PeriodKind.custom)
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
@@ -273,23 +275,37 @@ class _CategoryList extends StatelessWidget {
           },
         ),
       ],
-      trailing: (canManage || canViewTxns)
-          ? (c) => PopupMenuButton<String>(
-                onSelected: (v) {
-                  if (v == 'transactions') context.push('/txns?category=${c.id}');
-                  if (v == 'edit') showCategoryForm(context, existing: c);
-                  if (v == 'delete') _confirmDelete(context, c);
-                },
-                itemBuilder: (_) => [
-                  if (canViewTxns)
-                    const PopupMenuItem(value: 'transactions', child: Text('View transactions')),
-                  if (canManage)
-                    PopupMenuItem(value: 'edit', enabled: !c.isSystem, child: const Text('Edit')),
-                  if (canManage)
-                    PopupMenuItem(value: 'delete', enabled: !c.isSystem, child: const Text('Delete')),
-                ],
-              )
-          : null,
+      // Swipe right for the category's transactions; long-press for the full
+      // action sheet (was the 3-dot menu). System categories can't be edited
+      // or deleted, so their sheet only offers transactions.
+      wrapCard: (c, card) {
+        final txns = canViewTxns
+            ? RowAction(
+                icon: Icons.receipt_long_outlined,
+                label: 'View transactions',
+                onTap: () => context.push('/txns?category=${c.id}'))
+            : null;
+        return RowActions(
+          id: c.id,
+          title: c.name,
+          swipeStart: txns,
+          menu: [
+            if (txns != null) txns,
+            if (canManage && !c.isSystem)
+              RowAction(
+                  icon: Icons.edit_outlined,
+                  label: 'Edit',
+                  onTap: () => showCategoryForm(context, existing: c)),
+            if (canManage && !c.isSystem)
+              RowAction(
+                  icon: Icons.delete_outline,
+                  label: 'Delete',
+                  destructive: true,
+                  onTap: () => _confirmDelete(context, c)),
+          ],
+          child: card,
+        );
+      },
     );
   }
 

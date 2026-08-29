@@ -12,6 +12,7 @@ import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
 import '../widgets/common.dart';
 import '../widgets/entity_card_list.dart';
+import '../widgets/row_actions.dart';
 import '../widgets/undo_delete.dart';
 import 'debt_detail.dart';
 import 'debt_form.dart';
@@ -247,15 +248,49 @@ class _DebtsScreenState extends State<DebtsScreen> {
                     listId: 'debts',
                     rows: visible,
                     onRowTap: (d) => showDebtDetail(context, d),
-                    trailing: (d) => (canManage || canTxn || canViewContacts || canViewTxns)
-                        ? _DebtMenu(
-                            debt: d,
-                            canManage: canManage,
-                            canTxn: canTxn,
-                            canViewContacts: canViewContacts,
-                            canViewTxns: canViewTxns,
-                          )
-                        : const SizedBox.shrink(),
+                    // Swipe right to record a receipt/repayment; long-press for
+                    // the full action sheet (was the 3-dot menu).
+                    wrapCard: (d, card) {
+                      final outstanding = data.outstandingOf(d.id);
+                      final settleable = d.status == 'open' && outstanding > 0;
+                      final hasContact = d.contactId.isNotEmpty;
+                      final settle = (canTxn && settleable)
+                          ? RowAction(
+                              icon: Icons.payments_outlined,
+                              label: d.direction == 'owed' ? 'Record receipt' : 'Record repayment',
+                              onTap: () => showDebtPayment(context, d))
+                          : null;
+                      return RowActions(
+                        id: d.id,
+                        title: d.label ?? data.contactsById[d.contactId]?.name ?? 'Debt',
+                        swipeStart: settle,
+                        menu: [
+                          if (settle != null) settle,
+                          if (canViewContacts && hasContact)
+                            RowAction(
+                                icon: Icons.person_outline,
+                                label: 'View contact',
+                                onTap: () => context.push('/contacts/${d.contactId}')),
+                          if (canViewTxns && hasContact)
+                            RowAction(
+                                icon: Icons.receipt_long_outlined,
+                                label: 'View transactions',
+                                onTap: () => context.push('/txns?contact=${d.contactId}')),
+                          if (canManage)
+                            RowAction(
+                                icon: Icons.edit_outlined,
+                                label: 'Edit',
+                                onTap: () => showDebtForm(context, existing: d)),
+                          if (canManage)
+                            RowAction(
+                                icon: Icons.delete_outline,
+                                label: 'Delete',
+                                destructive: true,
+                                onTap: () => _confirmDelete(context, d)),
+                        ],
+                        child: card,
+                      );
+                    },
                     fields: [
                       CardField<Debt>(
                         key: 'label',
@@ -312,58 +347,6 @@ class _DebtsScreenState extends State<DebtsScreen> {
           ),
         ],
       ),
-    );
-  }
-}
-
-class _DebtMenu extends StatelessWidget {
-  final Debt debt;
-  final bool canManage;
-  final bool canTxn;
-  final bool canViewContacts;
-  final bool canViewTxns;
-  const _DebtMenu({
-    required this.debt,
-    required this.canManage,
-    required this.canTxn,
-    required this.canViewContacts,
-    required this.canViewTxns,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final data = context.read<DataController>();
-    final outstanding = data.outstandingOf(debt.id);
-    final settleable = debt.status == 'open' && outstanding > 0;
-    final settleLabel = debt.direction == 'owed' ? 'Record receipt' : 'Record repayment';
-    final hasContact = debt.contactId.isNotEmpty;
-    return PopupMenuButton<String>(
-      onSelected: (v) {
-        switch (v) {
-          case 'settle':
-            showDebtPayment(context, debt);
-            break;
-          case 'contact':
-            if (hasContact) context.push('/contacts/${debt.contactId}');
-            break;
-          case 'txns':
-            if (hasContact) context.push('/txns?contact=${debt.contactId}');
-            break;
-          case 'edit':
-            showDebtForm(context, existing: debt);
-            break;
-          case 'delete':
-            _confirmDelete(context, debt);
-            break;
-        }
-      },
-      itemBuilder: (_) => [
-        if (canTxn && settleable) PopupMenuItem(value: 'settle', child: Text(settleLabel)),
-        if (canViewContacts && hasContact) const PopupMenuItem(value: 'contact', child: Text('View contact')),
-        if (canViewTxns && hasContact) const PopupMenuItem(value: 'txns', child: Text('View transactions')),
-        if (canManage) const PopupMenuItem(value: 'edit', child: Text('Edit')),
-        if (canManage) const PopupMenuItem(value: 'delete', child: Text('Delete')),
-      ],
     );
   }
 }

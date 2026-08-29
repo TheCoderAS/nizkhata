@@ -11,6 +11,7 @@ import '../data/permissions.dart';
 import '../state/auth_controller.dart';
 import '../state/workspace_controller.dart';
 import '../widgets/common.dart';
+import '../widgets/row_actions.dart';
 import 'role_form.dart';
 
 class RolesScreen extends StatelessWidget {
@@ -64,7 +65,7 @@ class _RoleCard extends StatelessWidget {
     final granted = kPermissions.where((p) => role.permissions[p] == true).length;
     final memberCount = ws.workspaceMembers.where((m) => m.roleId == role.id).length;
 
-    return Card(
+    final card = Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -104,19 +105,6 @@ class _RoleCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                if (manage)
-                  PopupMenuButton<String>(
-                    onSelected: (v) {
-                      if (v == 'duplicate') _duplicate(context);
-                      if (v == 'edit') showRoleEditor(context, existing: role);
-                      if (v == 'delete') _confirmDelete(context);
-                    },
-                    itemBuilder: (_) => [
-                      const PopupMenuItem(value: 'duplicate', child: Text('Duplicate')),
-                      PopupMenuItem(value: 'edit', enabled: !role.isSystem, child: const Text('Edit')),
-                      PopupMenuItem(value: 'delete', enabled: !role.isSystem, child: const Text('Delete')),
-                    ],
-                  ),
               ],
             ),
             const SizedBox(height: 8),
@@ -127,6 +115,32 @@ class _RoleCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+
+    if (!manage) return card;
+    // Long-press for actions (was the 3-dot menu). No swipe: roles are a
+    // rarely-touched admin list, and none of these is a daily action.
+    return RowActions(
+      id: role.id,
+      title: role.name,
+      menu: [
+        RowAction(
+            icon: Icons.copy_outlined,
+            label: 'Duplicate',
+            onTap: () => _duplicate(context)),
+        if (!role.isSystem)
+          RowAction(
+              icon: Icons.edit_outlined,
+              label: 'Edit',
+              onTap: () => showRoleEditor(context, existing: role)),
+        if (!role.isSystem)
+          RowAction(
+              icon: Icons.delete_outline,
+              label: 'Delete',
+              destructive: true,
+              onTap: () => _confirmDelete(context)),
+      ],
+      child: card,
     );
   }
 

@@ -11,6 +11,7 @@ import '../state/auth_controller.dart';
 import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
 import '../widgets/common.dart';
+import '../widgets/row_actions.dart';
 import '../widgets/undo_delete.dart';
 import 'budget_form.dart';
 
@@ -155,8 +156,7 @@ class _BudgetCard extends StatelessWidget {
             ? Colors.orange
             : cs.primary;
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
+    final card = Card(
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: canViewTxns
@@ -196,17 +196,6 @@ class _BudgetCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                if (canManage)
-                  PopupMenuButton<String>(
-                    onSelected: (v) {
-                      if (v == 'edit') showBudgetForm(context, existing: p.budget);
-                      if (v == 'delete') _confirmDelete(context, p);
-                    },
-                    itemBuilder: (_) => const [
-                      PopupMenuItem(value: 'edit', child: Text('Edit')),
-                      PopupMenuItem(value: 'delete', child: Text('Delete')),
-                    ],
-                  ),
               ],
             ),
             const SizedBox(height: 10),
@@ -229,6 +218,38 @@ class _BudgetCard extends StatelessWidget {
           ],
           ),
         ),
+      ),
+    );
+
+    // Swipe right to edit; long-press for the full action sheet (was the
+    // 3-dot menu). Tap still drills into the category's transactions.
+    final edit = canManage
+        ? RowAction(
+            icon: Icons.edit_outlined,
+            label: 'Edit',
+            onTap: () => showBudgetForm(context, existing: p.budget))
+        : null;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: RowActions(
+        id: p.budget.id,
+        title: p.categoryName,
+        swipeStart: edit,
+        menu: [
+          if (canViewTxns)
+            RowAction(
+                icon: Icons.receipt_long_outlined,
+                label: 'View transactions',
+                onTap: () => context.push('/txns?category=${p.budget.categoryId}')),
+          if (edit != null) edit,
+          if (canManage)
+            RowAction(
+                icon: Icons.delete_outline,
+                label: 'Delete',
+                destructive: true,
+                onTap: () => _confirmDelete(context, p)),
+        ],
+        child: card,
       ),
     );
   }

@@ -12,6 +12,7 @@ import '../state/workspace_controller.dart';
 import '../widgets/common.dart';
 import '../widgets/entity_card_list.dart';
 import '../widgets/revision_history.dart';
+import '../widgets/row_actions.dart';
 import '../widgets/undo_delete.dart';
 import 'account_form.dart';
 
@@ -51,22 +52,47 @@ class AccountsScreen extends StatelessWidget {
               rows: accounts,
               onRowTap: (a) => showAccountDetail(context, a),
               leading: (a) => _AccountBadge(type: a.type),
-              trailing: (a) => PopupMenuButton<String>(
-                onSelected: (v) {
-                  if (v == 'ledger') context.push('/accounts/${a.id}/ledger');
-                  if (v == 'transactions') context.push('/txns?account=${a.id}');
-                  if (v == 'import') context.push('/import?account=${a.id}');
-                  if (v == 'edit') showAccountForm(context, existing: a);
-                  if (v == 'delete') _confirmDelete(context, a);
-                },
-                itemBuilder: (_) => [
-                  const PopupMenuItem(value: 'ledger', child: Text('View ledger')),
-                  if (canViewTxns) const PopupMenuItem(value: 'transactions', child: Text('View transactions')),
-                  if (canImport) const PopupMenuItem(value: 'import', child: Text('Import statement')),
-                  if (canManage) const PopupMenuItem(value: 'edit', child: Text('Edit')),
-                  if (canManage) const PopupMenuItem(value: 'delete', child: Text('Delete')),
-                ],
-              ),
+              // Swipe right to import a statement, left to open the ledger;
+              // long-press for the full action sheet (was the 3-dot menu).
+              wrapCard: (a, card) {
+                final import = canImport
+                    ? RowAction(
+                        icon: Icons.upload_file_outlined,
+                        label: 'Import statement',
+                        onTap: () => context.push('/import?account=${a.id}'))
+                    : null;
+                final ledger = RowAction(
+                    icon: Icons.menu_book_outlined,
+                    label: 'View ledger',
+                    onTap: () => context.push('/accounts/${a.id}/ledger'));
+                return RowActions(
+                  id: a.id,
+                  title: a.name,
+                  swipeStart: import,
+                  swipeEnd: ledger,
+                  menu: [
+                    ledger,
+                    if (canViewTxns)
+                      RowAction(
+                          icon: Icons.receipt_long_outlined,
+                          label: 'View transactions',
+                          onTap: () => context.push('/txns?account=${a.id}')),
+                    if (import != null) import,
+                    if (canManage)
+                      RowAction(
+                          icon: Icons.edit_outlined,
+                          label: 'Edit',
+                          onTap: () => showAccountForm(context, existing: a)),
+                    if (canManage)
+                      RowAction(
+                          icon: Icons.delete_outline,
+                          label: 'Delete',
+                          destructive: true,
+                          onTap: () => _confirmDelete(context, a)),
+                  ],
+                  child: card,
+                );
+              },
               fields: [
                 CardField<Account>(
                   key: 'name',

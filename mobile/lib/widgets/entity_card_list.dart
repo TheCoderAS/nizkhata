@@ -60,6 +60,10 @@ class EntityCardList<T> extends StatefulWidget {
   /// Trailing widget (e.g. a row action menu) at the end of each card.
   final Widget Function(T row)? trailing;
 
+  /// Wraps each built card — used to attach row gestures (swipe actions,
+  /// long-press context sheet) without EntityCardList knowing about them.
+  final Widget Function(T row, Widget card)? wrapCard;
+
   /// Extra padding around the list (screens with their own toolbar can zero this).
   final EdgeInsets padding;
 
@@ -76,6 +80,7 @@ class EntityCardList<T> extends StatefulWidget {
     this.onRowTap,
     this.leading,
     this.trailing,
+    this.wrapCard,
     this.padding = const EdgeInsets.fromLTRB(16, 4, 16, 96),
     this.defaultSortKey,
     this.defaultAscending = false,
@@ -305,7 +310,7 @@ class _EntityCardListState<T> extends State<EntityCardList<T>> {
 
     Widget fieldValue(CardField<T> f) => f.widget != null ? f.widget!(row) : Text(f.text?.call(row) ?? '');
 
-    return Card(
+    final card = Card(
       child: InkWell(
         onTap: widget.onRowTap == null ? null : () => widget.onRowTap!(row),
         borderRadius: BorderRadius.circular(16),
@@ -382,5 +387,6 @@ class _EntityCardListState<T> extends State<EntityCardList<T>> {
         ),
       ),
     );
+    return widget.wrapCard == null ? card : widget.wrapCard!(row, card);
   }
 }
