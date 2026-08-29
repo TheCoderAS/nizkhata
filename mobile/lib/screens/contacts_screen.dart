@@ -11,6 +11,7 @@ import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
 import '../widgets/common.dart';
 import '../widgets/entity_card_list.dart';
+import '../widgets/row_actions.dart';
 import '../widgets/undo_delete.dart';
 import 'contact_form.dart';
 
@@ -95,27 +96,36 @@ class _ContactsScreenState extends State<ContactsScreen> {
                     rows: contacts,
                     onRowTap: (c) => context.push('/contacts/${c.id}'),
                     leading: (c) => EntityAvatar(name: c.name),
-                    trailing: (canManage || canViewTxns)
-                        ? (c) => PopupMenuButton<String>(
-                              onSelected: (v) {
-                                if (v == 'transactions') {
-                                  context.push('/txns?contact=${c.id}');
-                                }
-                                if (v == 'edit') showContactForm(context, existing: c);
-                                if (v == 'delete') _confirmDelete(context, c);
-                              },
-                              itemBuilder: (_) => [
-                                if (canViewTxns)
-                                  const PopupMenuItem(
-                                      value: 'transactions',
-                                      child: Text('View transactions')),
-                                if (canManage) ...const [
-                                  PopupMenuItem(value: 'edit', child: Text('Edit')),
-                                  PopupMenuItem(value: 'delete', child: Text('Delete')),
-                                ],
-                              ],
-                            )
-                        : null,
+                    // Swipe right for the contact's transactions; long-press
+                    // for the full action sheet (was the 3-dot menu).
+                    wrapCard: (c, card) {
+                      final txns = canViewTxns
+                          ? RowAction(
+                              icon: Icons.receipt_long_outlined,
+                              label: 'View transactions',
+                              onTap: () => context.push('/txns?contact=${c.id}'))
+                          : null;
+                      return RowActions(
+                        id: c.id,
+                        title: c.name,
+                        swipeStart: txns,
+                        menu: [
+                          if (txns != null) txns,
+                          if (canManage)
+                            RowAction(
+                                icon: Icons.edit_outlined,
+                                label: 'Edit',
+                                onTap: () => showContactForm(context, existing: c)),
+                          if (canManage)
+                            RowAction(
+                                icon: Icons.delete_outline,
+                                label: 'Delete',
+                                destructive: true,
+                                onTap: () => _confirmDelete(context, c)),
+                        ],
+                        child: card,
+                      );
+                    },
                     fields: [
                       CardField<Contact>(
                         key: 'name',

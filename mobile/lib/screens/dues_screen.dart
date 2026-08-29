@@ -16,6 +16,7 @@ import '../state/workspace_controller.dart';
 import '../widgets/common.dart';
 import '../widgets/entity_card_list.dart';
 import '../widgets/discard_guard.dart';
+import '../widgets/row_actions.dart';
 import '../widgets/undo_delete.dart';
 import 'due_detail.dart';
 import 'due_form.dart';
@@ -306,15 +307,78 @@ class _DuesScreenState extends State<DuesScreen> {
                     listId: 'dues',
                     rows: filtered,
                     onRowTap: (d) => showDueDetail(context, d),
-                    trailing: (d) => (canManage || canTxn || canViewContacts || canViewTxns)
-                        ? _DueMenu(
-                            due: d,
-                            canManage: canManage,
-                            canTxn: canTxn,
-                            canViewContacts: canViewContacts,
-                            canViewTxns: canViewTxns,
-                          )
-                        : const SizedBox.shrink(),
+                    // Swipe right to record a payment, left to send a reminder;
+                    // long-press for everything else (was the 3-dot menu).
+                    wrapCard: (d, card) {
+                      final status = dueStatusFromSettled(d, data.settledOf(d.id));
+                      final settleable = status == 'open' || status == 'partial';
+                      final canCancel = status != 'settled' && status != 'cancelled';
+                      final hasContact = d.contactId != null;
+
+                      void remind() {
+                        final remaining = roundMoney(d.amount - data.settledOf(d.id));
+                        Share.share(buildDueReminderText(
+                          contactName: hasContact
+                              ? (data.contactsById[d.contactId]?.name ?? 'there')
+                              : 'there',
+                          dueTitle: d.title,
+                          remaining: remaining,
+                          dueDate: d.dueDate,
+                          currency: currency,
+                          direction: d.direction,
+                        ));
+                      }
+
+                      final pay = (canTxn && settleable)
+                          ? RowAction(
+                              icon: Icons.payments_outlined,
+                              label: 'Record payment',
+                              onTap: () => showDuePayment(context, d))
+                          : null;
+                      final remindAction = (settleable && hasContact)
+                          ? RowAction(
+                              icon: Icons.campaign_outlined,
+                              label: 'Send reminder',
+                              onTap: remind)
+                          : null;
+                      return RowActions(
+                        id: d.id,
+                        title: d.title,
+                        swipeStart: pay,
+                        swipeEnd: remindAction,
+                        menu: [
+                          if (pay != null) pay,
+                          if (remindAction != null) remindAction,
+                          if (canViewContacts && hasContact)
+                            RowAction(
+                                icon: Icons.person_outline,
+                                label: 'View contact',
+                                onTap: () => context.push('/contacts/${d.contactId}')),
+                          if (canViewTxns && hasContact)
+                            RowAction(
+                                icon: Icons.receipt_long_outlined,
+                                label: 'View transactions',
+                                onTap: () => context.push('/txns?contact=${d.contactId}')),
+                          if (canManage)
+                            RowAction(
+                                icon: Icons.edit_outlined,
+                                label: 'Edit',
+                                onTap: () => showDueForm(context, existing: d)),
+                          if (canManage && canCancel)
+                            RowAction(
+                                icon: Icons.block,
+                                label: 'Cancel due',
+                                onTap: () => _cancelDue(context, d)),
+                          if (canManage)
+                            RowAction(
+                                icon: Icons.delete_outline,
+                                label: 'Delete',
+                                destructive: true,
+                                onTap: () => _confirmDelete(context, d)),
+                        ],
+                        child: card,
+                      );
+                    },
                     fields: [
                       CardField<Due>(
                         key: 'title',
@@ -381,86 +445,6 @@ class _DuesScreenState extends State<DuesScreen> {
       label: Text(label),
       onDeleted: onClear,
       deleteIcon: const Icon(Icons.close, size: 16),
-    );
-  }
-}
-
-class _DueMenu extends StatelessWidget {
-  final Due due;
-  final bool canManage;
-  final bool canTxn;
-  final bool canViewContacts;
-  final bool canViewTxns;
-  const _DueMenu({
-    required this.due,
-    required this.canManage,
-    required this.canTxn,
-    required this.canViewContacts,
-    required this.canViewTxns,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final data = context.read<DataController>();
-    final status = dueStatusFromSettled(due, data.settledOf(due.id));
-    final settleable = status == 'open' || status == 'partial';
-    final canCancel = status != 'settled' && status != 'cancelled';
-    final hasContact = due.contactId != null;
-    return PopupMenuButton<String>(
-      onSelected: (v) {
-        switch (v) {
-          case 'pay':
-            showDuePayment(context, due);
-            break;
-          case 'remind':
-            final remaining = roundMoney(due.amount - data.settledOf(due.id));
-            final contactName = due.contactId != null
-                ? (data.contactsById[due.contactId]?.name ?? 'there')
-                : 'there';
-            Share.share(buildDueReminderText(
-              contactName: contactName,
-              dueTitle: due.title,
-              remaining: remaining,
-              dueDate: due.dueDate,
-              currency: context
-                      .read<WorkspaceController>()
-                      .activeWorkspace
-                      ?.baseCurrency ??
-                  'INR',
-              direction: due.direction,
-            ));
-            break;
-          case 'contact':
-            if (due.contactId != null) context.push('/contacts/${due.contactId}');
-            break;
-          case 'txns':
-            if (due.contactId != null) {
-              context.push('/txns?contact=${due.contactId}');
-            }
-            break;
-          case 'edit':
-            showDueForm(context, existing: due);
-            break;
-          case 'cancel':
-            _cancelDue(context, due);
-            break;
-          case 'delete':
-            _confirmDelete(context, due);
-            break;
-        }
-      },
-      itemBuilder: (_) => [
-        if (canTxn && settleable) const PopupMenuItem(value: 'pay', child: Text('Record payment')),
-        // A share-sheet message about this due — a payment nudge when they owe
-        // you, a heads-up when you owe them. WhatsApp does the rest.
-        if (settleable && hasContact)
-          const PopupMenuItem(value: 'remind', child: Text('Send reminder')),
-        if (canViewContacts && hasContact) const PopupMenuItem(value: 'contact', child: Text('View contact')),
-        if (canViewTxns && hasContact) const PopupMenuItem(value: 'txns', child: Text('View transactions')),
-        if (canManage) const PopupMenuItem(value: 'edit', child: Text('Edit')),
-        if (canManage && canCancel) const PopupMenuItem(value: 'cancel', child: Text('Cancel due')),
-        if (canManage) const PopupMenuItem(value: 'delete', child: Text('Delete')),
-      ],
     );
   }
 }
