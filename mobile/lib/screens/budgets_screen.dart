@@ -32,7 +32,7 @@ class BudgetsScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('Budgets')),
       floatingActionButton: canManage
-          ? GradientFab(
+          ? AppFab(
               onPressed: () => showBudgetForm(context),
               tooltip: 'Add budget',
               icon: Icons.add,
