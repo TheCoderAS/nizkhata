@@ -37,13 +37,23 @@ class DuesFactory(private val context: Context) : RemoteViewsService.RemoteViews
         val row = RemoteViews(context.packageName, R.layout.dues_widget_item)
         try {
             val o = items.getJSONObject(position)
+            val incoming = o.optBoolean("r", false)
             row.setTextViewText(R.id.item_title, o.optString("t", "Due"))
             row.setTextViewText(R.id.item_date, o.optString("d", ""))
             row.setTextViewText(R.id.item_amount, o.optString("a", ""))
             row.setTextColor(
                 R.id.item_amount,
-                if (o.optBoolean("r", false)) Color.parseColor("#34D399")
-                else Color.parseColor("#F87171")
+                if (incoming) Color.parseColor("#34D399") else Color.parseColor("#F87171")
+            )
+            // Direction is carried by the amount's pill and the leading bar,
+            // not by the text colour alone.
+            row.setInt(
+                R.id.item_amount, "setBackgroundResource",
+                if (incoming) R.drawable.dues_pill_in else R.drawable.dues_pill_out
+            )
+            row.setInt(
+                R.id.item_accent, "setBackgroundResource",
+                if (incoming) R.drawable.dues_accent_in else R.drawable.dues_accent_out
             )
         } catch (_: Exception) {
         }

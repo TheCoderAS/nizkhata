@@ -24,11 +24,11 @@ class DuesWidgetProvider : HomeWidgetProvider() {
             val views = RemoteViews(context.packageName, R.layout.dues_widget)
             views.setTextViewText(
                 R.id.widget_receivable,
-                "In: " + (widgetData.getString("receivable", null) ?: "—")
+                "In " + (widgetData.getString("receivable", null) ?: "—")
             )
             views.setTextViewText(
                 R.id.widget_payable,
-                "Out: " + (widgetData.getString("payable", null) ?: "—")
+                "Out " + (widgetData.getString("payable", null) ?: "—")
             )
 
             // Scrollable dues list backed by the RemoteViewsService below.
