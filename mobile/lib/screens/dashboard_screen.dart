@@ -39,13 +39,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ? (
             start: DateTime(_customStart.year, _customStart.month, _customStart.day),
             // End is inclusive: extend to the start of the following day.
-            end: DateTime(_customEnd.year, _customEnd.month, _customEnd.day).add(const Duration(days: 1)),
+            end: DateTime(_customEnd.year, _customEnd.month, _customEnd.day)
+                .add(const Duration(days: 1)),
           )
         : resolvePeriod(period, now, fyStart);
 
     final trend = trendSeries(data.transactions, range.start, range.end);
-    final totalInAccounts =
-        data.accounts.fold<double>(0, (s, a) => s + data.balanceOf(a.id));
+    final totalInAccounts = data.accounts.fold<double>(0, (s, a) => s + data.balanceOf(a.id));
     final held = custodialHeld(data.debts, data.transactions);
 
     // Net worth (trailing 6 months).
@@ -58,7 +58,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final int? nwPct = first != 0 ? (delta / first.abs() * 100).round() : null;
 
     final topSpend =
-        spendByCategoryInRange(data.transactions, data.categories, range.start, range.end).take(6).toList();
+        spendByCategoryInRange(data.transactions, data.categories, range.start, range.end)
+            .take(6)
+            .toList();
 
     // Upcoming dues within the selected period (open/partial), soonest first.
     final upcoming = data.dues.where((d) {
@@ -70,8 +72,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ..sort((a, b) => a.dueDate.compareTo(b.dueDate));
     final upcomingTop = upcoming.take(5).toList();
 
-    final budgetRows =
-        budgetProgress(data.budgets, data.transactions, data.categoriesById, fyStart).take(4).toList();
+    final budgetRows = budgetProgress(data.budgets, data.transactions, data.categoriesById, fyStart)
+        .take(4)
+        .toList();
 
     final recent = [...data.transactions]..sort((a, b) => b.date.compareTo(a.date));
     final recentTop = recent.take(6).toList();
@@ -86,7 +89,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
           _customRangePickers(),
         ],
         const SizedBox(height: 12),
-        _NetWorthHero(current: current, delta: delta, pct: nwPct, series: nwSeries, currency: currency),
+        _NetWorthHero(
+            current: current, delta: delta, pct: nwPct, series: nwSeries, currency: currency),
         const SizedBox(height: 12),
         IntrinsicHeight(
           child: Row(
@@ -146,14 +150,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
         ),
         const SizedBox(height: 12),
-        StatCard(label: 'Held for others (Custodial)', amount: held, currency: currency, icon: Icons.people_outline),
+        StatCard(
+            label: 'Held for others (Custodial)',
+            amount: held,
+            currency: currency,
+            icon: Icons.people_outline),
         const SizedBox(height: 12),
         SectionCard(
           title: 'Upcoming dues',
           icon: Icons.event_note_outlined,
           trailing: _seeAll('/dues'),
           child: upcomingTop.isEmpty
-              ? Text('Nothing due.', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant))
+              ? Text('Nothing due.',
+                  style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant))
               : Column(
                   children: [
                     for (final d in upcomingTop) _dueRow(d, currency),
@@ -179,7 +188,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
           icon: Icons.donut_small_outlined,
           trailing: _seeAll('/reports'),
           child: topSpend.isEmpty
-              ? Text('No spend recorded.', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant))
+              ? Text('No spend recorded.',
+                  style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant))
               : Column(
                   children: [
                     for (final c in topSpend)
@@ -198,7 +208,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
           icon: Icons.receipt_long_outlined,
           trailing: _seeAll('/transactions'),
           child: recentTop.isEmpty
-              ? Text('No transactions yet.', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant))
+              ? Text('No transactions yet.',
+                  style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant))
               : Column(
                   children: [
                     for (final t in recentTop)
@@ -215,7 +226,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                     Text(t.note?.isNotEmpty == true ? t.note! : 'Transaction',
                                         maxLines: 1, overflow: TextOverflow.ellipsis),
                                     Text(formatDate(t.date),
-                                        style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                                        style: TextStyle(
+                                            fontSize: 12,
+                                            color: Theme.of(context).colorScheme.onSurfaceVariant)),
                                   ],
                                 ),
                               ),
@@ -346,6 +359,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             LineChartBarData(
               spots: [for (var i = 0; i < values.length; i++) FlSpot(i.toDouble(), values[i])],
               isCurved: true,
+              preventCurveOverShooting: true,
               color: color,
               barWidth: 2,
               dotData: const FlDotData(show: false),
@@ -369,8 +383,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(d.title.isNotEmpty ? d.title : 'Due',
-                    maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w500)),
-                Text(formatDate(d.dueDate), style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.w500)),
+                Text(formatDate(d.dueDate),
+                    style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
               ],
             ),
           ),
@@ -435,7 +452,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Expanded(child: Text(c.name, maxLines: 1, overflow: TextOverflow.ellipsis)),
-                Text(formatMoney(c.amount, currency), style: const TextStyle(fontWeight: FontWeight.w500)),
+                Text(formatMoney(c.amount, currency),
+                    style: const TextStyle(fontWeight: FontWeight.w500)),
               ],
             ),
             const SizedBox(height: 4),
@@ -454,8 +472,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   /// The dashboard's to-do strip: overdue receivables, dues this week,
   /// uncategorised transactions, stale statement imports, and recurring
   /// transactions whose next occurrence has arrived. Hidden when all clear.
-  List<Widget> _attentionItems(BuildContext context, DataController data,
-      WorkspaceController ws, String currency, DateTime now) {
+  List<Widget> _attentionItems(BuildContext context, DataController data, WorkspaceController ws,
+      String currency, DateTime now) {
     final items = <Widget>[];
     final today = DateTime(now.year, now.month, now.day);
 
@@ -497,8 +515,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     // Uncategorised transactions (imports mostly).
     final uncategorized = data.transactions
-        .where((t) => t.lines.any((l) =>
-            (l.type == 'expense' || l.type == 'income') && l.categoryId == null))
+        .where((t) =>
+            t.lines.any((l) => (l.type == 'expense' || l.type == 'income') && l.categoryId == null))
         .length;
     if (uncategorized > 0 && ws.can('transactions.edit')) {
       items.add(_attentionTile(
@@ -520,7 +538,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
           if (lastImport == null || t.date.isAfter(lastImport)) lastImport = t.date;
         }
         if (lastImport == null) continue;
-        final days = today.difference(DateTime(lastImport.year, lastImport.month, lastImport.day)).inDays;
+        final days =
+            today.difference(DateTime(lastImport.year, lastImport.month, lastImport.day)).inDays;
         if (days > 30) {
           items.add(_attentionTile(
             icon: Icons.upload_file_outlined,
@@ -607,8 +626,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final micros = DateTime.now().microsecondsSinceEpoch;
     var i = 0;
     final lines = [
-      for (final l in s.template.lines)
-        (l.toMap()..['lineId'] = 'rec_${micros}_l${i++}'),
+      for (final l in s.template.lines) (l.toMap()..['lineId'] = 'rec_${micros}_l${i++}'),
     ];
     try {
       await Mutations(Actor.fromUser(user)).createTransaction(
@@ -641,7 +659,11 @@ class _NetWorthHero extends StatelessWidget {
   final List<NetWorthPoint> series;
   final String currency;
   const _NetWorthHero(
-      {required this.current, required this.delta, required this.pct, required this.series, required this.currency});
+      {required this.current,
+      required this.delta,
+      required this.pct,
+      required this.series,
+      required this.currency});
 
   @override
   Widget build(BuildContext context) {
@@ -657,16 +679,20 @@ class _NetWorthHero extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Net worth', style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w500)),
+                const Text('Net worth',
+                    style: TextStyle(
+                        color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w500)),
                 const SizedBox(height: 4),
                 Text(formatMoney(current, currency),
-                    style: const TextStyle(color: Colors.white, fontSize: 30, fontWeight: FontWeight.w800)),
+                    style: const TextStyle(
+                        color: Colors.white, fontSize: 30, fontWeight: FontWeight.w800)),
                 if (delta.abs() > 0.005) ...[
                   const SizedBox(height: 6),
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(delta > 0 ? Icons.arrow_upward : Icons.arrow_downward, color: Colors.white, size: 14),
+                      Icon(delta > 0 ? Icons.arrow_upward : Icons.arrow_downward,
+                          color: Colors.white, size: 14),
                       const SizedBox(width: 4),
                       Text(
                           '${delta > 0 ? '+' : '−'}${formatMoney(delta.abs(), currency)}'
@@ -691,13 +717,16 @@ class _NetWorthHero extends StatelessWidget {
                   lineBarsData: [
                     LineChartBarData(
                       spots: [
-                        for (var i = 0; i < series.length; i++) FlSpot(i.toDouble(), series[i].netWorth),
+                        for (var i = 0; i < series.length; i++)
+                          FlSpot(i.toDouble(), series[i].netWorth),
                       ],
                       isCurved: true,
+                      preventCurveOverShooting: true,
                       color: Colors.white,
                       barWidth: 2,
                       dotData: const FlDotData(show: false),
-                      belowBarData: BarAreaData(show: true, color: Colors.white.withValues(alpha: 0.2)),
+                      belowBarData:
+                          BarAreaData(show: true, color: Colors.white.withValues(alpha: 0.2)),
                     ),
                   ],
                 ),

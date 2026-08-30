@@ -81,8 +81,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
               value: fy,
               underline: const SizedBox.shrink(),
               items: [
-                for (final f in fyOptions)
-                  DropdownMenuItem(value: f, child: Text('FY $f')),
+                for (final f in fyOptions) DropdownMenuItem(value: f, child: Text('FY $f')),
               ],
               onChanged: (v) => setState(() => _fy = v),
             ),
@@ -117,7 +116,12 @@ class _ReportsScreenState extends State<ReportsScreen> {
                     currency: currency,
                     canViewTxns: canViewTxns,
                   ),
-                  _TaxTab(txns: fyTxns, fy: fy, currency: currency, canExport: canExport, canViewTxns: canViewTxns),
+                  _TaxTab(
+                      txns: fyTxns,
+                      fy: fy,
+                      currency: currency,
+                      canExport: canExport,
+                      canViewTxns: canViewTxns),
                   _CategoryTab(
                     txns: data.transactions,
                     categories: data.categories,
@@ -296,7 +300,12 @@ class _InsightsTab extends StatelessWidget {
               child: _StatWithDelta(
                 delta: _pctDelta(income, prev.income),
                 higherIsGood: true,
-                child: StatCard(label: 'Income', amount: income, currency: currency, tone: StatTone.success, icon: Icons.arrow_upward),
+                child: StatCard(
+                    label: 'Income',
+                    amount: income,
+                    currency: currency,
+                    tone: StatTone.success,
+                    icon: Icons.arrow_upward),
               ),
             ),
             const SizedBox(width: 12),
@@ -304,7 +313,12 @@ class _InsightsTab extends StatelessWidget {
               child: _StatWithDelta(
                 delta: _pctDelta(expense, prev.expense),
                 higherIsGood: false,
-                child: StatCard(label: 'Expense', amount: expense, currency: currency, tone: StatTone.danger, icon: Icons.arrow_downward),
+                child: StatCard(
+                    label: 'Expense',
+                    amount: expense,
+                    currency: currency,
+                    tone: StatTone.danger,
+                    icon: Icons.arrow_downward),
               ),
             ),
           ],
@@ -317,7 +331,11 @@ class _InsightsTab extends StatelessWidget {
               child: _StatWithDelta(
                 delta: _pctDelta(net, prev.net),
                 higherIsGood: true,
-                child: StatCard(label: 'Net', amount: net, currency: currency, tone: net >= 0 ? StatTone.success : StatTone.danger),
+                child: StatCard(
+                    label: 'Net',
+                    amount: net,
+                    currency: currency,
+                    tone: net >= 0 ? StatTone.success : StatTone.danger),
               ),
             ),
             const SizedBox(width: 12),
@@ -368,7 +386,8 @@ class _InsightsTab extends StatelessWidget {
                               const SizedBox(width: 6),
                               Text(catTrend.keys[i],
                                   style: TextStyle(
-                                      fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                                      fontSize: 12,
+                                      color: Theme.of(context).colorScheme.onSurfaceVariant)),
                             ],
                           ),
                       ],
@@ -393,26 +412,28 @@ class _InsightsTab extends StatelessWidget {
                             ? () => context.push('/txns?category=${m.id}&fy=$fy')
                             : null,
                         child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 6),
-                        child: Row(
-                          children: [
-                            Expanded(child: Text(m.name, overflow: TextOverflow.ellipsis)),
-                            const SizedBox(width: 8),
-                            Text(
-                              '${formatMoney(m.previous, currency)} → ${formatMoney(m.current, currency)}',
-                              style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              '${m.delta > 0 ? '+' : '−'}${formatMoney(m.delta.abs(), currency)}',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w600,
-                                color: m.delta > 0 ? AppColors.danger : AppColors.accent2,
+                          padding: const EdgeInsets.symmetric(vertical: 6),
+                          child: Row(
+                            children: [
+                              Expanded(child: Text(m.name, overflow: TextOverflow.ellipsis)),
+                              const SizedBox(width: 8),
+                              Text(
+                                '${formatMoney(m.previous, currency)} → ${formatMoney(m.current, currency)}',
+                                style: TextStyle(
+                                    fontSize: 12,
+                                    color: Theme.of(context).colorScheme.onSurfaceVariant),
                               ),
-                            ),
-                          ],
+                              const SizedBox(width: 8),
+                              Text(
+                                '${m.delta > 0 ? '+' : '−'}${formatMoney(m.delta.abs(), currency)}',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  color: m.delta > 0 ? AppColors.danger : AppColors.accent2,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
                       ),
                   ],
                 ),
@@ -439,11 +460,18 @@ List<({String id, String name, double current, double previous, double delta})> 
   for (final c in current) {
     seen.add(c.id);
     final prev = prevById[c.id]?.amount ?? 0;
-    movers.add((id: c.id, name: c.name, current: c.amount, previous: prev, delta: roundMoney(c.amount - prev)));
+    movers.add((
+      id: c.id,
+      name: c.name,
+      current: c.amount,
+      previous: prev,
+      delta: roundMoney(c.amount - prev)
+    ));
   }
   for (final c in previous) {
     if (seen.contains(c.id)) continue;
-    movers.add((id: c.id, name: c.name, current: 0, previous: c.amount, delta: roundMoney(-c.amount)));
+    movers.add(
+        (id: c.id, name: c.name, current: 0, previous: c.amount, delta: roundMoney(-c.amount)));
   }
   final out = movers.where((m) => m.delta != 0).toList()
     ..sort((a, b) => b.delta.abs().compareTo(a.delta.abs()));
@@ -491,23 +519,59 @@ class _TrendChart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return LineChart(
       LineChartData(
         gridData: const FlGridData(show: false),
-        titlesData: const FlTitlesData(show: false),
+        titlesData: FlTitlesData(
+          show: true,
+          leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          bottomTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              interval: 1,
+              reservedSize: 22,
+              getTitlesWidget: (value, meta) {
+                final i = value.round();
+                if (i < 0 || i >= buckets.length) return const SizedBox.shrink();
+                // Thin the labels so they cannot collide on a narrow phone,
+                // always keeping the last so the axis ends where the data does.
+                final step = (buckets.length / 5).ceil();
+                if (i % step != 0 && i != buckets.length - 1) {
+                  return const SizedBox.shrink();
+                }
+                return Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Text(
+                    buckets[i].label,
+                    style: TextStyle(fontSize: 10, color: cs.onSurfaceVariant),
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
         borderData: FlBorderData(show: false),
         lineTouchData: const LineTouchData(enabled: false),
         lineBarsData: [
           LineChartBarData(
-            spots: [for (var i = 0; i < buckets.length; i++) FlSpot(i.toDouble(), buckets[i].income)],
+            spots: [
+              for (var i = 0; i < buckets.length; i++) FlSpot(i.toDouble(), buckets[i].income)
+            ],
             isCurved: true,
+            preventCurveOverShooting: true,
             color: AppColors.accent2,
             barWidth: 2,
             dotData: const FlDotData(show: false),
           ),
           LineChartBarData(
-            spots: [for (var i = 0; i < buckets.length; i++) FlSpot(i.toDouble(), buckets[i].expense)],
+            spots: [
+              for (var i = 0; i < buckets.length; i++) FlSpot(i.toDouble(), buckets[i].expense)
+            ],
             isCurved: true,
+            preventCurveOverShooting: true,
             color: AppColors.danger,
             barWidth: 2,
             dotData: const FlDotData(show: false),
@@ -521,7 +585,19 @@ class _TrendChart extends StatelessWidget {
 // ---- Spend by category over time -------------------------------------------
 
 const _monthShort = <String>[
-  '', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  '',
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
 ];
 
 class _CatTrendBucket {
@@ -672,7 +748,8 @@ class _PlainStatCard extends StatelessWidget {
           children: [
             Text(label, style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant)),
             const SizedBox(height: 8),
-            Text(value, style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: cs.onSurface)),
+            Text(value,
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: cs.onSurface)),
           ],
         ),
       ),
@@ -690,7 +767,36 @@ class _NetWorthChart extends StatelessWidget {
     return LineChart(
       LineChartData(
         gridData: const FlGridData(show: false),
-        titlesData: const FlTitlesData(show: false),
+        titlesData: FlTitlesData(
+          show: true,
+          leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          bottomTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              interval: 1,
+              reservedSize: 22,
+              getTitlesWidget: (value, meta) {
+                final i = value.round();
+                if (i < 0 || i >= series.length) return const SizedBox.shrink();
+                // Thin the labels so they cannot collide on a narrow phone,
+                // always keeping the last so the axis ends where the data does.
+                final step = (series.length / 5).ceil();
+                if (i % step != 0 && i != series.length - 1) {
+                  return const SizedBox.shrink();
+                }
+                return Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Text(
+                    series[i].label,
+                    style: TextStyle(fontSize: 10, color: cs.onSurfaceVariant),
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
         borderData: FlBorderData(show: false),
         lineTouchData: const LineTouchData(enabled: false),
         lineBarsData: [
@@ -699,6 +805,7 @@ class _NetWorthChart extends StatelessWidget {
               for (var i = 0; i < series.length; i++) FlSpot(i.toDouble(), series[i].netWorth),
             ],
             isCurved: true,
+            preventCurveOverShooting: true,
             color: cs.primary,
             barWidth: 2,
             dotData: const FlDotData(show: false),
@@ -744,7 +851,12 @@ class _TaxTab extends StatelessWidget {
   final String currency;
   final bool canExport;
   final bool canViewTxns;
-  const _TaxTab({required this.txns, required this.fy, required this.currency, required this.canExport, required this.canViewTxns});
+  const _TaxTab(
+      {required this.txns,
+      required this.fy,
+      required this.currency,
+      required this.canExport,
+      required this.canViewTxns});
 
   @override
   Widget build(BuildContext context) {
@@ -779,7 +891,8 @@ class _TaxTab extends StatelessWidget {
       children: [
         Row(
           children: [
-            Expanded(child: StatCard(label: 'Total taxable', amount: totalTaxable, currency: currency)),
+            Expanded(
+                child: StatCard(label: 'Total taxable', amount: totalTaxable, currency: currency)),
             const SizedBox(width: 12),
             Expanded(child: StatCard(label: 'Total TDS', amount: totalTds, currency: currency)),
           ],
@@ -827,7 +940,8 @@ class _TaxTab extends StatelessWidget {
                   ListTile(
                     contentPadding: EdgeInsets.zero,
                     onTap: canViewTxns ? () => context.push('/txns?taxhead=$h&fy=$fy') : null,
-                    title: Text(_taxHeadLabel(h), style: const TextStyle(fontWeight: FontWeight.w500)),
+                    title:
+                        Text(_taxHeadLabel(h), style: const TextStyle(fontWeight: FontWeight.w500)),
                     subtitle: Text(
                       'TDS ${formatMoney(roundMoney(tdsByHead[h] ?? 0), currency)}'
                       ' · ${linesByHead[h] ?? 0} line${(linesByHead[h] ?? 0) == 1 ? '' : 's'}',
@@ -864,8 +978,9 @@ class _TaxTab extends StatelessWidget {
     final byContactTds = <String, double>{};
     final register = <TaxRegisterRow>[];
     for (final t in txns) {
-      final contactName =
-          t.contactId != null ? (data.contactsById[t.contactId]?.name ?? 'Unknown') : '(no contact)';
+      final contactName = t.contactId != null
+          ? (data.contactsById[t.contactId]?.name ?? 'Unknown')
+          : '(no contact)';
       for (final line in t.lines) {
         final tax = line.tax;
         if (tax == null || tax['taxable'] != true) continue;
@@ -966,13 +1081,16 @@ class _CategoryTab extends StatelessWidget {
           _exportButton(() => _exportCsv(
                 'spend-by-category-$fy.csv',
                 const ['category', 'amount'],
-                [for (final c in byCategory) [c.name, c.amount]],
+                [
+                  for (final c in byCategory) [c.name, c.amount]
+                ],
               )),
           const SizedBox(height: 8),
         ],
         SectionCard(
           title: 'Spend by category',
-          child: _Donut(slices: slices, total: total, centerLabel: 'Total spend', currency: currency),
+          child:
+              _Donut(slices: slices, total: total, centerLabel: 'Total spend', currency: currency),
         ),
         const SizedBox(height: 12),
         SectionCard(
@@ -985,9 +1103,7 @@ class _CategoryTab extends StatelessWidget {
                   title: Text(c.name),
                   trailing: Text(formatMoney(c.amount, currency),
                       style: const TextStyle(fontWeight: FontWeight.w600)),
-                  onTap: canViewTxns
-                      ? () => context.push('/txns?category=${c.id}')
-                      : null,
+                  onTap: canViewTxns ? () => context.push('/txns?category=${c.id}') : null,
                 ),
             ],
           ),
@@ -1073,7 +1189,11 @@ class _ContactTab extends StatelessWidget {
         if (paidSlices.isNotEmpty) ...[
           SectionCard(
             title: 'Paid by contact',
-            child: _Donut(slices: paidSlices, total: totalPaid, centerLabel: 'Total paid', currency: currency),
+            child: _Donut(
+                slices: paidSlices,
+                total: totalPaid,
+                centerLabel: 'Total paid',
+                currency: currency),
           ),
           const SizedBox(height: 12),
         ],
@@ -1091,9 +1211,11 @@ class _ContactTab extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                       Text('+ ${formatMoney(roundMoney(received[id]!), currency)}',
-                          style: const TextStyle(color: AppColors.accent2, fontWeight: FontWeight.w600, fontSize: 13)),
+                          style: const TextStyle(
+                              color: AppColors.accent2, fontWeight: FontWeight.w600, fontSize: 13)),
                       Text('- ${formatMoney(roundMoney(paid[id]!), currency)}',
-                          style: const TextStyle(color: AppColors.danger, fontWeight: FontWeight.w600, fontSize: 13)),
+                          style: const TextStyle(
+                              color: AppColors.danger, fontWeight: FontWeight.w600, fontSize: 13)),
                     ],
                   ),
                 ),
@@ -1113,7 +1235,11 @@ class _Donut extends StatelessWidget {
   final double total;
   final String centerLabel;
   final String currency;
-  const _Donut({required this.slices, required this.total, required this.centerLabel, required this.currency});
+  const _Donut(
+      {required this.slices,
+      required this.total,
+      required this.centerLabel,
+      required this.currency});
 
   @override
   Widget build(BuildContext context) {
@@ -1145,7 +1271,8 @@ class _Donut extends StatelessWidget {
                 children: [
                   Text(centerLabel, style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
                   const SizedBox(height: 2),
-                  Text(formatMoney(total, currency), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                  Text(formatMoney(total, currency),
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
                 ],
               ),
             ],
