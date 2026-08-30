@@ -218,6 +218,7 @@ class _DueFormState extends State<_DueForm> {
       padding: EdgeInsets.fromLTRB(
           20, 0, 20, 20 + MediaQuery.of(context).padding.bottom),
       child: SingleChildScrollView(
+        padding: const EdgeInsets.only(top: kSheetFieldTopPad),
         child: Form(
           key: _formKey,
           child: Column(

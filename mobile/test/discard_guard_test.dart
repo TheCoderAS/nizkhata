@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:nizkhata/core/theme.dart';
 import 'package:nizkhata/widgets/discard_guard.dart';
 
 void main() {
@@ -81,9 +82,16 @@ void main() {
   });
 
   group('sticky header', () {
-    testWidgets('the first field clears the header, label and all',
+    testWidgets('a focused label is not clipped by the scroll viewport',
         (tester) async {
+      // Must use the real theme: its inputDecorationTheme is dense with an
+      // outline border, and that combination paints the floating label a few
+      // pixels ABOVE the field's own box. A scroll viewport clips whatever
+      // sits above its top edge, so a first field flush with the viewport
+      // loses the top of its label. Flutter's default theme reserves that
+      // space and never reproduces it.
       await tester.pumpWidget(MaterialApp(
+        theme: buildDarkTheme(),
         home: Builder(
           builder: (context) => Scaffold(
             body: Center(
@@ -95,18 +103,7 @@ void main() {
                   builder: (_) => DiscardGuard(
                     title: 'New due',
                     isDirty: () => false,
-                    child: const Padding(
-                      padding: EdgeInsets.fromLTRB(20, 0, 20, 20),
-                      child: TextField(
-                        decoration: InputDecoration(
-                          labelText: 'Title',
-                          // The state that gets clipped: label floated up onto
-                          // the outline, which is where it lands once the field
-                          // is focused or filled.
-                          floatingLabelBehavior: FloatingLabelBehavior.always,
-                        ),
-                      ),
-                    ),
+                    child: const _ProbeForm(),
                   ),
                 ),
                 child: const Text('open'),
@@ -118,12 +115,48 @@ void main() {
       await tester.tap(find.text('open'));
       await tester.pumpAndSettle();
 
-      // Measured from the header's own box, not the title's text baseline:
-      // the box edge is where the form gets clipped. Pinned to a literal so
-      // the assertion still bites if kSheetHeaderGap is set to zero.
+      // Focus the field: the label floats up onto the outline.
+      await tester.tap(find.byType(TextField));
+      await tester.pumpAndSettle();
+
+      final viewportTop = tester.getRect(find.byType(SingleChildScrollView)).top;
+      final labelTop = tester.getTopLeft(find.text('Title')).dy;
+      expect(labelTop, greaterThanOrEqualTo(viewportTop),
+          reason: 'the floated label is drawn above the viewport and clipped');
+    });
+
+    testWidgets('the first field is separated from the header', (tester) async {
+      // Companion to the clipping test above: the label must not only be
+      // unclipped, the field must visibly stand off the header. Measures a
+      // real form's shape (outer gap + the scroll view's own top padding).
+      await tester.pumpWidget(MaterialApp(
+        theme: buildDarkTheme(),
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: Center(
+              child: ElevatedButton(
+                onPressed: () => showModalBottomSheet<void>(
+                  context: context,
+                  isScrollControlled: true,
+                  enableDrag: false,
+                  builder: (_) => DiscardGuard(
+                    title: 'New due',
+                    isDirty: () => false,
+                    child: const _ProbeForm(),
+                  ),
+                ),
+                child: const Text('open'),
+              ),
+            ),
+          ),
+        ),
+      ));
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+
       final headerBottom = tester.getRect(find.byType(AnimatedContainer)).bottom;
       final fieldTop = tester.getTopLeft(find.byType(TextField)).dy;
-      expect(fieldTop - headerBottom, greaterThanOrEqualTo(8.0));
+      expect(fieldTop - headerBottom, greaterThanOrEqualTo(12.0));
     });
 
     Color? headerBorderColor(WidgetTester tester) {
@@ -204,4 +237,26 @@ void main() {
       expect(find.text('Discard changes?'), findsNothing);
     });
   });
+}
+
+/// Mirrors a real form's shape: a scroll view whose first child is a field.
+class _ProbeForm extends StatelessWidget {
+  const _ProbeForm();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.only(top: kSheetFieldTopPad),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const TextField(decoration: InputDecoration(labelText: 'Title')),
+            for (var i = 0; i < 12; i++) const SizedBox(height: 70, child: Text('row')),
+          ],
+        ),
+      ),
+    );
+  }
 }

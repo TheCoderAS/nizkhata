@@ -493,6 +493,7 @@ class _DebtPaymentSheetState extends State<_DebtPaymentSheet> {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
       child: SingleChildScrollView(
+        padding: const EdgeInsets.only(top: kSheetFieldTopPad),
         child: Form(
           key: _formKey,
           child: Column(

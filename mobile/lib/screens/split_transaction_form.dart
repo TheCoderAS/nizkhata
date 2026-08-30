@@ -199,6 +199,7 @@ class _TransactionFormState extends State<_TransactionForm> {
       child: SafeArea(
         top: false,
         child: SingleChildScrollView(
+          padding: const EdgeInsets.only(top: kSheetFieldTopPad),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
