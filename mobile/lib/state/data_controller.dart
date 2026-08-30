@@ -117,13 +117,13 @@ class DataController extends ChangeNotifier {
 
     if (scope.views.contains('accounts.view') && !scope.restricted) {
       _subs.add(q('accounts').snapshots().listen((s) {
-        accounts = s.docs.map(Account.fromDoc).toList();
+        accounts = _byName(s.docs.map(Account.fromDoc).toList(), (a) => a.name);
         notifyListeners();
       }, onError: _onErr));
     }
     if (scope.views.contains('categories.view')) {
       _subs.add(q('categories').snapshots().listen((s) {
-        categories = s.docs.map(AppCategory.fromDoc).toList();
+        categories = _byName(s.docs.map(AppCategory.fromDoc).toList(), (c) => c.name);
         notifyListeners();
       }, onError: _onErr));
       if (!scope.restricted) {
@@ -136,7 +136,7 @@ class DataController extends ChangeNotifier {
     if (scope.views.contains('contacts.view') && !blockedRestricted) {
       final cq = scope.restricted ? q('contacts').where('id', isEqualTo: scope.contactId) : q('contacts');
       _subs.add(cq.snapshots().listen((s) {
-        contacts = s.docs.map(Contact.fromDoc).toList();
+        contacts = _byName(s.docs.map(Contact.fromDoc).toList(), (c) => c.name);
         notifyListeners();
       }, onError: _onErr));
     }
@@ -178,4 +178,11 @@ class DataController extends ChangeNotifier {
     }
     super.dispose();
   }
+}
+
+/// Name-sorted, case-insensitively — applied where the lists are built so that
+/// every dropdown, picker and list in the app reads alphabetically.
+List<T> _byName<T>(List<T> items, String Function(T) name) {
+  items.sort((a, b) => name(a).toLowerCase().compareTo(name(b).toLowerCase()));
+  return items;
 }

@@ -37,8 +37,8 @@ class MembersScreen extends StatelessWidget {
     final canInvite = ws.can('members.invite');
     final canRemove = ws.can('members.remove');
 
-    final assignableRoles =
-        ws.rolesById.values.where((r) => !_isOwnerRole(r)).toList();
+    final assignableRoles = ws.rolesById.values.where((r) => !_isOwnerRole(r)).toList()
+      ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
 
     return Scaffold(
       appBar: AppBar(

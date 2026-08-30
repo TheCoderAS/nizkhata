@@ -59,7 +59,8 @@ class _DueFormState extends State<_DueForm> {
     super.initState();
     final due = widget.existing;
     if (due != null && due.lines.isNotEmpty) {
-      _lines = [for (final l in due.lines) LineDraft.fromLine(l)];
+      // Transfers are stored as a balancing pair but authored as one line.
+      _lines = draftsFromLines(due.lines);
     } else if (due != null) {
       // Legacy single-amount due → synthesize one line from its fields.
       final row = LineDraft(type: due.direction == 'payable' ? 'expense' : 'income');
@@ -84,7 +85,16 @@ class _DueFormState extends State<_DueForm> {
     super.dispose();
   }
 
-  List<TxnLine> _txnLines() => [for (var i = 0; i < _lines.length; i++) _lines[i].toTxnLine(i)];
+  List<TxnLine> _txnLines() => txnLinesFromDrafts(_lines);
+
+  /// A debt line may only point at the chosen contact's debts, so switching
+  /// contact drops any link that no longer belongs to them.
+  void _dropForeignDebtLinks(DataController data) {
+    for (final l in _lines) {
+      if (!needsDebt(l.type) || l.debtId == null) continue;
+      if (data.debtsById[l.debtId]?.contactId != _contactId) l.debtId = null;
+    }
+  }
 
   /// Due-specific validation: the transaction rules minus the account
   /// requirement (a due's account is optional until it's actually paid).
@@ -111,7 +121,7 @@ class _DueFormState extends State<_DueForm> {
     final m = Mutations(Actor.fromUser(user));
     final note = _note.text.trim().isEmpty ? null : _note.text.trim();
     final micros = DateTime.now().microsecondsSinceEpoch;
-    final lineMaps = [for (var i = 0; i < _lines.length; i++) _lines[i].toLineMap(i, micros)];
+    final lineMaps = lineMapsFromDrafts(_lines, micros);
     // First categorised line doubles as the legacy categoryId (web back-compat).
     String? firstCategory;
     for (final l in lineMaps) {
@@ -241,6 +251,7 @@ class _DueFormState extends State<_DueForm> {
               TxnLinesEditor(
                 lines: _lines,
                 accountId: _accountId,
+                contactId: _contactId,
                 onChanged: () => setState(() {}),
               ),
               const SizedBox(height: 14),
@@ -297,7 +308,10 @@ class _DueFormState extends State<_DueForm> {
                   const DropdownMenuItem(value: null, child: Text('—')),
                   for (final c in contacts) DropdownMenuItem(value: c.id, child: Text(c.name)),
                 ],
-                onChanged: (v) => setState(() => _contactId = v),
+                onChanged: (v) => setState(() {
+                  _contactId = v;
+                  _dropForeignDebtLinks(context.read<DataController>());
+                }),
               ),
               const SizedBox(height: 14),
               DropdownButtonFormField<String>(

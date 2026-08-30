@@ -65,7 +65,8 @@ class _TransactionFormState extends State<_TransactionForm> {
       _contactId = txn.contactId;
       _recurrence = txn.recurrence ?? '';
       _note.text = txn.note ?? '';
-      _lines = [for (final l in txn.lines) LineDraft.fromLine(l)];
+      // Transfers are stored as a balancing pair but authored as one line.
+      _lines = draftsFromLines(txn.lines);
       if (_lines.isEmpty) _lines.add(LineDraft(type: 'expense'));
     } else {
       // Start simple: one line. "Add line" turns it into a split.
@@ -83,7 +84,16 @@ class _TransactionFormState extends State<_TransactionForm> {
     super.dispose();
   }
 
-  List<TxnLine> _txnLines() => [for (var i = 0; i < _lines.length; i++) _lines[i].toTxnLine(i)];
+  List<TxnLine> _txnLines() => txnLinesFromDrafts(_lines);
+
+  /// A debt line may only point at the chosen contact's debts, so switching
+  /// contact drops any link that no longer belongs to them.
+  void _dropForeignDebtLinks(DataController data) {
+    for (final l in _lines) {
+      if (!needsDebt(l.type) || l.debtId == null) continue;
+      if (data.debtsById[l.debtId]?.contactId != _contactId) l.debtId = null;
+    }
+  }
 
   Future<void> _save() async {
     final wsC = context.read<WorkspaceController>();
@@ -92,10 +102,14 @@ class _TransactionFormState extends State<_TransactionForm> {
     final user = context.read<AuthController>().user;
     final data = context.read<DataController>();
     if (ws == null || user == null || _accountId == null) return;
-    if (validateLineDrafts(_lines, accountId: _accountId, contactId: _contactId).isNotEmpty) return;
+    if (validateLineDrafts(_lines,
+            accountId: _accountId, contactId: _contactId, debtsById: data.debtsById)
+        .isNotEmpty) {
+      return;
+    }
 
     final micros = DateTime.now().microsecondsSinceEpoch;
-    final lines = [for (var i = 0; i < _lines.length; i++) _lines[i].toLineMap(i, micros)];
+    final lines = lineMapsFromDrafts(_lines, micros);
 
     // Header contact wins; otherwise fall back to a debt line's contact.
     String? contactId = _contactId;
@@ -166,7 +180,8 @@ class _TransactionFormState extends State<_TransactionForm> {
     final contacts = data.contacts.where((c) => c.connectionUid == null).toList();
 
     final total = computeTotal(_txnLines(), data.debtsById);
-    final errors = validateLineDrafts(_lines, accountId: _accountId, contactId: _contactId);
+    final errors = validateLineDrafts(_lines,
+        accountId: _accountId, contactId: _contactId, debtsById: data.debtsById);
     final canSave = !_busy && accounts.isNotEmpty && errors.isEmpty;
 
     return Padding(
@@ -214,7 +229,10 @@ class _TransactionFormState extends State<_TransactionForm> {
                   const DropdownMenuItem(value: null, child: Text('—')),
                   for (final c in contacts) DropdownMenuItem(value: c.id, child: Text(c.name)),
                 ],
-                onChanged: (v) => setState(() => _contactId = v),
+                onChanged: (v) => setState(() {
+                  _contactId = v;
+                  _dropForeignDebtLinks(data);
+                }),
               ),
               const SizedBox(height: 14),
               TextFormField(
@@ -239,6 +257,7 @@ class _TransactionFormState extends State<_TransactionForm> {
               TxnLinesEditor(
                 lines: _lines,
                 accountId: _accountId,
+                contactId: _contactId,
                 onChanged: () => setState(() {}),
               ),
               const SizedBox(height: 14),
