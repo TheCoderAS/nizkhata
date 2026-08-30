@@ -10,6 +10,7 @@ import '../widgets/revision_history.dart';
 import 'debt_form.dart';
 import 'transaction_detail.dart';
 import 'debts_screen.dart';
+import '../widgets/common.dart';
 
 const _kPurposeLabels = <String, String>{
   'loan': 'Loan',
@@ -82,16 +83,15 @@ class _DebtDetail extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 16),
-            _row(context, 'Contact', contactName),
-            _row(context, 'Direction', debt.direction == 'owed' ? 'They owe you' : 'You owe them'),
-            _row(context, 'Purpose', _purposeLabel(debt.purpose)),
-            _row(context, 'Status', debt.status),
-            _row(context, 'Principal', formatMoney(debt.principal, currency)),
-            _row(context, 'Outstanding', formatMoney(outstanding, currency)),
+            DetailRow('Contact', contactName),
+            DetailRow('Direction', debt.direction == 'owed' ? 'They owe you' : 'You owe them'),
+            DetailRow('Purpose', _purposeLabel(debt.purpose)),
+            DetailRow('Status', debt.status),
+            DetailRow('Principal', formatMoney(debt.principal, currency)),
+            DetailRow('Outstanding', formatMoney(outstanding, currency)),
             if (debt.interestRate != null && debt.interestRate! > 0) ...[
-              _row(context, 'Interest rate', '${debt.interestRate}% p.a. (simple)'),
-              _row(
-                context,
+              DetailRow('Interest rate', '${debt.interestRate}% p.a. (simple)'),
+              DetailRow(
                 'Interest accrued',
                 // Estimate on the CURRENT outstanding since interestFrom (or
                 // today when unset) — informational, never posted as a txn.
@@ -106,7 +106,7 @@ class _DebtDetail extends StatelessWidget {
                     currency),
               ),
             ],
-            if (debt.note?.isNotEmpty == true) _row(context, 'Note', debt.note!),
+            if (debt.note?.isNotEmpty == true) DetailRow('Note', debt.note!),
             if (canTxn && settleable) ...[
               const SizedBox(height: 12),
               SizedBox(
@@ -143,19 +143,6 @@ class _DebtDetail extends StatelessWidget {
     );
   }
 
-  Widget _row(BuildContext context, String label, String value) {
-    final cs = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(width: 90, child: Text(label, style: TextStyle(color: cs.onSurfaceVariant))),
-          Expanded(child: Text(value)),
-        ],
-      ),
-    );
-  }
 
   Widget _txnTile(BuildContext context, DataController data, Txn t, String currency) {
     final cs = Theme.of(context).colorScheme;

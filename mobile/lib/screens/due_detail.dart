@@ -12,6 +12,7 @@ import '../widgets/revision_history.dart';
 import 'due_form.dart';
 import 'transaction_detail.dart';
 import 'dues_screen.dart';
+import '../widgets/common.dart';
 
 /// Read-only detail sheet for a due. Shows direction, status, amounts and the
 /// linked payment transactions. Mirrors the web DueDetail dialog.
@@ -72,14 +73,14 @@ class _DueDetail extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 16),
-            _row(context, 'Direction', due.direction == 'receivable' ? 'Receivable' : 'Payable'),
-            _row(context, 'Status', status),
-            _row(context, 'Due date', formatDate(due.dueDate)),
-            _row(context, 'Amount', formatMoney(due.amount, currency)),
-            _row(context, 'Settled', formatMoney(settled, currency)),
-            _row(context, 'Remaining', formatMoney(remaining > 0 ? remaining : 0, currency)),
-            if (contact != null) _row(context, 'Contact', contact),
-            if (account != null) _row(context, 'Account', account),
+            DetailRow('Direction', due.direction == 'receivable' ? 'Receivable' : 'Payable'),
+            DetailRow('Status', status),
+            DetailRow('Due date', formatDate(due.dueDate)),
+            DetailRow('Amount', formatMoney(due.amount, currency)),
+            DetailRow('Settled', formatMoney(settled, currency)),
+            DetailRow('Remaining', formatMoney(remaining > 0 ? remaining : 0, currency)),
+            if (contact != null) DetailRow('Contact', contact),
+            if (account != null) DetailRow('Account', account),
             if (canTxn && settleable) ...[
               const SizedBox(height: 12),
               SizedBox(
@@ -134,19 +135,6 @@ class _DueDetail extends StatelessWidget {
     );
   }
 
-  Widget _row(BuildContext context, String label, String value) {
-    final cs = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(width: 90, child: Text(label, style: TextStyle(color: cs.onSurfaceVariant))),
-          Expanded(child: Text(value)),
-        ],
-      ),
-    );
-  }
 
   Widget _txnTile(BuildContext context, DataController data, Txn t, String currency) {
     final cs = Theme.of(context).colorScheme;

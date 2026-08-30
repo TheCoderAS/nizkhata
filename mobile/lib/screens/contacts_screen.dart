@@ -57,23 +57,12 @@ class _ContactsScreenState extends State<ContactsScreen> {
       body: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-            child: TextField(
+            // Same inset as every other list screen's search row.
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+            child: SearchField(
               controller: _searchController,
+              hint: 'Search contacts…',
               onChanged: (v) => setState(() => _search = v),
-              decoration: InputDecoration(
-                hintText: 'Search contacts…',
-                prefixIcon: const Icon(Icons.search),
-                suffixIcon: _search.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.clear),
-                        onPressed: () {
-                          _searchController.clear();
-                          setState(() => _search = '');
-                        },
-                      )
-                    : null,
-              ),
             ),
           ),
           Expanded(

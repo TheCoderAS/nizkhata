@@ -12,6 +12,7 @@ import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
 import '../widgets/common.dart';
 import '../widgets/entity_card_list.dart';
+import '../widgets/segmented_tabs.dart';
 import '../widgets/row_actions.dart';
 import '../widgets/undo_delete.dart';
 import 'category_form.dart';
@@ -115,25 +116,17 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
             : null,
         body: Column(
           children: [
-            // Period selector for the Net column — visible chips instead of a
-            // dropdown hidden behind an app-bar menu.
+            // Period selector for the Net column — the same segmented control
+            // the dashboard uses, so a period is picked the same way anywhere.
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: [
-                    for (final k in _periodOptions)
-                      Padding(
-                        padding: const EdgeInsets.only(right: 6),
-                        child: ChoiceChip(
-                          label: Text(periodLabels[k]!),
-                          selected: _period == k,
-                          onSelected: (_) => setState(() => _period = k),
-                        ),
-                      ),
-                  ],
-                ),
+              child: SegmentedTabs<PeriodKind>(
+                accent: AppColors.accent2,
+                selected: _period,
+                onChanged: (k) => setState(() => _period = k),
+                segments: [
+                  for (final k in _periodOptions) (k, periodLabels[k]!),
+                ],
               ),
             ),
             if (_period == PeriodKind.custom)

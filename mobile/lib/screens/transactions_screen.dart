@@ -270,13 +270,9 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
             child: Row(
               children: [
                 Expanded(
-                  child: TextField(
+                  child: SearchField(
+                    hint: 'Search note / contact…',
                     onChanged: (v) => setState(() => _search = v),
-                    decoration: const InputDecoration(
-                      hintText: 'Search note / contact…',
-                      prefixIcon: Icon(Icons.search, size: 20),
-                      isDense: true,
-                    ),
                   ),
                 ),
                 Gap.sm,
@@ -299,41 +295,41 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                 child: Row(
                   children: [
                     if (_dateFilter != null) ...[
-                      _chip('Date: ${formatDate(_dateFilter!)}',
+                      RemovableChip('Date: ${formatDate(_dateFilter!)}',
                           () => setState(() => _dateFilter = null)),
                       Gap.sm,
                     ],
                     if (_accountFilter != null) ...[
-                      _chip('Account: ${data.accountsById[_accountFilter]?.name ?? 'Unknown'}',
+                      RemovableChip('Account: ${data.accountsById[_accountFilter]?.name ?? 'Unknown'}',
                           () => setState(() => _accountFilter = null)),
                       Gap.sm,
                     ],
                     if (_contactFilter != null) ...[
-                      _chip('Contact: ${data.contactsById[_contactFilter]?.name ?? 'Unknown'}',
+                      RemovableChip('Contact: ${data.contactsById[_contactFilter]?.name ?? 'Unknown'}',
                           () => setState(() => _contactFilter = null)),
                       Gap.sm,
                     ],
                     if (_categoryFilter != null) ...[
-                      _chip('Category: ${data.categoriesById[_categoryFilter]?.name ?? 'Unknown'}',
+                      RemovableChip('Category: ${data.categoriesById[_categoryFilter]?.name ?? 'Unknown'}',
                           () => setState(() => _categoryFilter = null)),
                       Gap.sm,
                     ],
                     if (_typeFilter != null) ...[
-                      _chip('Type: ${_kLineTypeLabels[_typeFilter] ?? _typeFilter}',
+                      RemovableChip('Type: ${_kLineTypeLabels[_typeFilter] ?? _typeFilter}',
                           () => setState(() => _typeFilter = null)),
                       Gap.sm,
                     ],
                     if (_taxHeadFilter != null) ...[
-                      _chip('Tax head: ${kTaxHeads[_taxHeadFilter] ?? _taxHeadFilter}',
+                      RemovableChip('Tax head: ${kTaxHeads[_taxHeadFilter] ?? _taxHeadFilter}',
                           () => setState(() => _taxHeadFilter = null)),
                       Gap.sm,
                     ],
                     if (_fyFilter != null) ...[
-                      _chip('FY: $_fyFilter', () => setState(() => _fyFilter = null)),
+                      RemovableChip('FY: $_fyFilter', () => setState(() => _fyFilter = null)),
                       Gap.sm,
                     ],
                     if (_splitOnly)
-                      _chip('Split only', () => setState(() => _splitOnly = false)),
+                      RemovableChip('Split only', () => setState(() => _splitOnly = false)),
                   ],
                 ),
               ),
@@ -433,13 +429,6 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     );
   }
 
-  Widget _chip(String label, VoidCallback onClear) {
-    return InputChip(
-      label: Text(label),
-      onDeleted: onClear,
-      deleteIcon: const Icon(Icons.close, size: 16),
-    );
-  }
 
   /// FAB that expands into two actions: new transaction, or import a statement.
   Widget _buildFab(BuildContext context) {

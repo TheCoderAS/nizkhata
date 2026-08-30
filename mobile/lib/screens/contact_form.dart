@@ -6,6 +6,7 @@ import '../data/mutations.dart';
 import '../state/auth_controller.dart';
 import '../state/workspace_controller.dart';
 import '../widgets/discard_guard.dart';
+import '../widgets/common.dart';
 
 /// Open the create/edit contact sheet. Ports the web ContactDialog fields.
 Future<void> showContactForm(BuildContext context, {Contact? existing}) {
@@ -143,18 +144,6 @@ class _ContactFormState extends State<_ContactForm> {
     }
   }
 
-  Widget _sectionLabel(String text) => Padding(
-        padding: const EdgeInsets.only(bottom: 10),
-        child: Text(
-          text.toUpperCase(),
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            letterSpacing: 0.4,
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
-          ),
-        ),
-      );
 
   @override
   Widget build(BuildContext context) {
@@ -177,7 +166,7 @@ class _ContactFormState extends State<_ContactForm> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _sectionLabel('Identity'),
+              SectionLabel('Identity'),
               TextFormField(
                 controller: _name,
                 decoration: const InputDecoration(labelText: 'Name'),
@@ -212,7 +201,7 @@ class _ContactFormState extends State<_ContactForm> {
               Row(
                 children: [
                   Expanded(
-                    child: _sectionLabel('Emails'),
+                    child: SectionLabel('Emails'),
                   ),
                   TextButton.icon(
                     onPressed: _addEmail,
@@ -281,7 +270,7 @@ class _ContactFormState extends State<_ContactForm> {
                 ),
               ],
               const SizedBox(height: 22),
-              _sectionLabel('Address & notes'),
+              SectionLabel('Address & notes'),
               TextFormField(
                 controller: _address,
                 decoration: const InputDecoration(labelText: 'Address (optional)'),

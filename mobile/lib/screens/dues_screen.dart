@@ -238,13 +238,9 @@ class _DuesScreenState extends State<DuesScreen> {
                 Row(
                   children: [
                     Expanded(
-                      child: TextField(
+                      child: SearchField(
+                        hint: 'Search dues…',
                         onChanged: (v) => setState(() => _search = v),
-                        decoration: const InputDecoration(
-                          hintText: 'Search dues…',
-                          prefixIcon: Icon(Icons.search, size: 20),
-                          isDense: true,
-                        ),
                       ),
                     ),
                     Gap.sm,
@@ -268,16 +264,16 @@ class _DuesScreenState extends State<DuesScreen> {
                         if (_statusFilter != '__unsettled')
                           Padding(
                             padding: const EdgeInsets.only(right: 6),
-                            child: _chip('Status: ${_kDueStatusFilters[_statusFilter]}',
+                            child: RemovableChip('Status: ${_kDueStatusFilters[_statusFilter]}',
                                 () => setState(() => _statusFilter = '__unsettled')),
                           ),
                         if (_directionFilter != '__all')
-                          _chip('Direction: ${_kDueDirectionFilters[_directionFilter]}',
+                          RemovableChip('Direction: ${_kDueDirectionFilters[_directionFilter]}',
                               () => setState(() => _directionFilter = '__all')),
                         if (_dateFilter != null)
                           Padding(
                             padding: const EdgeInsets.only(left: 6),
-                            child: _chip('Due: ${formatDate(_dateFilter!)}',
+                            child: RemovableChip('Due: ${formatDate(_dateFilter!)}',
                                 () => setState(() => _dateFilter = null)),
                           ),
                       ],
@@ -440,13 +436,6 @@ class _DuesScreenState extends State<DuesScreen> {
     );
   }
 
-  Widget _chip(String label, VoidCallback onClear) {
-    return InputChip(
-      label: Text(label),
-      onDeleted: onClear,
-      deleteIcon: const Icon(Icons.close, size: 16),
-    );
-  }
 }
 
 Future<void> _cancelDue(BuildContext context, Due due) async {

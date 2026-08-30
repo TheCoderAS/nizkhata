@@ -118,11 +118,6 @@ class _DebtsScreenState extends State<DebtsScreen> {
     );
   }
 
-  Widget _chip(String label, VoidCallback onClear) => InputChip(
-        label: Text(label),
-        onDeleted: onClear,
-        deleteIcon: const Icon(Icons.close, size: 16),
-      );
 
   @override
   Widget build(BuildContext context) {
@@ -189,13 +184,9 @@ class _DebtsScreenState extends State<DebtsScreen> {
               child: Row(
                 children: [
                   Expanded(
-                    child: TextField(
+                    child: SearchField(
+                      hint: 'Search debts…',
                       onChanged: (v) => setState(() => _search = v),
-                      decoration: const InputDecoration(
-                        hintText: 'Search debts…',
-                        prefixIcon: Icon(Icons.search, size: 20),
-                        isDense: true,
-                      ),
                     ),
                   ),
                   Gap.sm,
@@ -221,11 +212,11 @@ class _DebtsScreenState extends State<DebtsScreen> {
                       if (_status != 'outstanding')
                         Padding(
                           padding: const EdgeInsets.only(right: 6),
-                          child: _chip('Status: ${_statusLabels[_status]}',
+                          child: RemovableChip('Status: ${_statusLabels[_status]}',
                               () => setState(() => _status = 'outstanding')),
                         ),
                       if (_direction != 'all')
-                        _chip('Direction: ${_dirLabels[_direction]}',
+                        RemovableChip('Direction: ${_dirLabels[_direction]}',
                             () => setState(() => _direction = 'all')),
                     ],
                   ),

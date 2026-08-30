@@ -9,6 +9,7 @@ import '../state/auth_controller.dart';
 import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
 import '../widgets/discard_guard.dart';
+import '../widgets/common.dart';
 
 const _kPurposeLabels = <String, String>{
   'loan': 'Loan',
@@ -132,18 +133,6 @@ class _DebtFormState extends State<_DebtForm> {
     }
   }
 
-  Widget _sectionLabel(String text) => Padding(
-        padding: const EdgeInsets.only(bottom: 10),
-        child: Text(
-          text.toUpperCase(),
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            letterSpacing: 0.4,
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
-          ),
-        ),
-      );
 
   @override
   Widget build(BuildContext context) {
@@ -170,7 +159,7 @@ class _DebtFormState extends State<_DebtForm> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _sectionLabel('Terms'),
+              SectionLabel('Terms'),
               DropdownButtonFormField<String>(
                 value: _contactId,
                 decoration: const InputDecoration(labelText: 'Contact'),
@@ -199,7 +188,7 @@ class _DebtFormState extends State<_DebtForm> {
                 onChanged: _isEdit ? null : (v) => setState(() => _purpose = v ?? 'loan'),
               ),
               const SizedBox(height: 22),
-              _sectionLabel('Amount & notes'),
+              SectionLabel('Amount & notes'),
               TextFormField(
                 controller: _label,
                 decoration: const InputDecoration(labelText: 'Label'),
