@@ -50,6 +50,7 @@ class _DebtsScreenState extends State<DebtsScreen> {
   Future<void> _openFilters(BuildContext context) async {
     await showModalBottomSheet<void>(
       context: context,
+      useRootNavigator: true,
       isScrollControlled: true,
       showDragHandle: true,
       builder: (_) => Padding(
@@ -348,6 +349,7 @@ void _confirmDelete(BuildContext context, Debt debt) {
   final user = context.read<AuthController>().user;
   showDialog<void>(
     context: context,
+    useRootNavigator: true,
     builder: (ctx) => AlertDialog(
       title: Text('Delete "${debt.label ?? 'debt'}"?'),
       content: const Text('Linked transactions keep their reference but this debt will no longer be tracked.'),
@@ -380,6 +382,7 @@ void _confirmDelete(BuildContext context, Debt debt) {
 Future<void> showDebtPayment(BuildContext context, Debt debt) {
   return showModalBottomSheet<void>(
     context: context,
+    useRootNavigator: true,
     isScrollControlled: true,
     // Guarded form: a swipe-down would pop the route without asking, so
     // dragging is off and DiscardGuard supplies the close button.

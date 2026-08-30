@@ -86,6 +86,7 @@ class _DuesScreenState extends State<DuesScreen> {
   Future<void> _openFilters(BuildContext context) async {
     await showModalBottomSheet<void>(
       context: context,
+      useRootNavigator: true,
       isScrollControlled: true,
       showDragHandle: true,
       builder: (_) => Padding(
@@ -459,6 +460,7 @@ void _confirmDelete(BuildContext context, Due due) {
   final user = context.read<AuthController>().user;
   showDialog<void>(
     context: context,
+    useRootNavigator: true,
     builder: (ctx) => AlertDialog(
       title: Text('Delete "${due.title}"?'),
       content: const Text('This removes the due. Any transactions recorded against it are kept.'),
@@ -491,6 +493,7 @@ void _confirmDelete(BuildContext context, Due due) {
 Future<void> showDuePayment(BuildContext context, Due due) {
   return showModalBottomSheet<void>(
     context: context,
+    useRootNavigator: true,
     isScrollControlled: true,
     // Guarded form: a swipe-down would pop the route without asking, so
     // dragging is off and DiscardGuard supplies the close button.

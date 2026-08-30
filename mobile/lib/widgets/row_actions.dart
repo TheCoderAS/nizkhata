@@ -160,6 +160,7 @@ class RowActions extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     showModalBottomSheet<void>(
       context: context,
+      useRootNavigator: true,
       showDragHandle: true,
       // A row can offer seven actions (a due does). Without this the sheet is
       // capped at 9/16 of the screen and the last ones are clipped off the

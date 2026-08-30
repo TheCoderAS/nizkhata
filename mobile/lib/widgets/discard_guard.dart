@@ -80,6 +80,7 @@ class _DiscardGuardState extends State<DiscardGuard> {
         }
         final discard = await showDialog<bool>(
           context: context,
+          useRootNavigator: true,
           builder: (ctx) => AlertDialog(
             title: const Text('Discard changes?'),
             content: const Text('You have unsaved edits. Closing now will lose them.'),

@@ -167,6 +167,7 @@ class _RoleCard extends StatelessWidget {
     final user = context.read<AuthController>().user;
     showDialog<void>(
       context: context,
+      useRootNavigator: true,
       builder: (ctx) => AlertDialog(
         title: Text('Delete "${role.name}"?'),
         content: const Text('This removes the role.'),

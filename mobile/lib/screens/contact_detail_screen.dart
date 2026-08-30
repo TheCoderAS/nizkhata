@@ -290,6 +290,7 @@ class ContactDetailScreen extends StatelessWidget {
 
     final ok = await showDialog<bool>(
       context: context,
+      useRootNavigator: true,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDlg) => AlertDialog(
           title: const Text('Settle up debts?'),
@@ -645,6 +646,7 @@ class ContactDetailScreen extends StatelessWidget {
   void _shareKhata(BuildContext context, Contact contact) {
     showModalBottomSheet<void>(
       context: context,
+      useRootNavigator: true,
       showDragHandle: true,
       builder: (sheetCtx) => SafeArea(
         child: Column(

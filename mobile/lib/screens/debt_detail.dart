@@ -28,6 +28,7 @@ String _purposeLabel(String p) => _kPurposeLabels[p] ?? p;
 Future<void> showDebtDetail(BuildContext context, Debt debt) {
   return showModalBottomSheet<void>(
     context: context,
+    useRootNavigator: true,
     isScrollControlled: true,
     showDragHandle: true,
     builder: (_) => Padding(

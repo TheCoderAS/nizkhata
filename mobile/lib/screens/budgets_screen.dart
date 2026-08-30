@@ -259,6 +259,7 @@ class _BudgetCard extends StatelessWidget {
     final user = context.read<AuthController>().user;
     showDialog<void>(
       context: context,
+      useRootNavigator: true,
       builder: (ctx) => AlertDialog(
         title: const Text('Delete budget?'),
         content: Text('This removes the budget for "${p.categoryName}".'),

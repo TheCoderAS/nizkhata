@@ -190,6 +190,7 @@ class _ImportScreenState extends State<ImportScreen> {
     var obscure = true;
     return showDialog<String>(
       context: context,
+      useRootNavigator: true,
       barrierDismissible: false,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDlg) => AlertDialog(
@@ -245,6 +246,7 @@ class _ImportScreenState extends State<ImportScreen> {
   void _showError(String message) {
     showDialog<void>(
       context: context,
+      useRootNavigator: true,
       builder: (ctx) => AlertDialog(
         title: const Text("Can't import this file"),
         content: Text(message),
@@ -554,6 +556,7 @@ class _ImportScreenState extends State<ImportScreen> {
     if (_step == _Step.importing) return; // don't interrupt the write
     final leave = await showDialog<bool>(
       context: context,
+      useRootNavigator: true,
       builder: (ctx) => AlertDialog(
         title: const Text('Discard import?'),
         content: const Text(
@@ -1202,6 +1205,7 @@ class _ImportScreenState extends State<ImportScreen> {
 
     final saved = await showDialog<bool>(
       context: context,
+      useRootNavigator: true,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDlg) {
           final cats = (isCredit

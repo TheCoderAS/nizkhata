@@ -592,6 +592,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     if (wsId == null || user == null) return;
     final ok = await showDialog<bool>(
       context: context,
+      useRootNavigator: true,
       builder: (ctx) => AlertDialog(
         title: const Text('Add recurring transaction?'),
         content: Text('"${s.template.note ?? 'Transaction'}" for '

@@ -341,6 +341,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
 
     showModalBottomSheet<void>(
       context: context,
+      useRootNavigator: true,
       showDragHandle: true,
       builder: (sheetCtx) => SafeArea(
         child: Column(

@@ -169,6 +169,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
     final user = context.read<AuthController>().user;
     showDialog<void>(
       context: context,
+      useRootNavigator: true,
       builder: (ctx) => AlertDialog(
         title: Text('Delete "${c.name}"?'),
         content: const Text('This removes the contact. Linked transactions are kept.'),
