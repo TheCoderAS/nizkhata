@@ -14,7 +14,7 @@ import '../core/theme.dart';
 /// drops the edits. So guarded sheets are opened with `enableDrag: false` and
 /// no drag handle, and this guard supplies the close button that replaces it.
 /// [showCloseButton] can turn that button off for hosts that provide their own.
-class DiscardGuard extends StatelessWidget {
+class DiscardGuard extends StatefulWidget {
   final bool Function() isDirty;
   final Widget child;
   final bool showCloseButton;
@@ -37,7 +37,28 @@ class DiscardGuard extends StatelessWidget {
       Navigator.maybePop(context);
 
   @override
+  State<DiscardGuard> createState() => _DiscardGuardState();
+}
+
+class _DiscardGuardState extends State<DiscardGuard> {
+  // The header stays put while the form scrolls under it. Without a line to
+  // scroll under, the first field just looks sliced in half, so the divider
+  // appears the moment the content moves and stays away on short forms.
+  bool _scrolledUnder = false;
+
+  bool _onScroll(ScrollNotification n) {
+    if (n.metrics.axis != Axis.vertical) return false; // ignore chip rows
+    final under = n.metrics.pixels > 0.5;
+    if (under != _scrolledUnder) setState(() => _scrolledUnder = under);
+    return false;
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final isDirty = widget.isDirty;
+    final title = widget.title;
+    final showCloseButton = widget.showCloseButton;
+    final cs = Theme.of(context).colorScheme;
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) async {
@@ -69,15 +90,23 @@ class DiscardGuard extends StatelessWidget {
           ? Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 12, 8, 4),
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  padding: const EdgeInsets.fromLTRB(20, 12, 8, 8),
+                  decoration: BoxDecoration(
+                    border: Border(
+                      bottom: BorderSide(
+                        color: _scrolledUnder ? cs.outlineVariant : Colors.transparent,
+                      ),
+                    ),
+                  ),
                   child: Row(
                     children: [
                       Expanded(
                         child: title == null
                             ? const SizedBox.shrink()
                             : Text(
-                                title!,
+                                title,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: Theme.of(context).textTheme.titleLarge,
@@ -87,16 +116,21 @@ class DiscardGuard extends StatelessWidget {
                         IconButton(
                           tooltip: 'Close',
                           visualDensity: VisualDensity.compact,
-                          onPressed: () => requestClose(context),
+                          onPressed: () => DiscardGuard.requestClose(context),
                           icon: const Icon(Icons.close),
                         ),
                     ],
                   ),
                 ),
-                Flexible(child: child),
+                Flexible(
+                  child: NotificationListener<ScrollNotification>(
+                    onNotification: _onScroll,
+                    child: widget.child,
+                  ),
+                ),
               ],
             )
-          : child,
+          : widget.child,
     );
   }
 }
