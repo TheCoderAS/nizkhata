@@ -194,8 +194,15 @@ class NetWorthPoint {
   NetWorthPoint(this.label, this.netWorth);
 }
 
+/// Monthly net worth across [start, end). Periods that have not happened yet
+/// are NOT plotted: a financial year runs to next March, so plotting the whole
+/// range drew the remaining months as a dead flat line and made the chart look
+/// like the balance had collapsed. [now] is injectable for tests.
 List<NetWorthPoint> netWorthSeries(
-    List<Account> accounts, List<Debt> debts, List<Txn> txns, DateTime start, DateTime end) {
+    List<Account> accounts, List<Debt> debts, List<Txn> txns, DateTime start, DateTime end,
+    {DateTime? now}) {
+  final today = now ?? DateTime.now();
+  final currentPeriod = DateTime(today.year, today.month, 1);
   final debtsById = {for (final d in debts) d.id: d};
   final sorted = [...txns]..sort((a, b) => a.date.compareTo(b.date));
   final points = <NetWorthPoint>[];
@@ -205,6 +212,8 @@ List<NetWorthPoint> netWorthSeries(
   var cursor = DateTime(start.year, start.month, 1);
 
   while (cursor.isBefore(end)) {
+    // Nothing has happened in a month that has not started.
+    if (cursor.isAfter(currentPeriod)) break;
     final cutoff = DateTime(cursor.year, cursor.month + 1, 1);
     while (idx < sorted.length && sorted[idx].date.isBefore(cutoff)) {
       final txn = sorted[idx];
@@ -319,7 +328,10 @@ String? _lineImpact(String type) {
   }
 }
 
-TrendResult trendSeries(List<Txn> txns, DateTime start, DateTime end) {
+/// Income/expense per bucket across [start, end). As with [netWorthSeries],
+/// buckets that have not started yet are omitted rather than drawn as zero.
+TrendResult trendSeries(List<Txn> txns, DateTime start, DateTime end, {DateTime? now}) {
+  final today = now ?? DateTime.now();
   final days = end.difference(start).inMilliseconds / 86400000;
   final unitDay = days <= 45;
   final buckets = <TrendBucket>[];
@@ -327,8 +339,12 @@ TrendResult trendSeries(List<Txn> txns, DateTime start, DateTime end) {
   String keyOf(DateTime d) => unitDay ? '${d.year}-${d.month}-${d.day}' : '${d.year}-${d.month}';
   String fmt(DateTime d) => unitDay ? '${d.day}/${d.month}' : DateFormat('MMM').format(d);
 
+  final currentBucket = unitDay
+      ? DateTime(today.year, today.month, today.day)
+      : DateTime(today.year, today.month, start.day);
   var cursor = start;
   while (cursor.isBefore(end)) {
+    if (cursor.isAfter(currentBucket)) break;
     index[keyOf(cursor)] = buckets.length;
     buckets.add(TrendBucket(fmt(cursor), 0, 0, 0));
     cursor = unitDay ? cursor.add(const Duration(days: 1)) : DateTime(cursor.year, cursor.month + 1, cursor.day);
