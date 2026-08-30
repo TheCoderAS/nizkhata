@@ -152,10 +152,24 @@ ThemeData buildLightTheme() {
 }
 
 ThemeData buildDarkTheme() {
+  // Near-black canvas. The seeded dark ramp is a blue-grey that washes out on
+  // OLED and leaves cards barely distinguishable from the background; dropping
+  // the floor (and keeping the containers cool but lifted) makes cards, sheets
+  // and the nav pill read as planes above the canvas instead of more grey.
   final scheme = ColorScheme.fromSeed(
     seedColor: AppColors.brand,
     brightness: Brightness.dark,
-  ).copyWith(secondary: AppColors.accent2);
+  ).copyWith(
+    secondary: AppColors.accent2,
+    surface: const Color(0xFF0B0D11),
+    surfaceDim: const Color(0xFF07080B), // the canvas itself
+    surfaceContainerLowest: const Color(0xFF0D0F14),
+    surfaceContainerLow: const Color(0xFF121419),
+    surfaceContainer: const Color(0xFF16191F), // nav pill
+    surfaceContainerHigh: const Color(0xFF1B1F26), // cards
+    surfaceContainerHighest: const Color(0xFF222730),
+    outlineVariant: const Color(0xFF2A2F39),
+  );
   return _base(Brightness.dark, scheme);
 }
 
