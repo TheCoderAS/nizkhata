@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 
 import '../core/theme.dart';
 
+/// Space between a sheet's header and the first field. Enough to clear the
+/// floating label an outlined text field draws above its own outline.
+const double kSheetHeaderGap = 12;
+
 /// Wraps a create/edit sheet's content so closing it with unsaved edits asks
 /// for confirmation first. Untouched forms close freely. Forms report their
 /// state via [isDirty] — typically comparing a fingerprint of their fields
@@ -96,7 +100,12 @@ class _DiscardGuardState extends State<DiscardGuard> {
                   decoration: BoxDecoration(
                     border: Border(
                       bottom: BorderSide(
-                        color: _scrolledUnder ? cs.outlineVariant : Colors.transparent,
+                        // outlineVariant all but disappears on the dark theme,
+                        // which left the cut edge looking like a glitch rather
+                        // than a boundary.
+                        color: _scrolledUnder
+                            ? cs.outline.withValues(alpha: 0.6)
+                            : Colors.transparent,
                       ),
                     ),
                   ),
@@ -122,6 +131,10 @@ class _DiscardGuardState extends State<DiscardGuard> {
                     ],
                   ),
                 ),
+                // Breathing room under the header. An outlined field draws its
+                // floating label above its own box, so content flush against
+                // the header gets that label clipped ("Title" sliced in half).
+                const SizedBox(height: kSheetHeaderGap),
                 Flexible(
                   child: NotificationListener<ScrollNotification>(
                     onNotification: _onScroll,

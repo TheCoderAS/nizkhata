@@ -81,6 +81,51 @@ void main() {
   });
 
   group('sticky header', () {
+    testWidgets('the first field clears the header, label and all',
+        (tester) async {
+      await tester.pumpWidget(MaterialApp(
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: Center(
+              child: ElevatedButton(
+                onPressed: () => showModalBottomSheet<void>(
+                  context: context,
+                  isScrollControlled: true,
+                  enableDrag: false,
+                  builder: (_) => DiscardGuard(
+                    title: 'New due',
+                    isDirty: () => false,
+                    child: const Padding(
+                      padding: EdgeInsets.fromLTRB(20, 0, 20, 20),
+                      child: TextField(
+                        decoration: InputDecoration(
+                          labelText: 'Title',
+                          // The state that gets clipped: label floated up onto
+                          // the outline, which is where it lands once the field
+                          // is focused or filled.
+                          floatingLabelBehavior: FloatingLabelBehavior.always,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                child: const Text('open'),
+              ),
+            ),
+          ),
+        ),
+      ));
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+
+      // Measured from the header's own box, not the title's text baseline:
+      // the box edge is where the form gets clipped. Pinned to a literal so
+      // the assertion still bites if kSheetHeaderGap is set to zero.
+      final headerBottom = tester.getRect(find.byType(AnimatedContainer)).bottom;
+      final fieldTop = tester.getTopLeft(find.byType(TextField)).dy;
+      expect(fieldTop - headerBottom, greaterThanOrEqualTo(8.0));
+    });
+
     Color? headerBorderColor(WidgetTester tester) {
       final box = tester.widget<AnimatedContainer>(find.byType(AnimatedContainer));
       final border = (box.decoration as BoxDecoration).border as Border;
