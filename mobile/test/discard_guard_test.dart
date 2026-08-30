@@ -4,7 +4,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nizkhata/widgets/discard_guard.dart';
 
 void main() {
-  Future<void> pumpSheet(WidgetTester tester, {required bool dirty}) async {
+  Future<void> pumpSheet(
+    WidgetTester tester, {
+    required bool dirty,
+    // Guarded sheets are opened with dragging OFF; see the swipe tests below.
+    bool enableDrag = false,
+  }) async {
     await tester.pumpWidget(MaterialApp(
       home: Builder(
         builder: (context) => Scaffold(
@@ -12,6 +17,7 @@ void main() {
             child: ElevatedButton(
               onPressed: () => showModalBottomSheet<void>(
                 context: context,
+                enableDrag: enableDrag,
                 builder: (_) => DiscardGuard(
                   isDirty: () => dirty,
                   child: const SizedBox(height: 220, child: Text('sheet body')),
@@ -53,5 +59,49 @@ void main() {
     await tester.tap(find.text('Discard'));
     await tester.pumpAndSettle();
     expect(find.text('sheet body'), findsNothing); // discarded
+  });
+
+  group('close button', () {
+    testWidgets('closes a clean form', (tester) async {
+      await pumpSheet(tester, dirty: false);
+      await tester.tap(find.byIcon(Icons.close));
+      await tester.pumpAndSettle();
+      expect(find.text('sheet body'), findsNothing);
+    });
+
+    testWidgets('asks on a dirty form', (tester) async {
+      await pumpSheet(tester, dirty: true);
+      await tester.tap(find.byIcon(Icons.close));
+      await tester.pumpAndSettle();
+      expect(find.text('Discard changes?'), findsOneWidget);
+      await tester.tap(find.text('Keep editing'));
+      await tester.pumpAndSettle();
+      expect(find.text('sheet body'), findsOneWidget);
+    });
+  });
+
+  group('swipe down', () {
+    testWidgets('cannot throw away a dirty form when dragging is off',
+        (tester) async {
+      await pumpSheet(tester, dirty: true);
+      await tester.drag(find.text('sheet body'), const Offset(0, 400));
+      await tester.pumpAndSettle();
+      // The edits are still there, and nothing had to be confirmed.
+      expect(find.text('sheet body'), findsOneWidget);
+      expect(find.text('Discard changes?'), findsNothing);
+    });
+
+    testWidgets('WOULD bypass the guard if dragging were enabled', (tester) async {
+      // Documents why guarded sheets pass enableDrag: false. Flutter's bottom
+      // sheet pops the route directly when a drag closes it, so PopScope never
+      // runs and the edits vanish. If this test ever fails because the sheet
+      // stayed open, Flutter has started routing drag-close through
+      // Navigator.maybePop and guarded sheets can take their drag handle back.
+      await pumpSheet(tester, dirty: true, enableDrag: true);
+      await tester.drag(find.text('sheet body'), const Offset(0, 400));
+      await tester.pumpAndSettle();
+      expect(find.text('sheet body'), findsNothing);
+      expect(find.text('Discard changes?'), findsNothing);
+    });
   });
 }

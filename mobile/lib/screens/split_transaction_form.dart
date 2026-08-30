@@ -20,7 +20,10 @@ Future<void> showSplitTransactionForm(BuildContext context, {Txn? existing}) {
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
-    showDragHandle: true,
+// Guarded form: a swipe-down would pop the route without asking, so
+// dragging is off and DiscardGuard supplies the close button.
+showDragHandle: false,
+enableDrag: false,
     // Own context for MediaQuery — the caller's may be unmounted when this is
     // opened right after the detail sheet pops on Edit (would blank the sheet).
     builder: (ctx) => Padding(

@@ -12,7 +12,10 @@ Future<void> showCategoryForm(BuildContext context, {AppCategory? existing}) {
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
-    showDragHandle: true,
+// Guarded form: a swipe-down would pop the route without asking, so
+// dragging is off and DiscardGuard supplies the close button.
+showDragHandle: false,
+enableDrag: false,
     builder: (_) => Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: _CategoryForm(existing: existing),

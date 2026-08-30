@@ -9,6 +9,7 @@ import '../data/mutations.dart';
 import '../data/permissions.dart';
 import '../state/auth_controller.dart';
 import '../state/workspace_controller.dart';
+import '../widgets/discard_guard.dart';
 
 const _amber = Color(0xFFF59E0B);
 
@@ -37,7 +38,10 @@ Future<void> showRoleEditor(BuildContext context, {Role? existing}) {
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
-    showDragHandle: true,
+// Guarded form: a swipe-down would pop the route without asking, so
+// dragging is off and DiscardGuard supplies the close button.
+showDragHandle: false,
+enableDrag: false,
     builder: (_) => Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: _RoleForm(existing: existing),
@@ -58,6 +62,21 @@ class _RoleFormState extends State<_RoleForm> {
       TextEditingController(text: widget.existing?.name ?? '');
   late final Map<String, bool> _perms = {...(widget.existing?.permissions ?? {})};
   bool _busy = false;
+
+  // Unsaved-edit detection: snapshot on open, compare on close.
+  late final String _fp0;
+  String _fp() => [
+        _name.text,
+        for (final e in (_perms.entries.toList()
+              ..sort((a, b) => a.key.compareTo(b.key))))
+          if (e.value) e.key,
+      ].join('|');
+
+  @override
+  void initState() {
+    super.initState();
+    _fp0 = _fp();
+  }
 
   @override
   void dispose() {
@@ -102,6 +121,10 @@ class _RoleFormState extends State<_RoleForm> {
 
   @override
   Widget build(BuildContext context) {
+    return DiscardGuard(isDirty: () => _fp() != _fp0, child: _buildContent(context));
+  }
+
+  Widget _buildContent(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return FractionallySizedBox(
       heightFactor: 0.92,

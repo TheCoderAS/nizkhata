@@ -21,7 +21,10 @@ Future<void> showDueForm(BuildContext context, {Due? existing}) {
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
-    showDragHandle: true,
+// Guarded form: a swipe-down would pop the route without asking, so
+// dragging is off and DiscardGuard supplies the close button.
+showDragHandle: false,
+enableDrag: false,
     builder: (ctx) => Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
       child: _DueForm(existing: existing),
