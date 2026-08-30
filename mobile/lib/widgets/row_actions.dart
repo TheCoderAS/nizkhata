@@ -161,33 +161,40 @@ class RowActions extends StatelessWidget {
     showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
+      // A row can offer seven actions (a due does). Without this the sheet is
+      // capped at 9/16 of the screen and the last ones are clipped off the
+      // bottom, unreachable; the scroll view keeps a long menu usable while a
+      // short one still sizes to its content.
+      isScrollControlled: true,
       builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (title != null)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-                child: Text(
-                  title!,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(ctx).textTheme.titleMedium,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (title != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+                  child: Text(
+                    title!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(ctx).textTheme.titleMedium,
+                  ),
                 ),
-              ),
-            for (final a in menu)
-              ListTile(
-                leading: Icon(a.icon, color: a.destructive ? cs.error : null),
-                title: Text(a.label,
-                    style: a.destructive ? TextStyle(color: cs.error) : null),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  a.onTap();
-                },
-              ),
-            const SizedBox(height: 8),
-          ],
+              for (final a in menu)
+                ListTile(
+                  leading: Icon(a.icon, color: a.destructive ? cs.error : null),
+                  title: Text(a.label,
+                      style: a.destructive ? TextStyle(color: cs.error) : null),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    a.onTap();
+                  },
+                ),
+              const SizedBox(height: 8),
+            ],
+          ),
         ),
       ),
     );
