@@ -141,10 +141,10 @@ class SharedScreen extends StatelessWidget {
         ],
       ),
       floatingActionButton: (canManage && partners.isNotEmpty)
-          ? FloatingActionButton(
+          ? GradientFab(
               onPressed: () => _showAddExpense(context, partners),
               tooltip: 'Add expense',
-              child: const Icon(Icons.add),
+              icon: Icons.add,
             )
           : null,
       body: ListView(

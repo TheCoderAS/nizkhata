@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:nizkhata/core/theme.dart';
+import 'package:nizkhata/widgets/common.dart';
 import 'package:nizkhata/widgets/floating_nav_bar.dart';
 import 'package:nizkhata/widgets/segmented_tabs.dart';
 
@@ -15,6 +16,8 @@ Color? fillOf(WidgetTester tester, String label) {
 }
 
 void main() {
+  _chromeTests();
+
   group('FloatingNavBar', () {
     const items = [
       FloatingNavItem(icon: Icons.home_outlined, selectedIcon: Icons.home, label: 'Home'),
@@ -149,5 +152,68 @@ void main() {
       await tester.pumpAndSettle();
       expect(picked, 'custom');
     });
+  });
+}
+
+// ---- chrome introduced with the UI rework ----------------------------------
+
+void _chromeTests() {
+  group('GradientFab', () {
+    testWidgets('presses, and announces itself to a screen reader',
+        (tester) async {
+      var pressed = false;
+      await tester.pumpWidget(MaterialApp(
+        theme: buildDarkTheme(),
+        home: Scaffold(
+          floatingActionButton: GradientFab(
+            tooltip: 'Add due',
+            onPressed: () => pressed = true,
+          ),
+        ),
+      ));
+      await tester.pumpAndSettle();
+      expect(find.byIcon(Icons.add), findsOneWidget);
+      // Stock FloatingActionButton is gone; the gradient button replaces it.
+      expect(find.byType(FloatingActionButton), findsNothing);
+
+      final semantics = tester.ensureSemantics();
+      expect(find.bySemanticsLabel('Add due'), findsOneWidget);
+      semantics.dispose();
+
+      await tester.tap(find.byIcon(Icons.add));
+      expect(pressed, true);
+    });
+
+    testWidgets('carries an animated glyph when one is given', (tester) async {
+      await tester.pumpWidget(MaterialApp(
+        theme: buildDarkTheme(),
+        home: Scaffold(
+          floatingActionButton: GradientFab(
+            tooltip: 'Add',
+            onPressed: () {},
+            child: const Icon(Icons.close),
+          ),
+        ),
+      ));
+      await tester.pumpAndSettle();
+      expect(find.byIcon(Icons.close), findsOneWidget);
+      expect(find.byIcon(Icons.add), findsNothing);
+    });
+  });
+
+  testWidgets('EntranceFade settles fully visible and in place', (tester) async {
+    await tester.pumpWidget(const MaterialApp(
+      home: Scaffold(
+        body: EntranceFade(index: 3, child: Text('row')),
+      ),
+    ));
+    // Mid-flight it is faded and offset...
+    await tester.pump(const Duration(milliseconds: 20));
+    final mid = tester.widget<Opacity>(find.byType(Opacity).first).opacity;
+    expect(mid, lessThan(1.0));
+
+    // ...and it always lands at rest, never stuck part-way.
+    await tester.pumpAndSettle();
+    expect(tester.widget<Opacity>(find.byType(Opacity).first).opacity, 1.0);
   });
 }
