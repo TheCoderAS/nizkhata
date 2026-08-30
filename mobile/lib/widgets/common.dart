@@ -218,8 +218,8 @@ class EmptyView extends StatelessWidget {
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                   colors: [
-                    AppColors.brand.withValues(alpha: 0.20),
-                    AppColors.brandTo.withValues(alpha: 0.10),
+                    cs.primary.withValues(alpha: 0.20),
+                    cs.tertiary.withValues(alpha: 0.10),
                   ],
                 ),
                 borderRadius: BorderRadius.circular(24),
@@ -465,6 +465,17 @@ class GradientFab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    // Derived from the scheme, NOT the raw brand seed. The seed is a saturated
+    // indigo (#4F46E5); the dark scheme's primary is a pale lavender
+    // (#C3C0FF), and that is what the nav pill, icons and accents use. A
+    // button painted in the seed matches nothing else on screen.
+    final gradient = LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [cs.primary, Color.lerp(cs.primary, cs.tertiary, 0.55)!],
+    );
+
     // MergeSemantics: without it the InkWell publishes its own unlabelled
     // button node beside this one, and a screen reader reads an anonymous
     // button.
@@ -476,11 +487,11 @@ class GradientFab extends StatelessWidget {
           label: tooltip,
           child: DecoratedBox(
             decoration: BoxDecoration(
-              gradient: brandGradient,
+              gradient: gradient,
               borderRadius: BorderRadius.circular(20),
               boxShadow: [
                 BoxShadow(
-                  color: AppColors.brand.withValues(alpha: 0.38),
+                  color: cs.primary.withValues(alpha: 0.30),
                   blurRadius: 18,
                   offset: const Offset(0, 6),
                 ),
@@ -495,7 +506,10 @@ class GradientFab extends StatelessWidget {
                   width: 56,
                   height: 56,
                   child: IconTheme(
-                    data: const IconThemeData(color: Colors.white, size: 26),
+                    // The scheme's partner colour for that fill: white on the
+                    // light theme, near-navy on the dark one. Hardcoding white
+                    // put pale-on-pale on the dark theme.
+                    data: IconThemeData(color: cs.onPrimary, size: 26),
                     child: child ?? Icon(icon),
                   ),
                 ),
