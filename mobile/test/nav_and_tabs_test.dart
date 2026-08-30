@@ -184,6 +184,46 @@ void _chromeTests() {
       expect(pressed, true);
     });
 
+    testWidgets('takes its colours from the theme, not the raw brand seed',
+        (tester) async {
+      // The seed is a saturated indigo; each scheme derives its own primary
+      // from it (a pale lavender on the dark theme). Painting the button with
+      // the seed made it the one control on screen matching nothing else.
+      for (final theme in [buildDarkTheme(), buildLightTheme()]) {
+        await tester.pumpWidget(MaterialApp(
+          theme: theme,
+          home: Scaffold(
+            floatingActionButton:
+                GradientFab(tooltip: 'Add', onPressed: () {}),
+          ),
+        ));
+        await tester.pumpAndSettle();
+        final cs = theme.colorScheme;
+
+        final box = tester.widget<DecoratedBox>(
+          find.descendant(
+            of: find.byType(GradientFab),
+            matching: find.byType(DecoratedBox),
+          ).first,
+        );
+        final gradient =
+            (box.decoration as BoxDecoration).gradient! as LinearGradient;
+        expect(gradient.colors.first, cs.primary,
+            reason: 'the fill must be the scheme primary the rest of the UI uses');
+        expect(gradient.colors.first, isNot(AppColors.brand),
+            reason: 'the raw seed is not what any other surface uses');
+
+        final iconTheme = tester.widget<IconTheme>(
+          find.descendant(
+            of: find.byType(GradientFab),
+            matching: find.byType(IconTheme),
+          ).last,
+        );
+        expect(iconTheme.data.color, cs.onPrimary,
+            reason: 'the glyph must be the scheme partner of that fill');
+      }
+    });
+
     testWidgets('carries an animated glyph when one is given', (tester) async {
       await tester.pumpWidget(MaterialApp(
         theme: buildDarkTheme(),
