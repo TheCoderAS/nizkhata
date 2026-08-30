@@ -178,6 +178,38 @@ Widget _exportButton(VoidCallback onPressed) {
   );
 }
 
+/// Two export actions as one balanced row of equal-width buttons. Stacking a
+/// small right-aligned CSV button above a full-width PDF one read as two
+/// unrelated controls; side by side they read as one "export this" choice.
+Widget _exportPair({
+  required VoidCallback onCsv,
+  required VoidCallback onPdf,
+  required String pdfLabel,
+}) {
+  const height = 46.0;
+  return Row(
+    children: [
+      Expanded(
+        child: OutlinedButton.icon(
+          onPressed: onCsv,
+          icon: const Icon(Icons.download, size: 18),
+          label: const Text('Export CSV', maxLines: 1, overflow: TextOverflow.ellipsis),
+          style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(height)),
+        ),
+      ),
+      const SizedBox(width: 12),
+      Expanded(
+        child: FilledButton.tonalIcon(
+          onPressed: onPdf,
+          icon: const Icon(Icons.picture_as_pdf_outlined, size: 18),
+          label: Text(pdfLabel, maxLines: 1, overflow: TextOverflow.ellipsis),
+          style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(height)),
+        ),
+      ),
+    ],
+  );
+}
+
 // ---- Insights ---------------------------------------------------------------
 
 class _InsightsTab extends StatelessWidget {
@@ -760,35 +792,32 @@ class _TaxTab extends StatelessWidget {
           )
         else ...[
           if (canExport) ...[
-            _exportButton(() => _exportCsv(
-                  'tax-summary-$fy.csv',
-                  const ['Head', 'Taxable', 'TDS', 'Lines'],
-                  [
-                    for (final h in heads)
-                      [
-                        _taxHeadLabel(h),
-                        roundMoney(taxableByHead[h] ?? 0),
-                        roundMoney(tdsByHead[h] ?? 0),
-                        linesByHead[h] ?? 0,
-                      ],
-                  ],
-                )),
-            const SizedBox(height: 8),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.tonalIcon(
-                icon: const Icon(Icons.picture_as_pdf_outlined, size: 18),
-                label: Text('Export tax pack (PDF) — FY $fy'),
-                onPressed: () => _shareTaxPack(context,
-                    taxableByHead: taxableByHead,
-                    tdsByHead: tdsByHead,
-                    linesByHead: linesByHead,
-                    heads: heads,
-                    totalTaxable: totalTaxable,
-                    totalTds: totalTds),
+            // The FY is already named by the app-bar picker, so the buttons
+            // stay short enough to sit side by side.
+            _exportPair(
+              pdfLabel: 'Tax pack PDF',
+              onCsv: () => _exportCsv(
+                'tax-summary-$fy.csv',
+                const ['Head', 'Taxable', 'TDS', 'Lines'],
+                [
+                  for (final h in heads)
+                    [
+                      _taxHeadLabel(h),
+                      roundMoney(taxableByHead[h] ?? 0),
+                      roundMoney(tdsByHead[h] ?? 0),
+                      linesByHead[h] ?? 0,
+                    ],
+                ],
               ),
+              onPdf: () => _shareTaxPack(context,
+                  taxableByHead: taxableByHead,
+                  tdsByHead: tdsByHead,
+                  linesByHead: linesByHead,
+                  heads: heads,
+                  totalTaxable: totalTaxable,
+                  totalTds: totalTds),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 12),
           ],
           SectionCard(
             title: 'By head',
