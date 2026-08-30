@@ -11,6 +11,7 @@ import '../state/auth_controller.dart';
 import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
 import '../widgets/common.dart';
+import '../widgets/discard_guard.dart';
 import '../widgets/entity_card_list.dart';
 import '../widgets/row_actions.dart';
 import '../widgets/undo_delete.dart';
@@ -389,7 +390,10 @@ Future<void> showDebtPayment(BuildContext context, Debt debt) {
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
-    showDragHandle: true,
+// Guarded form: a swipe-down would pop the route without asking, so
+// dragging is off and DiscardGuard supplies the close button.
+showDragHandle: false,
+enableDrag: false,
     builder: (_) => Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: _DebtPaymentSheet(debt: debt),
@@ -410,12 +414,17 @@ class _DebtPaymentSheetState extends State<_DebtPaymentSheet> {
   String? _accountId;
   bool _busy = false;
 
+  // Unsaved-edit detection: snapshot on open, compare on close.
+  late final String _fp0;
+  String _fp() => [_amount.text, '$_accountId'].join('|');
+
   @override
   void initState() {
     super.initState();
     final data = context.read<DataController>();
     final outstanding = data.outstandingOf(widget.debt.id);
     _amount = TextEditingController(text: (outstanding > 0 ? outstanding : 0).toString());
+    _fp0 = _fp();
   }
 
   @override
@@ -471,6 +480,10 @@ class _DebtPaymentSheetState extends State<_DebtPaymentSheet> {
 
   @override
   Widget build(BuildContext context) {
+    return DiscardGuard(isDirty: () => _fp() != _fp0, child: _buildContent(context));
+  }
+
+  Widget _buildContent(BuildContext context) {
     final data = context.watch<DataController>();
     final accounts = data.accounts;
     final title = widget.debt.direction == 'owed' ? 'Record receipt' : 'Record repayment';
