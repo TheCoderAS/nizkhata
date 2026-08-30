@@ -859,6 +859,7 @@ class _LineEditorSheetState extends State<_LineEditorSheet> {
   @override
   Widget build(BuildContext context) {
     return DiscardGuard(
+      title: widget.isNew ? 'New line' : 'Edit line',
       isDirty: () => lineDraftFingerprint(widget.draft) != _fp0,
       child: _buildContent(context),
     );
@@ -881,9 +882,6 @@ class _LineEditorSheetState extends State<_LineEditorSheet> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(widget.isNew ? 'New line' : 'Edit line',
-                  style: Theme.of(context).textTheme.titleLarge),
-              const SizedBox(height: 16),
               LineFields(
                 draft: widget.draft,
                 accountId: widget.accountId,

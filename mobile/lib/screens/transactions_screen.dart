@@ -38,6 +38,9 @@ class TransactionsScreen extends StatefulWidget {
   final String? initialTaxHead;
   final String? initialFy;
 
+  /// Show only this day — the calendar's "view transactions" for a date.
+  final DateTime? initialDate;
+
   /// When true the screen supplies its own AppBar with a back button (used for
   /// the /txns drill-down route). In the bottom-nav shell this is false — the
   /// shell provides the chrome.
@@ -53,6 +56,7 @@ class TransactionsScreen extends StatefulWidget {
     this.initialType,
     this.initialTaxHead,
     this.initialFy,
+    this.initialDate,
     this.standalone = false,
     this.autoAdd = false,
   });
@@ -70,6 +74,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   // as removable chips, not in the filter sheet).
   String? _taxHeadFilter;
   String? _fyFilter;
+  DateTime? _dateFilter;
   bool _splitOnly = false;
   String _search = '';
   bool _fabOpen = false;
@@ -83,6 +88,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     _typeFilter = widget.initialType;
     _taxHeadFilter = widget.initialTaxHead;
     _fyFilter = widget.initialFy;
+    _dateFilter = widget.initialDate;
     if (widget.autoAdd) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) showSplitTransactionForm(context);
@@ -97,6 +103,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       (_categoryFilter != null ? 1 : 0) +
       (_taxHeadFilter != null ? 1 : 0) +
       (_fyFilter != null ? 1 : 0) +
+      (_dateFilter != null ? 1 : 0) +
       (_splitOnly ? 1 : 0);
 
   void _clearFilters() => setState(() {
@@ -106,6 +113,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
         _categoryFilter = null;
         _taxHeadFilter = null;
         _fyFilter = null;
+        _dateFilter = null;
         _splitOnly = false;
       });
 
@@ -223,6 +231,12 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     final all = [...data.transactions]..sort((a, b) => b.date.compareTo(a.date));
     final query = _search.trim().toLowerCase();
     final txns = all.where((t) {
+      if (_dateFilter != null) {
+        final d = _dateFilter!;
+        if (t.date.year != d.year || t.date.month != d.month || t.date.day != d.day) {
+          return false;
+        }
+      }
       if (_accountFilter != null && t.accountId != _accountFilter) return false;
       if (_contactFilter != null && t.contactId != _contactFilter) return false;
       if (_categoryFilter != null && !t.lines.any((l) => l.categoryId == _categoryFilter)) return false;
@@ -284,6 +298,11 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                 scrollDirection: Axis.horizontal,
                 child: Row(
                   children: [
+                    if (_dateFilter != null) ...[
+                      _chip('Date: ${formatDate(_dateFilter!)}',
+                          () => setState(() => _dateFilter = null)),
+                      Gap.sm,
+                    ],
                     if (_accountFilter != null) ...[
                       _chip('Account: ${data.accountsById[_accountFilter]?.name ?? 'Unknown'}',
                           () => setState(() => _accountFilter = null)),

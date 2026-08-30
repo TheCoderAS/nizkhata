@@ -390,10 +390,10 @@ Future<void> showDebtPayment(BuildContext context, Debt debt) {
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
-// Guarded form: a swipe-down would pop the route without asking, so
-// dragging is off and DiscardGuard supplies the close button.
-showDragHandle: false,
-enableDrag: false,
+    // Guarded form: a swipe-down would pop the route without asking, so
+    // dragging is off and DiscardGuard supplies the close button.
+    showDragHandle: false,
+    enableDrag: false,
     builder: (_) => Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: _DebtPaymentSheet(debt: debt),
@@ -480,15 +480,18 @@ class _DebtPaymentSheetState extends State<_DebtPaymentSheet> {
 
   @override
   Widget build(BuildContext context) {
-    return DiscardGuard(isDirty: () => _fp() != _fp0, child: _buildContent(context));
+    return DiscardGuard(
+      title: widget.debt.direction == 'owed' ? 'Record receipt' : 'Record repayment',
+      isDirty: () => _fp() != _fp0,
+      child: _buildContent(context),
+    );
   }
 
   Widget _buildContent(BuildContext context) {
     final data = context.watch<DataController>();
     final accounts = data.accounts;
-    final title = widget.debt.direction == 'owed' ? 'Record receipt' : 'Record repayment';
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
       child: SingleChildScrollView(
         child: Form(
           key: _formKey,
@@ -496,8 +499,6 @@ class _DebtPaymentSheetState extends State<_DebtPaymentSheet> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(title, style: Theme.of(context).textTheme.titleLarge),
-              const SizedBox(height: 16),
               TextFormField(
                 controller: _amount,
                 decoration: const InputDecoration(labelText: 'Amount', prefixText: '₹ '),

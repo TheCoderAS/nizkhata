@@ -12,10 +12,10 @@ Future<void> showContactForm(BuildContext context, {Contact? existing}) {
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
-// Guarded form: a swipe-down would pop the route without asking, so
-// dragging is off and DiscardGuard supplies the close button.
-showDragHandle: false,
-enableDrag: false,
+    // Guarded form: a swipe-down would pop the route without asking, so
+    // dragging is off and DiscardGuard supplies the close button.
+    showDragHandle: false,
+    enableDrag: false,
     builder: (_) => Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: _ContactForm(existing: existing),
@@ -158,13 +158,17 @@ class _ContactFormState extends State<_ContactForm> {
 
   @override
   Widget build(BuildContext context) {
-    return DiscardGuard(isDirty: () => _fp() != _fp0, child: _buildContent(context));
+    return DiscardGuard(
+      title: widget.existing == null ? 'New contact' : 'Edit contact',
+      isDirty: () => _fp() != _fp0,
+      child: _buildContent(context),
+    );
   }
 
   Widget _buildContent(BuildContext context) {
     return Padding(
       padding: EdgeInsets.fromLTRB(
-          20, 4, 20, 20 + MediaQuery.of(context).padding.bottom),
+          20, 0, 20, 20 + MediaQuery.of(context).padding.bottom),
       child: SingleChildScrollView(
         child: Form(
           key: _formKey,
@@ -172,9 +176,6 @@ class _ContactFormState extends State<_ContactForm> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(widget.existing == null ? 'New contact' : 'Edit contact',
-                  style: Theme.of(context).textTheme.titleLarge),
-              const SizedBox(height: 20),
               _sectionLabel('Identity'),
               TextFormField(
                 controller: _name,

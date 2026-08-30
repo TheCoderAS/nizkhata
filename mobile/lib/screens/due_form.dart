@@ -17,24 +17,29 @@ import '../widgets/discard_guard.dart';
 /// same multi-line editor (typed lines, categories, tax info), plus a due date
 /// and direction. The amount is the computed total of the lines; settling the
 /// due materializes these lines into the real transaction.
-Future<void> showDueForm(BuildContext context, {Due? existing}) {
+Future<void> showDueForm(BuildContext context,
+    {Due? existing, DateTime? initialDate}) {
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
-// Guarded form: a swipe-down would pop the route without asking, so
-// dragging is off and DiscardGuard supplies the close button.
-showDragHandle: false,
-enableDrag: false,
+    // Guarded form: a swipe-down would pop the route without asking, so
+    // dragging is off and DiscardGuard supplies the close button.
+    showDragHandle: false,
+    enableDrag: false,
     builder: (ctx) => Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
-      child: _DueForm(existing: existing),
+      child: _DueForm(existing: existing, initialDate: initialDate),
     ),
   );
 }
 
 class _DueForm extends StatefulWidget {
   final Due? existing;
-  const _DueForm({this.existing});
+
+  /// Due date to start on when creating — the calendar opens the form on the
+  /// day that was tapped.
+  final DateTime? initialDate;
+  const _DueForm({this.existing, this.initialDate});
   @override
   State<_DueForm> createState() => _DueFormState();
 }
@@ -46,7 +51,8 @@ class _DueFormState extends State<_DueForm> {
 
   final _formKey = GlobalKey<FormState>();
   late final _title = TextEditingController(text: widget.existing?.title ?? '');
-  late DateTime _dueDate = widget.existing?.dueDate ?? DateTime.now();
+  late DateTime _dueDate =
+      widget.existing?.dueDate ?? widget.initialDate ?? DateTime.now();
   late String _recurrence = widget.existing?.recurrence ?? '';
   late String? _contactId = widget.existing?.contactId;
   late String? _accountId = widget.existing?.accountId;
@@ -191,7 +197,11 @@ class _DueFormState extends State<_DueForm> {
 
   @override
   Widget build(BuildContext context) {
-    return DiscardGuard(isDirty: () => _fp() != _fp0, child: _buildContent(context));
+    return DiscardGuard(
+      title: widget.existing == null ? 'New due' : 'Edit due',
+      isDirty: () => _fp() != _fp0,
+      child: _buildContent(context),
+    );
   }
 
   Widget _buildContent(BuildContext context) {
@@ -206,7 +216,7 @@ class _DueFormState extends State<_DueForm> {
 
     return Padding(
       padding: EdgeInsets.fromLTRB(
-          20, 4, 20, 20 + MediaQuery.of(context).padding.bottom),
+          20, 0, 20, 20 + MediaQuery.of(context).padding.bottom),
       child: SingleChildScrollView(
         child: Form(
           key: _formKey,
@@ -214,9 +224,6 @@ class _DueFormState extends State<_DueForm> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(widget.existing == null ? 'New due' : 'Edit due',
-                  style: Theme.of(context).textTheme.titleLarge),
-              const SizedBox(height: 16),
               TextFormField(
                 controller: _title,
                 decoration: const InputDecoration(labelText: 'Title'),
