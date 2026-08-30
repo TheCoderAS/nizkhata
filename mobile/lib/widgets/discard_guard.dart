@@ -2,9 +2,15 @@ import 'package:flutter/material.dart';
 
 import '../core/theme.dart';
 
-/// Space between a sheet's header and the first field. Enough to clear the
-/// floating label an outlined text field draws above its own outline.
-const double kSheetHeaderGap = 12;
+/// Visual space between a sheet's header and the form below it.
+const double kSheetHeaderGap = 6;
+
+/// Padding INSIDE a guarded form's scroll view, above its first field. The
+/// app's dense outline fields paint their floating label a few pixels above
+/// the field's own box, and a viewport clips whatever sits above its top
+/// edge — so the first field needs slack INSIDE the scroll view. Padding
+/// outside it (see [kSheetHeaderGap]) moves the viewport, not the label.
+const double kSheetFieldTopPad = 8;
 
 /// Wraps a create/edit sheet's content so closing it with unsaved edits asks
 /// for confirmation first. Untouched forms close freely. Forms report their
@@ -131,9 +137,6 @@ class _DiscardGuardState extends State<DiscardGuard> {
                     ],
                   ),
                 ),
-                // Breathing room under the header. An outlined field draws its
-                // floating label above its own box, so content flush against
-                // the header gets that label clipped ("Title" sliced in half).
                 const SizedBox(height: kSheetHeaderGap),
                 Flexible(
                   child: NotificationListener<ScrollNotification>(

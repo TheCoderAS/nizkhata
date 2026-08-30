@@ -878,6 +878,7 @@ class _LineEditorSheetState extends State<_LineEditorSheet> {
       child: SafeArea(
         top: false,
         child: SingleChildScrollView(
+          padding: const EdgeInsets.only(top: kSheetFieldTopPad),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
