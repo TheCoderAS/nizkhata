@@ -80,6 +80,61 @@ void main() {
     });
   });
 
+  group('sticky header', () {
+    Color? headerBorderColor(WidgetTester tester) {
+      final box = tester.widget<AnimatedContainer>(find.byType(AnimatedContainer));
+      final border = (box.decoration as BoxDecoration).border as Border;
+      return border.bottom.color;
+    }
+
+    testWidgets('divider appears only once the form scrolls under it',
+        (tester) async {
+      await tester.pumpWidget(MaterialApp(
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: Center(
+              child: ElevatedButton(
+                onPressed: () => showModalBottomSheet<void>(
+                  context: context,
+                  isScrollControlled: true,
+                  enableDrag: false,
+                  builder: (_) => SizedBox(
+                    height: 400,
+                    child: DiscardGuard(
+                      title: 'Edit due',
+                      isDirty: () => false,
+                      child: ListView(
+                        children: [
+                          for (var i = 0; i < 30; i++)
+                            SizedBox(height: 48, child: Text('field $i')),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                child: const Text('open'),
+              ),
+            ),
+          ),
+        ),
+      ));
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Edit due'), findsOneWidget);
+      expect(headerBorderColor(tester), Colors.transparent);
+
+      await tester.drag(find.byType(ListView), const Offset(0, -200));
+      await tester.pumpAndSettle();
+      expect(headerBorderColor(tester), isNot(Colors.transparent));
+
+      // Back to the top and the line goes away again.
+      await tester.drag(find.byType(ListView), const Offset(0, 400));
+      await tester.pumpAndSettle();
+      expect(headerBorderColor(tester), Colors.transparent);
+    });
+  });
+
   group('swipe down', () {
     testWidgets('cannot throw away a dirty form when dragging is off',
         (tester) async {
