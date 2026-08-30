@@ -158,14 +158,14 @@ void main() {
 // ---- chrome introduced with the UI rework ----------------------------------
 
 void _chromeTests() {
-  group('GradientFab', () {
+  group('AppFab', () {
     testWidgets('presses, and announces itself to a screen reader',
         (tester) async {
       var pressed = false;
       await tester.pumpWidget(MaterialApp(
         theme: buildDarkTheme(),
         home: Scaffold(
-          floatingActionButton: GradientFab(
+          floatingActionButton: AppFab(
             tooltip: 'Add due',
             onPressed: () => pressed = true,
           ),
@@ -184,43 +184,52 @@ void _chromeTests() {
       expect(pressed, true);
     });
 
-    testWidgets('takes its colours from the theme, not the raw brand seed',
+    testWidgets('paints itself exactly like the small FABs beside it',
         (tester) async {
-      // The seed is a saturated indigo; each scheme derives its own primary
-      // from it (a pale lavender on the dark theme). Painting the button with
-      // the seed made it the one control on screen matching nothing else.
+      // The transactions screen fans small FABs out of the big one. They took
+      // Material's default (primaryContainer, #424178 on dark) while the big
+      // one had been given cs.primary (#C3C0FF) — the inverse pairing, so the
+      // stack read as two different buttons. Compare against a real small FAB
+      // rather than naming a colour, so the two cannot drift apart again.
       for (final theme in [buildDarkTheme(), buildLightTheme()]) {
         await tester.pumpWidget(MaterialApp(
           theme: theme,
           home: Scaffold(
-            floatingActionButton:
-                GradientFab(tooltip: 'Add', onPressed: () {}),
+            body: Column(
+              children: [
+                AppFab(tooltip: 'Add', onPressed: () {}),
+                FloatingActionButton.small(onPressed: () {}, child: const Icon(Icons.upload)),
+              ],
+            ),
           ),
         ));
         await tester.pumpAndSettle();
-        final cs = theme.colorScheme;
 
-        final box = tester.widget<DecoratedBox>(
+        final big = tester.widget<DecoratedBox>(
           find.descendant(
-            of: find.byType(GradientFab),
+            of: find.byType(AppFab),
             matching: find.byType(DecoratedBox),
           ).first,
         );
-        final gradient =
-            (box.decoration as BoxDecoration).gradient! as LinearGradient;
-        expect(gradient.colors.first, cs.primary,
-            reason: 'the fill must be the scheme primary the rest of the UI uses');
-        expect(gradient.colors.first, isNot(AppColors.brand),
-            reason: 'the raw seed is not what any other surface uses');
+        final small = tester.widget<Material>(
+          find.descendant(
+            of: find.byType(FloatingActionButton),
+            matching: find.byType(Material),
+          ).first,
+        );
+        expect((big.decoration as BoxDecoration).color, small.color,
+            reason: 'the big button must match the small ones it opens');
 
         final iconTheme = tester.widget<IconTheme>(
           find.descendant(
-            of: find.byType(GradientFab),
+            of: find.byType(AppFab),
             matching: find.byType(IconTheme),
           ).last,
         );
-        expect(iconTheme.data.color, cs.onPrimary,
-            reason: 'the glyph must be the scheme partner of that fill');
+        expect(iconTheme.data.color, theme.colorScheme.onPrimaryContainer,
+            reason: 'and so must its glyph');
+        expect(iconTheme.data.color, isNot(Colors.white),
+            reason: 'hardcoded white was the original bug');
       }
     });
 
@@ -228,7 +237,7 @@ void _chromeTests() {
       await tester.pumpWidget(MaterialApp(
         theme: buildDarkTheme(),
         home: Scaffold(
-          floatingActionButton: GradientFab(
+          floatingActionButton: AppFab(
             tooltip: 'Add',
             onPressed: () {},
             child: const Icon(Icons.close),

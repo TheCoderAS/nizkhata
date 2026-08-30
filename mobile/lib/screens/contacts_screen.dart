@@ -48,7 +48,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Contacts')),
       floatingActionButton: canManage
-          ? GradientFab(
+          ? AppFab(
               onPressed: () => showContactForm(context),
               tooltip: 'Add contact',
               icon: Icons.add,

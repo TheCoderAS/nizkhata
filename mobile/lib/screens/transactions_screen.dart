@@ -457,7 +457,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
           ),
           const SizedBox(height: 12),
         ],
-        GradientFab(
+        AppFab(
           onPressed: () => setState(() => _fabOpen = !_fabOpen),
           tooltip: _fabOpen ? 'Close' : 'Add',
           child: AnimatedRotation(
