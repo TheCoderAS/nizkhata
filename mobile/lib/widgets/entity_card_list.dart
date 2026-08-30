@@ -57,9 +57,6 @@ class EntityCardList<T> extends StatefulWidget {
   /// Leading widget (e.g. an avatar) rendered at the start of each card.
   final Widget Function(T row)? leading;
 
-  /// Trailing widget (e.g. a row action menu) at the end of each card.
-  final Widget Function(T row)? trailing;
-
   /// Wraps each built card — used to attach row gestures (swipe actions,
   /// long-press context sheet) without EntityCardList knowing about them.
   final Widget Function(T row, Widget card)? wrapCard;
@@ -79,7 +76,6 @@ class EntityCardList<T> extends StatefulWidget {
     required this.rows,
     this.onRowTap,
     this.leading,
-    this.trailing,
     this.wrapCard,
     this.padding = const EdgeInsets.fromLTRB(16, 4, 16, 96),
     this.defaultSortKey,
@@ -315,7 +311,10 @@ class _EntityCardListState<T> extends State<EntityCardList<T>> {
         onTap: widget.onRowTap == null ? null : () => widget.onRowTap!(row),
         borderRadius: BorderRadius.circular(16),
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(14, 12, 8, 12),
+          // Symmetric: the 8 on the right dated from the 3-dot button that
+          // used to sit there and supplied its own padding. With the menus
+          // gone (gestures replaced them) the amount sat against the edge.
+          padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -381,7 +380,6 @@ class _EntityCardListState<T> extends State<EntityCardList<T>> {
                   ],
                 ),
               ),
-              if (widget.trailing != null) widget.trailing!(row),
             ],
           ),
         ),

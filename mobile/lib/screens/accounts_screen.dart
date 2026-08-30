@@ -50,6 +50,10 @@ class AccountsScreen extends StatelessWidget {
           : EntityCardList<Account>(
               listId: 'accounts',
               rows: accounts,
+              // Money first: the accounts you actually use lead the list,
+              // rather than whatever happens to start with an A.
+              defaultSortKey: 'balance',
+              defaultAscending: false,
               onRowTap: (a) => showAccountDetail(context, a),
               leading: (a) => _AccountBadge(type: a.type),
               // Swipe right to import a statement, left to open the ledger;
