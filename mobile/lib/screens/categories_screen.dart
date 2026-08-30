@@ -307,6 +307,7 @@ class _CategoryList extends StatelessWidget {
     final user = context.read<AuthController>().user;
     showDialog<void>(
       context: context,
+      useRootNavigator: true,
       builder: (ctx) => AlertDialog(
         title: Text('Delete "${c.name}"?'),
         content: const Text('This removes the category.'),

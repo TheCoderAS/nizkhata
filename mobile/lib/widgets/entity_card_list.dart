@@ -132,6 +132,7 @@ class _EntityCardListState<T> extends State<EntityCardList<T>> {
   void _openFieldsSheet() {
     showModalBottomSheet<void>(
       context: context,
+      useRootNavigator: true,
       showDragHandle: true,
       builder: (ctx) => SafeArea(
         child: StatefulBuilder(
@@ -260,6 +261,7 @@ class _EntityCardListState<T> extends State<EntityCardList<T>> {
   void _openSortMenu(BuildContext context, List<CardField<T>> sortable) {
     showModalBottomSheet<void>(
       context: context,
+      useRootNavigator: true,
       showDragHandle: true,
       builder: (ctx) => SafeArea(
         child: Column(

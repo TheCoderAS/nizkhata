@@ -106,6 +106,7 @@ class _MemberTile extends StatelessWidget {
     final user = context.read<AuthController>().user;
     showDialog<void>(
       context: context,
+      useRootNavigator: true,
       builder: (ctx) => AlertDialog(
         title: const Text('Remove member?'),
         content: const Text('They will lose access to this workspace.'),
@@ -222,6 +223,7 @@ class _MemberTile extends StatelessWidget {
       ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
     showModalBottomSheet<void>(
       context: context,
+      useRootNavigator: true,
       showDragHandle: true,
       builder: (ctx) => SafeArea(
         child: Column(
@@ -366,6 +368,7 @@ final RegExp _emailRe = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
 void _showInviteDialog(BuildContext context, List<Role> roles) {
   showDialog<void>(
     context: context,
+    useRootNavigator: true,
     builder: (_) => _InviteDialog(roles: roles),
   );
 }

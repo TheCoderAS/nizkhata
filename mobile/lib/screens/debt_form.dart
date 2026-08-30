@@ -24,6 +24,7 @@ const _kPurposeLabels = <String, String>{
 Future<void> showDebtForm(BuildContext context, {Debt? existing}) {
   return showModalBottomSheet<void>(
     context: context,
+    useRootNavigator: true,
     isScrollControlled: true,
     // Guarded form: a swipe-down would pop the route without asking, so
     // dragging is off and DiscardGuard supplies the close button.

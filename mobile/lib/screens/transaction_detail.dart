@@ -23,6 +23,7 @@ import '../widgets/common.dart';
 Future<void> showTransactionDetail(BuildContext context, Txn txn) {
   return showModalBottomSheet<void>(
     context: context,
+    useRootNavigator: true,
     isScrollControlled: true,
     showDragHandle: true,
     // Use the sheet's OWN context (ctx) for MediaQuery — not the caller's, which
@@ -322,6 +323,7 @@ void _confirmDelete(BuildContext context, Txn txn) {
   final user = context.read<AuthController>().user;
   showDialog<void>(
     context: context,
+    useRootNavigator: true,
     builder: (ctx) => AlertDialog(
       title: const Text('Delete transaction?'),
       content: const Text('This removes the entry and its effect on balances and reports.'),

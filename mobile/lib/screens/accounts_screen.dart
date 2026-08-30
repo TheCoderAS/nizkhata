@@ -168,6 +168,7 @@ class AccountsScreen extends StatelessWidget {
     final user = context.read<AuthController>().user;
     showDialog<void>(
       context: context,
+      useRootNavigator: true,
       builder: (ctx) => AlertDialog(
         title: Text('Delete "${a.name}"?'),
         content: const Text('This removes the account. Its transactions are kept.'),
@@ -264,6 +265,7 @@ void showAccountDetail(BuildContext context, Account a) {
 
   showModalBottomSheet<void>(
     context: context,
+    useRootNavigator: true,
     isScrollControlled: true,
     showDragHandle: true,
     builder: (sheetCtx) {

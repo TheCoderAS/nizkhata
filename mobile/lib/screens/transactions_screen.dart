@@ -121,6 +121,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     final data = context.read<DataController>();
     await showModalBottomSheet<void>(
       context: context,
+      useRootNavigator: true,
       isScrollControlled: true,
       showDragHandle: true,
       builder: (_) => Padding(

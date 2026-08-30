@@ -19,6 +19,7 @@ import '../widgets/common.dart';
 Future<void> showDueDetail(BuildContext context, Due due) {
   return showModalBottomSheet<void>(
     context: context,
+    useRootNavigator: true,
     isScrollControlled: true,
     showDragHandle: true,
     builder: (_) => Padding(

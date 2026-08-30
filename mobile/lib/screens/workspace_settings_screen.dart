@@ -80,6 +80,7 @@ class _WorkspaceSettingsScreenState extends State<WorkspaceSettingsScreen> {
     if (w == null || user == null) return;
     showDialog<void>(
       context: context,
+      useRootNavigator: true,
       builder: (ctx) => AlertDialog(
         title: Text('Delete "${w.name}"?'),
         content: const Text(

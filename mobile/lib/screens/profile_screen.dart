@@ -138,6 +138,7 @@ class ProfileScreen extends StatelessWidget {
     final controller = TextEditingController();
     final name = await showDialog<String>(
       context: context,
+      useRootNavigator: true,
       builder: (ctx) => AlertDialog(
         title: const Text('New workspace'),
         content: TextField(
@@ -209,6 +210,7 @@ class ProfileScreen extends StatelessWidget {
     if (user == null) return;
     showDialog<void>(
       context: context,
+      useRootNavigator: true,
       builder: (ctx) => AlertDialog(
         title: Text('Leave "${w.name}"?'),
         content: const Text("You'll lose access to this workspace. An admin can re-invite you later."),

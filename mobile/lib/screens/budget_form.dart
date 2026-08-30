@@ -12,6 +12,7 @@ import '../widgets/discard_guard.dart';
 Future<void> showBudgetForm(BuildContext context, {Budget? existing}) {
   return showModalBottomSheet<void>(
     context: context,
+    useRootNavigator: true,
     isScrollControlled: true,
     // Guarded form: a swipe-down would pop the route without asking, so
     // dragging is off and DiscardGuard supplies the close button.

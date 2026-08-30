@@ -593,6 +593,7 @@ class _InboxCardState extends State<_InboxCard> {
 void _showInvite(BuildContext context) {
   showModalBottomSheet<void>(
     context: context,
+    useRootNavigator: true,
     isScrollControlled: true,
     showDragHandle: true,
     builder: (_) => Padding(
@@ -680,6 +681,7 @@ class _InviteSheetState extends State<_InviteSheet> {
 void _showAddExpense(BuildContext context, List<_Partner> partners) {
   showModalBottomSheet<void>(
     context: context,
+    useRootNavigator: true,
     isScrollControlled: true,
     showDragHandle: true,
     builder: (_) => Padding(
@@ -910,6 +912,7 @@ class _AddExpenseSheetState extends State<_AddExpenseSheet> {
 void _showSettle(BuildContext context, _Partner partner, double suggested) {
   showModalBottomSheet<void>(
     context: context,
+    useRootNavigator: true,
     isScrollControlled: true,
     showDragHandle: true,
     builder: (_) => Padding(
@@ -1036,6 +1039,7 @@ class _SettleSheetState extends State<_SettleSheet> {
 void _showConflict(BuildContext context, SharedEntry entry) {
   showModalBottomSheet<void>(
     context: context,
+    useRootNavigator: true,
     isScrollControlled: true,
     showDragHandle: true,
     builder: (_) => Padding(
