@@ -52,7 +52,9 @@ ThemeData _base(Brightness brightness, ColorScheme scheme) {
       // (without this the title rendered near-invisible on the light surface).
       foregroundColor: scheme.onSurface,
       iconTheme: IconThemeData(color: scheme.onSurface),
-      titleTextStyle: textTheme.titleLarge?.copyWith(fontSize: 20, color: scheme.onSurface),
+      toolbarHeight: 64,
+      titleTextStyle: textTheme.titleLarge
+          ?.copyWith(fontSize: 23, fontWeight: FontWeight.w700, letterSpacing: -0.5, color: scheme.onSurface),
     ),
     cardTheme: CardThemeData(
       // Cards sit a step ABOVE the scaffold surface so they lift off the

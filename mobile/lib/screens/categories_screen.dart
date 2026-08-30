@@ -108,10 +108,10 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
           ),
         ),
         floatingActionButton: canManage
-            ? FloatingActionButton(
+            ? GradientFab(
               onPressed: () => showCategoryForm(context),
               tooltip: 'Add category',
-              child: const Icon(Icons.add),
+              icon: Icons.add,
             )
             : null,
         body: Column(

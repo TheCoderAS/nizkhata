@@ -211,10 +211,10 @@ class _DuesScreenState extends State<DuesScreen> {
     return Scaffold(
       appBar: widget.standalone ? AppBar(title: const Text('Dues')) : null,
       floatingActionButton: canManage
-          ? FloatingActionButton(
+          ? GradientFab(
               onPressed: () => showDueForm(context),
               tooltip: 'Add due',
-              child: const Icon(Icons.add),
+              icon: Icons.add,
             )
           : null,
       body: Column(

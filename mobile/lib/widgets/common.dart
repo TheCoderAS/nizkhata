@@ -211,13 +211,21 @@ class EmptyView extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 64,
-              height: 64,
+              width: 72,
+              height: 72,
               decoration: BoxDecoration(
-                color: cs.surfaceContainerHighest.withValues(alpha: 0.6),
-                shape: BoxShape.circle,
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    AppColors.brand.withValues(alpha: 0.20),
+                    AppColors.brandTo.withValues(alpha: 0.10),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.6)),
               ),
-              child: Icon(icon, size: 30, color: cs.onSurfaceVariant),
+              child: Icon(icon, size: 30, color: cs.primary),
             ),
             const SizedBox(height: 16),
             Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
@@ -433,6 +441,93 @@ class _SearchFieldState extends State<SearchField> {
                 },
               ),
       ),
+    );
+  }
+}
+
+/// The app's action button: a rounded square in the brand gradient, echoing
+/// the nav pill and the cards rather than Material's flat circle.
+class GradientFab extends StatelessWidget {
+  final VoidCallback onPressed;
+  final String tooltip;
+  final IconData icon;
+
+  /// Overrides [icon] — for buttons whose glyph animates (the transactions
+  /// FAB rotates its plus into a close).
+  final Widget? child;
+  const GradientFab({
+    super.key,
+    required this.onPressed,
+    required this.tooltip,
+    this.icon = Icons.add,
+    this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // MergeSemantics: without it the InkWell publishes its own unlabelled
+    // button node beside this one, and a screen reader reads an anonymous
+    // button.
+    return MergeSemantics(
+      child: Tooltip(
+        message: tooltip,
+        child: Semantics(
+          button: true,
+          label: tooltip,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: brandGradient,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.brand.withValues(alpha: 0.38),
+                  blurRadius: 18,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+            ),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(20),
+                onTap: onPressed,
+                child: SizedBox(
+                  width: 56,
+                  height: 56,
+                  child: IconTheme(
+                    data: const IconThemeData(color: Colors.white, size: 26),
+                    child: child ?? Icon(icon),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Fades and lifts a list card into place. Subtle on purpose: enough to make a
+/// list feel built rather than dumped, not enough to notice twice.
+class EntranceFade extends StatelessWidget {
+  final Widget child;
+
+  /// Position in the list, used to stagger the first few rows.
+  final int index;
+  const EntranceFade({super.key, required this.child, this.index = 0});
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: Duration(milliseconds: 220 + (index.clamp(0, 6) * 25)),
+      curve: Curves.easeOut,
+      builder: (context, t, child) => Opacity(
+        opacity: t,
+        child: Transform.translate(offset: Offset(0, (1 - t) * 10), child: child),
+      ),
+      child: child,
     );
   }
 }

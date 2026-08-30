@@ -8,6 +8,7 @@
 import 'package:flutter/material.dart';
 
 import '../core/column_prefs.dart';
+import 'common.dart';
 
 enum CardRole { title, amount, meta }
 
@@ -202,7 +203,7 @@ class _EntityCardListState<T> extends State<EntityCardList<T>> {
             padding: widget.padding,
             itemCount: rows.length,
             separatorBuilder: (_, __) => const SizedBox(height: 10),
-            itemBuilder: (_, i) => _card(context, rows[i]),
+            itemBuilder: (_, i) => EntranceFade(index: i, child: _card(context, rows[i])),
           ),
         ),
       ],

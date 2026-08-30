@@ -32,10 +32,10 @@ class AccountsScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('Accounts')),
       floatingActionButton: canManage
-          ? FloatingActionButton(
+          ? GradientFab(
               onPressed: () => showAccountForm(context),
               tooltip: 'Add account',
-              child: const Icon(Icons.add),
+              icon: Icons.add,
             )
           : null,
       body: accounts.isEmpty
