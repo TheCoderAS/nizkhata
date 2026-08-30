@@ -14,6 +14,7 @@ import '../widgets/undo_delete.dart';
 import 'debt_detail.dart';
 import 'due_detail.dart';
 import 'split_transaction_form.dart';
+import '../widgets/common.dart';
 
 
 /// Read-only detail sheet for a transaction. Lists each line and the total,
@@ -73,11 +74,11 @@ class _TransactionDetail extends StatelessWidget {
           children: [
             Text('Transaction', style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 16),
-            _row(context, 'Date', formatDate(txn.date)),
-            _row(context, 'Account', account),
-            if (contact != null) _row(context, 'Contact', contact),
-            _row(context, 'Financial year', txn.financialYear),
-            if (txn.note?.isNotEmpty == true) _row(context, 'Note', txn.note!),
+            DetailRow('Date', formatDate(txn.date)),
+            DetailRow('Account', account),
+            if (contact != null) DetailRow('Contact', contact),
+            DetailRow('Financial year', txn.financialYear),
+            if (txn.note?.isNotEmpty == true) DetailRow('Note', txn.note!),
             _linkedRow(context, data),
             const SizedBox(height: 12),
             const Divider(height: 1),
@@ -252,19 +253,6 @@ class _TransactionDetail extends StatelessWidget {
     );
   }
 
-  Widget _row(BuildContext context, String label, String value) {
-    final cs = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(width: 90, child: Text(label, style: TextStyle(color: cs.onSurfaceVariant))),
-          Expanded(child: Text(value)),
-        ],
-      ),
-    );
-  }
 
   Widget _lineTile(BuildContext context, DataController data, TxnLine line, String currency) {
     final cs = Theme.of(context).colorScheme;

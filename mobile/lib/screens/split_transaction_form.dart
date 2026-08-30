@@ -11,6 +11,7 @@ import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
 import '../widgets/txn_lines_editor.dart';
 import '../widgets/discard_guard.dart';
+import '../widgets/common.dart';
 
 /// THE transaction sheet — create and edit. One form for everything: a header
 /// (date / account / contact / note) plus a dynamic list of typed lines with
@@ -204,7 +205,7 @@ class _TransactionFormState extends State<_TransactionForm> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _sectionLabel('Details'),
+              SectionLabel('Details'),
               // Date
               InkWell(
                 onTap: () async {
@@ -316,16 +317,4 @@ class _TransactionFormState extends State<_TransactionForm> {
     );
   }
 
-  Widget _sectionLabel(String text) => Padding(
-        padding: const EdgeInsets.only(bottom: 8),
-        child: Text(
-          text.toUpperCase(),
-          style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                fontSize: 12,
-                letterSpacing: 0.4,
-                fontWeight: FontWeight.w600,
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-        ),
-      );
 }

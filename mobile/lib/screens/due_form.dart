@@ -12,6 +12,7 @@ import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
 import '../widgets/txn_lines_editor.dart';
 import '../widgets/discard_guard.dart';
+import '../widgets/common.dart';
 
 /// Create/edit due sheet — a due is authored exactly like a transaction: the
 /// same multi-line editor (typed lines, categories, tax info), plus a due date
@@ -182,18 +183,6 @@ class _DueFormState extends State<_DueForm> {
     }
   }
 
-  Widget _sectionLabel(String text) => Padding(
-        padding: const EdgeInsets.only(bottom: 10),
-        child: Text(
-          text.toUpperCase(),
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            letterSpacing: 0.4,
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
-          ),
-        ),
-      );
 
   @override
   Widget build(BuildContext context) {
@@ -296,7 +285,7 @@ class _DueFormState extends State<_DueForm> {
                   ),
               ],
               const SizedBox(height: 22),
-              _sectionLabel('Linked to (optional)'),
+              SectionLabel('Linked to (optional)'),
               DropdownButtonFormField<String>(
                 value: _recurrence,
                 decoration: const InputDecoration(labelText: 'Repeats'),

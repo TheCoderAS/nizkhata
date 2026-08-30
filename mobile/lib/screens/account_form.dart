@@ -7,6 +7,7 @@ import '../data/mutations.dart';
 import '../state/auth_controller.dart';
 import '../state/workspace_controller.dart';
 import '../widgets/discard_guard.dart';
+import '../widgets/common.dart';
 
 /// Create/edit account sheet. Ports the web AccountDialog (type-conditional meta).
 Future<void> showAccountForm(BuildContext context, {Account? existing}) {
@@ -114,18 +115,6 @@ class _AccountFormState extends State<_AccountForm> {
     }
   }
 
-  Widget _sectionLabel(String text) => Padding(
-        padding: const EdgeInsets.only(bottom: 10),
-        child: Text(
-          text.toUpperCase(),
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            letterSpacing: 0.4,
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
-          ),
-        ),
-      );
 
   @override
   Widget build(BuildContext context) {
@@ -148,7 +137,7 @@ class _AccountFormState extends State<_AccountForm> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _sectionLabel('Account'),
+              SectionLabel('Account'),
               TextFormField(
                 controller: _name,
                 decoration: const InputDecoration(labelText: 'Name'),
@@ -178,7 +167,7 @@ class _AccountFormState extends State<_AccountForm> {
               ),
               if (_type == 'bank') ...[
                 const SizedBox(height: 22),
-                _sectionLabel('Bank details'),
+                SectionLabel('Bank details'),
                 TextFormField(controller: _accountNumber, decoration: const InputDecoration(labelText: 'Account number')),
                 const SizedBox(height: 14),
                 TextFormField(controller: _cif, decoration: const InputDecoration(labelText: 'CIF')),
@@ -194,7 +183,7 @@ class _AccountFormState extends State<_AccountForm> {
               ],
               if (_type == 'credit_card') ...[
                 const SizedBox(height: 22),
-                _sectionLabel('Card details'),
+                SectionLabel('Card details'),
                 TextFormField(controller: _nameOnCard, decoration: const InputDecoration(labelText: 'Name on card')),
                 const SizedBox(height: 14),
                 TextFormField(
@@ -221,7 +210,7 @@ class _AccountFormState extends State<_AccountForm> {
                 ),
               ],
               const SizedBox(height: 22),
-              _sectionLabel('Notes'),
+              SectionLabel('Notes'),
               TextFormField(
                 controller: _description,
                 decoration: const InputDecoration(labelText: 'Notes (optional)'),

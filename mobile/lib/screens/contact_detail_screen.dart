@@ -554,11 +554,11 @@ class ContactDetailScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _row(context, 'Transactions', '$txnCount'),
-                _row(context, 'Total received', formatMoney(position.totalIn, currency)),
-                _row(context, 'Total paid', formatMoney(position.totalOut, currency)),
-                _row(context, 'Open debts', '$openDebts'),
-                _row(context, 'Net position', formatMoney(position.net, currency)),
+                DetailRow('Transactions', '$txnCount'),
+                DetailRow('Total received', formatMoney(position.totalIn, currency)),
+                DetailRow('Total paid', formatMoney(position.totalOut, currency)),
+                DetailRow('Open debts', '$openDebts'),
+                DetailRow('Net position', formatMoney(position.net, currency)),
               ],
             ),
           ),
@@ -567,16 +567,6 @@ class ContactDetailScreen extends StatelessWidget {
     );
   }
 
-  Widget _row(BuildContext context, String label, String value) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(label, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
-            Text(value, style: const TextStyle(fontWeight: FontWeight.w600)),
-          ],
-        ),
-      );
 
   // ---- shareable khata -----------------------------------------------------
 

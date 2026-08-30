@@ -314,3 +314,125 @@ class ListSkeleton extends StatelessWidget {
     );
   }
 }
+
+// ---- shared screen atoms ---------------------------------------------------
+// These existed as private copies in five or six screens that had quietly
+// drifted apart (different label spacing, one detail sheet laying its rows out
+// side-by-side while the rest used a label column, a search field with a clear
+// button on one screen only). One definition each, so a component looks the
+// same wherever it turns up.
+
+/// Small caps heading above a group of fields in a form sheet.
+class SectionLabel extends StatelessWidget {
+  final String text;
+  const SectionLabel(this.text, {super.key});
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: Text(
+          text.toUpperCase(),
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.4,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
+      );
+}
+
+/// One "label: value" line in a read-only detail sheet. The label sits in a
+/// fixed column so values line up down the sheet.
+class DetailRow extends StatelessWidget {
+  final String label;
+  final String value;
+  const DetailRow(this.label, this.value, {super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(width: 90, child: Text(label, style: TextStyle(color: cs.onSurfaceVariant))),
+          Expanded(child: Text(value)),
+        ],
+      ),
+    );
+  }
+}
+
+/// An active filter, shown as a chip you can dismiss to clear that filter.
+class RemovableChip extends StatelessWidget {
+  final String label;
+  final VoidCallback onClear;
+  const RemovableChip(this.label, this.onClear, {super.key});
+
+  @override
+  Widget build(BuildContext context) => InputChip(
+        label: Text(label),
+        onDeleted: onClear,
+        deleteIcon: const Icon(Icons.close, size: 16),
+      );
+}
+
+/// The search box at the top of a list screen. Always offers a clear button
+/// once there is something to clear.
+class SearchField extends StatefulWidget {
+  final String hint;
+  final ValueChanged<String> onChanged;
+
+  /// Supply one only when the screen needs to clear or seed the box itself.
+  final TextEditingController? controller;
+
+  const SearchField({
+    super.key,
+    required this.hint,
+    required this.onChanged,
+    this.controller,
+  });
+
+  @override
+  State<SearchField> createState() => _SearchFieldState();
+}
+
+class _SearchFieldState extends State<SearchField> {
+  TextEditingController? _own;
+  TextEditingController get _controller => widget.controller ?? (_own ??= TextEditingController());
+
+  @override
+  void dispose() {
+    _own?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: _controller,
+      onChanged: (v) {
+        widget.onChanged(v);
+        setState(() {}); // reveal/hide the clear button
+      },
+      decoration: InputDecoration(
+        hintText: widget.hint,
+        prefixIcon: const Icon(Icons.search, size: 20),
+        isDense: true,
+        suffixIcon: _controller.text.isEmpty
+            ? null
+            : IconButton(
+                tooltip: 'Clear',
+                icon: const Icon(Icons.close, size: 18),
+                onPressed: () {
+                  _controller.clear();
+                  widget.onChanged('');
+                  setState(() {});
+                },
+              ),
+      ),
+    );
+  }
+}
