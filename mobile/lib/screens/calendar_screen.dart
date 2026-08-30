@@ -9,9 +9,29 @@ import '../data/derive.dart';
 import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
 
-/// Cash-flow calendar — a month grid with dues marked on their day (green
-/// receivable / red payable dots, settled ones muted). Tapping a day opens the
-/// existing dues-day drill-down.
+/// Per-day due totals for one month.
+typedef _MonthDues = ({
+  Map<int, double> receivable,
+  Map<int, double> payable,
+  Set<int> settled,
+});
+
+/// Month shown on swipe page [page], counting from [base] at [initialPage].
+/// Dart's DateTime normalizes out-of-range months, so this rolls over years.
+DateTime calendarMonthForPage(DateTime base, int page, int initialPage) =>
+    DateTime(base.year, base.month + (page - initialPage));
+
+/// Week rows needed to lay [month] out on a Sunday-first grid (4 to 6).
+int calendarGridRows(DateTime month) {
+  final firstWeekday = DateTime(month.year, month.month, 1).weekday % 7;
+  final daysInMonth = DateTime(month.year, month.month + 1, 0).day;
+  return ((firstWeekday + daysInMonth) / 7).ceil();
+}
+
+/// Cash-flow calendar — a month grid with dues marked on their day as coloured
+/// stripes (green receivable / red payable, settled muted), the way a calendar
+/// app marks event days. Swipe left/right to move between months; tapping a day
+/// opens the dues-day drill-down.
 class CalendarScreen extends StatefulWidget {
   const CalendarScreen({super.key});
 
@@ -20,7 +40,55 @@ class CalendarScreen extends StatefulWidget {
 }
 
 class _CalendarScreenState extends State<CalendarScreen> {
-  late DateTime _month = DateTime(DateTime.now().year, DateTime.now().month);
+  // Pages are months either side of the month the screen opened on; the initial
+  // index leaves ~100 years of swiping in both directions.
+  static const _initialPage = 1200;
+  static const _pageCount = 2401;
+
+  final DateTime _baseMonth = DateTime(DateTime.now().year, DateTime.now().month);
+  late final PageController _pager = PageController(initialPage: _initialPage);
+  late DateTime _month = _baseMonth;
+
+  @override
+  void dispose() {
+    _pager.dispose();
+    super.dispose();
+  }
+
+  DateTime _monthForPage(int page) =>
+      calendarMonthForPage(_baseMonth, page, _initialPage);
+
+  void _step(int delta) {
+    final page = (_pager.page ?? _initialPage.toDouble()).round() + delta;
+    _pager.animateToPage(
+      page.clamp(0, _pageCount - 1),
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOut,
+    );
+  }
+
+  /// Open amounts per day of [month], and the days whose dues are all settled.
+  _MonthDues _duesFor(DataController data, DateTime month) {
+    final receivable = <int, double>{};
+    final payable = <int, double>{};
+    final settled = <int>{};
+    for (final d in data.dues) {
+      if (d.dueDate.year != month.year || d.dueDate.month != month.month) continue;
+      final st = dueStatusFromSettled(d, data.settledOf(d.id));
+      if (st == 'cancelled') continue;
+      final remaining = d.amount - data.settledOf(d.id);
+      if (st == 'settled' || remaining <= 0.005) {
+        settled.add(d.dueDate.day);
+        continue;
+      }
+      if (d.direction == 'receivable') {
+        receivable[d.dueDate.day] = (receivable[d.dueDate.day] ?? 0) + remaining;
+      } else {
+        payable[d.dueDate.day] = (payable[d.dueDate.day] ?? 0) + remaining;
+      }
+    }
+    return (receivable: receivable, payable: payable, settled: settled);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -30,36 +98,28 @@ class _CalendarScreenState extends State<CalendarScreen> {
     final cs = Theme.of(context).colorScheme;
     final today = DateTime.now();
 
-    // Per-day open amounts for the visible month.
-    final receivableByDay = <int, double>{};
-    final payableByDay = <int, double>{};
-    final settledDays = <int>{};
-    for (final d in data.dues) {
-      if (d.dueDate.year != _month.year || d.dueDate.month != _month.month) continue;
-      final st = dueStatusFromSettled(d, data.settledOf(d.id));
-      if (st == 'cancelled') continue;
-      final remaining = d.amount - data.settledOf(d.id);
-      if (st == 'settled' || remaining <= 0.005) {
-        settledDays.add(d.dueDate.day);
-        continue;
-      }
-      if (d.direction == 'receivable') {
-        receivableByDay[d.dueDate.day] = (receivableByDay[d.dueDate.day] ?? 0) + remaining;
-      } else {
-        payableByDay[d.dueDate.day] = (payableByDay[d.dueDate.day] ?? 0) + remaining;
-      }
-    }
+    // Totals for the month currently on screen (drives the footer legend).
+    final visible = _duesFor(data, _month);
     var monthIn = 0.0, monthOut = 0.0;
-    receivableByDay.forEach((_, v) => monthIn += v);
-    payableByDay.forEach((_, v) => monthOut += v);
-
-    final firstWeekday = DateTime(_month.year, _month.month, 1).weekday % 7; // Sun = 0
-    final daysInMonth = DateTime(_month.year, _month.month + 1, 0).day;
-    final cells = firstWeekday + daysInMonth;
-    final rows = (cells / 7).ceil();
+    visible.receivable.forEach((_, v) => monthIn += v);
+    visible.payable.forEach((_, v) => monthOut += v);
+    final isThisMonth = _month.year == today.year && _month.month == today.month;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Calendar')),
+      appBar: AppBar(
+        title: const Text('Calendar'),
+        actions: [
+          if (!isThisMonth)
+            TextButton(
+              onPressed: () => _pager.animateToPage(
+                _initialPage,
+                duration: const Duration(milliseconds: 260),
+                curve: Curves.easeOut,
+              ),
+              child: const Text('Today'),
+            ),
+        ],
+      ),
       body: Column(
         children: [
           Padding(
@@ -68,8 +128,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
               children: [
                 IconButton(
                   icon: const Icon(Icons.chevron_left),
-                  onPressed: () =>
-                      setState(() => _month = DateTime(_month.year, _month.month - 1)),
+                  tooltip: 'Previous month',
+                  onPressed: () => _step(-1),
                 ),
                 Expanded(
                   child: Text(
@@ -80,8 +140,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 ),
                 IconButton(
                   icon: const Icon(Icons.chevron_right),
-                  onPressed: () =>
-                      setState(() => _month = DateTime(_month.year, _month.month + 1)),
+                  tooltip: 'Next month',
+                  onPressed: () => _step(1),
                 ),
               ],
             ),
@@ -105,22 +165,14 @@ class _CalendarScreenState extends State<CalendarScreen> {
           ),
           const SizedBox(height: 4),
           Expanded(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: Column(
-                children: [
-                  for (var r = 0; r < rows; r++)
-                    Expanded(
-                      child: Row(
-                        children: [
-                          for (var c = 0; c < 7; c++)
-                            Expanded(child: _dayCell(context, r * 7 + c - firstWeekday + 1,
-                                daysInMonth, receivableByDay, payableByDay, settledDays, today)),
-                        ],
-                      ),
-                    ),
-                ],
-              ),
+            child: PageView.builder(
+              controller: _pager,
+              itemCount: _pageCount,
+              onPageChanged: (p) => setState(() => _month = _monthForPage(p)),
+              itemBuilder: (context, page) {
+                final month = _monthForPage(page);
+                return _monthGrid(context, month, _duesFor(data, month), today, currency);
+              },
             ),
           ),
           SafeArea(
@@ -145,71 +197,138 @@ class _CalendarScreenState extends State<CalendarScreen> {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+        Container(
+          width: 14,
+          height: 4,
+          decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(2)),
+        ),
         const SizedBox(width: 6),
         Text(label, style: const TextStyle(fontSize: 12)),
       ],
     );
   }
 
+  Widget _monthGrid(
+    BuildContext context,
+    DateTime month,
+    _MonthDues dues,
+    DateTime today,
+    String currency,
+  ) {
+    final firstWeekday = DateTime(month.year, month.month, 1).weekday % 7; // Sun = 0
+    final daysInMonth = DateTime(month.year, month.month + 1, 0).day;
+    final rows = calendarGridRows(month);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: Column(
+        children: [
+          for (var r = 0; r < rows; r++)
+            Expanded(
+              child: Row(
+                children: [
+                  for (var c = 0; c < 7; c++)
+                    Expanded(
+                      child: _dayCell(
+                        context,
+                        month,
+                        r * 7 + c - firstWeekday + 1,
+                        daysInMonth,
+                        dues,
+                        today,
+                        currency,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
   Widget _dayCell(
     BuildContext context,
+    DateTime month,
     int day,
     int daysInMonth,
-    Map<int, double> receivable,
-    Map<int, double> payable,
-    Set<int> settled,
+    _MonthDues dues,
     DateTime today,
+    String currency,
   ) {
     if (day < 1 || day > daysInMonth) return const SizedBox.shrink();
     final cs = Theme.of(context).colorScheme;
     final isToday =
-        today.year == _month.year && today.month == _month.month && today.day == day;
-    final hasR = receivable.containsKey(day);
-    final hasP = payable.containsKey(day);
-    final hasSettled = settled.contains(day);
-    final date = DateTime(_month.year, _month.month, day);
-    return InkWell(
-      borderRadius: BorderRadius.circular(10),
-      onTap: (hasR || hasP || hasSettled)
-          ? () => context.push('/dues-day?date=${date.year}-'
-              '${date.month.toString().padLeft(2, '0')}-'
-              '${date.day.toString().padLeft(2, '0')}')
-          : null,
-      child: Container(
-        margin: const EdgeInsets.all(2),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(10),
-          color: isToday ? cs.primary.withValues(alpha: 0.12) : null,
-          border: isToday ? Border.all(color: cs.primary.withValues(alpha: 0.5)) : null,
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text('$day',
-                style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: isToday ? FontWeight.w700 : FontWeight.w400,
-                    color: cs.onSurface)),
-            const SizedBox(height: 3),
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (hasR) _dot(AppColors.accent2),
-                if (hasP) _dot(AppColors.danger),
-                if (!hasR && !hasP && hasSettled) _dot(cs.outlineVariant),
-              ],
-            ),
-          ],
+        today.year == month.year && today.month == month.month && today.day == day;
+    final r = dues.receivable[day];
+    final p = dues.payable[day];
+    final hasSettled = dues.settled.contains(day);
+    final hasAny = r != null || p != null || hasSettled;
+    final date = DateTime(month.year, month.month, day);
+
+    // Colour alone can't carry the meaning — spell the day out for screen
+    // readers, since the stripes are the only visual marker.
+    final parts = <String>[
+      if (r != null) 'to receive ${formatMoney(r, currency)}',
+      if (p != null) 'to pay ${formatMoney(p, currency)}',
+      if (r == null && p == null && hasSettled) 'settled dues',
+    ];
+    final label = '${DateFormat('d MMMM').format(date)}'
+        '${parts.isEmpty ? '' : ', ${parts.join(', ')}'}';
+
+    return Semantics(
+      label: label,
+      button: hasAny,
+      excludeSemantics: true,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(10),
+        onTap: hasAny
+            ? () => context.push('/dues-day?date=${date.year}-'
+                '${date.month.toString().padLeft(2, '0')}-'
+                '${date.day.toString().padLeft(2, '0')}')
+            : null,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Date sits at the top of the cell, today ringed in a filled
+              // circle, with the day's stripes stacked beneath it.
+              SizedBox(
+                height: 22,
+                child: Center(
+                  child: Container(
+                    width: 22,
+                    height: 22,
+                    alignment: Alignment.center,
+                    decoration: isToday
+                        ? BoxDecoration(color: cs.primary, shape: BoxShape.circle)
+                        : null,
+                    child: Text(
+                      '$day',
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: isToday ? FontWeight.w700 : FontWeight.w400,
+                        color: isToday ? cs.onPrimary : cs.onSurface,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 3),
+              if (r != null) _stripe(AppColors.accent2),
+              if (p != null) _stripe(AppColors.danger),
+              if (r == null && p == null && hasSettled) _stripe(cs.outlineVariant),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _dot(Color c) => Container(
-        width: 6,
-        height: 6,
-        margin: const EdgeInsets.symmetric(horizontal: 1.5),
-        decoration: BoxDecoration(color: c, shape: BoxShape.circle),
+  Widget _stripe(Color c) => Container(
+        height: 4,
+        margin: const EdgeInsets.only(bottom: 3),
+        decoration: BoxDecoration(color: c, borderRadius: BorderRadius.circular(2)),
       );
 }
