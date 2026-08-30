@@ -24,10 +24,10 @@ Future<void> showDebtForm(BuildContext context, {Debt? existing}) {
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
-// Guarded form: a swipe-down would pop the route without asking, so
-// dragging is off and DiscardGuard supplies the close button.
-showDragHandle: false,
-enableDrag: false,
+    // Guarded form: a swipe-down would pop the route without asking, so
+    // dragging is off and DiscardGuard supplies the close button.
+    showDragHandle: false,
+    enableDrag: false,
     builder: (_) => Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: _DebtForm(existing: existing),
@@ -147,7 +147,11 @@ class _DebtFormState extends State<_DebtForm> {
 
   @override
   Widget build(BuildContext context) {
-    return DiscardGuard(isDirty: () => _fp() != _fp0, child: _buildContent(context));
+    return DiscardGuard(
+      title: _isEdit ? 'Edit debt' : 'New debt',
+      isDirty: () => _fp() != _fp0,
+      child: _buildContent(context),
+    );
   }
 
   Widget _buildContent(BuildContext context) {
@@ -157,7 +161,7 @@ class _DebtFormState extends State<_DebtForm> {
 
     return Padding(
       padding: EdgeInsets.fromLTRB(
-          20, 4, 20, 20 + MediaQuery.of(context).padding.bottom),
+          20, 0, 20, 20 + MediaQuery.of(context).padding.bottom),
       child: SingleChildScrollView(
         child: Form(
           key: _formKey,
@@ -165,9 +169,6 @@ class _DebtFormState extends State<_DebtForm> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(_isEdit ? 'Edit debt' : 'New debt',
-                  style: Theme.of(context).textTheme.titleLarge),
-              const SizedBox(height: 20),
               _sectionLabel('Terms'),
               DropdownButtonFormField<String>(
                 value: _contactId,

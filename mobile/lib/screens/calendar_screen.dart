@@ -8,6 +8,8 @@ import '../core/theme.dart';
 import '../data/derive.dart';
 import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
+import 'due_form.dart';
+import 'split_transaction_form.dart';
 
 /// Per-day due totals for one month.
 typedef _MonthDues = ({
@@ -263,7 +265,6 @@ class _CalendarScreenState extends State<CalendarScreen> {
     final r = dues.receivable[day];
     final p = dues.payable[day];
     final hasSettled = dues.settled.contains(day);
-    final hasAny = r != null || p != null || hasSettled;
     final date = DateTime(month.year, month.month, day);
 
     // Colour alone can't carry the meaning — spell the day out for screen
@@ -278,15 +279,13 @@ class _CalendarScreenState extends State<CalendarScreen> {
 
     return Semantics(
       label: label,
-      button: hasAny,
+      button: true,
       excludeSemantics: true,
       child: InkWell(
         borderRadius: BorderRadius.circular(10),
-        onTap: hasAny
-            ? () => context.push('/dues-day?date=${date.year}-'
-                '${date.month.toString().padLeft(2, '0')}-'
-                '${date.day.toString().padLeft(2, '0')}')
-            : null,
+        // Every day is actionable, not just the ones carrying dues: tapping
+        // opens what you can do on that date.
+        onTap: () => _openDayActions(context, date),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
           child: Column(
@@ -321,6 +320,87 @@ class _CalendarScreenState extends State<CalendarScreen> {
               if (r == null && p == null && hasSettled) _stripe(cs.outlineVariant),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  /// What you can do with one day: add to it, or look at what's already there.
+  /// Counts come along so the sheet says whether looking is worth it.
+  void _openDayActions(BuildContext context, DateTime date) {
+    final data = context.read<DataController>();
+    final ws = context.read<WorkspaceController>();
+    final iso = '${date.year}-'
+        '${date.month.toString().padLeft(2, '0')}-'
+        '${date.day.toString().padLeft(2, '0')}';
+
+    bool sameDay(DateTime d) =>
+        d.year == date.year && d.month == date.month && d.day == date.day;
+    final dueCount = data.dues.where((d) => sameDay(d.dueDate)).length;
+    final txnCount = data.transactions.where((t) => sameDay(t.date)).length;
+
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetCtx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+              child: Text(DateFormat('EEEE, d MMMM yyyy').format(date),
+                  style: Theme.of(sheetCtx).textTheme.titleMedium),
+            ),
+            if (ws.can('transactions.create'))
+              ListTile(
+                leading: const Icon(Icons.receipt_long_outlined),
+                title: const Text('Add transaction'),
+                onTap: () {
+                  Navigator.pop(sheetCtx);
+                  showSplitTransactionForm(context, initialDate: date);
+                },
+              ),
+            if (ws.can('dues.manage'))
+              ListTile(
+                leading: const Icon(Icons.event_available_outlined),
+                title: const Text('Add due'),
+                onTap: () {
+                  Navigator.pop(sheetCtx);
+                  showDueForm(context, initialDate: date);
+                },
+              ),
+            if (ws.can('transactions.view'))
+              ListTile(
+                enabled: txnCount > 0,
+                leading: const Icon(Icons.list_alt_outlined),
+                title: const Text('View transactions'),
+                subtitle: Text(txnCount == 0
+                    ? 'Nothing recorded on this day'
+                    : '$txnCount on this day'),
+                onTap: txnCount == 0
+                    ? null
+                    : () {
+                        Navigator.pop(sheetCtx);
+                        context.push('/txns?date=$iso');
+                      },
+              ),
+            if (ws.can('dues.view'))
+              ListTile(
+                enabled: dueCount > 0,
+                leading: const Icon(Icons.event_note_outlined),
+                title: const Text('View dues'),
+                subtitle: Text(
+                    dueCount == 0 ? 'Nothing due on this day' : '$dueCount on this day'),
+                onTap: dueCount == 0
+                    ? null
+                    : () {
+                        Navigator.pop(sheetCtx);
+                        context.push('/dues-day?date=$iso');
+                      },
+              ),
+            const SizedBox(height: 8),
+          ],
         ),
       ),
     );

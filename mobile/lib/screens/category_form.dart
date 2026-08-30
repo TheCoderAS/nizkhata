@@ -12,10 +12,10 @@ Future<void> showCategoryForm(BuildContext context, {AppCategory? existing}) {
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
-// Guarded form: a swipe-down would pop the route without asking, so
-// dragging is off and DiscardGuard supplies the close button.
-showDragHandle: false,
-enableDrag: false,
+    // Guarded form: a swipe-down would pop the route without asking, so
+    // dragging is off and DiscardGuard supplies the close button.
+    showDragHandle: false,
+    enableDrag: false,
     builder: (_) => Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: _CategoryForm(existing: existing),
@@ -82,13 +82,17 @@ class _CategoryFormState extends State<_CategoryForm> {
 
   @override
   Widget build(BuildContext context) {
-    return DiscardGuard(isDirty: () => _fp() != _fp0, child: _buildContent(context));
+    return DiscardGuard(
+      title: widget.existing == null ? 'New category' : 'Edit category',
+      isDirty: () => _fp() != _fp0,
+      child: _buildContent(context),
+    );
   }
 
   Widget _buildContent(BuildContext context) {
     return Padding(
       padding: EdgeInsets.fromLTRB(
-          20, 4, 20, 20 + MediaQuery.of(context).padding.bottom),
+          20, 0, 20, 20 + MediaQuery.of(context).padding.bottom),
       child: SingleChildScrollView(
         child: Form(
           key: _formKey,
@@ -96,9 +100,6 @@ class _CategoryFormState extends State<_CategoryForm> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(widget.existing == null ? 'New category' : 'Edit category',
-                  style: Theme.of(context).textTheme.titleLarge),
-              const SizedBox(height: 16),
               TextFormField(
                 controller: _name,
                 decoration: const InputDecoration(labelText: 'Name'),

@@ -38,10 +38,10 @@ Future<void> showRoleEditor(BuildContext context, {Role? existing}) {
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
-// Guarded form: a swipe-down would pop the route without asking, so
-// dragging is off and DiscardGuard supplies the close button.
-showDragHandle: false,
-enableDrag: false,
+    // Guarded form: a swipe-down would pop the route without asking, so
+    // dragging is off and DiscardGuard supplies the close button.
+    showDragHandle: false,
+    enableDrag: false,
     builder: (_) => Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: _RoleForm(existing: existing),
@@ -121,7 +121,11 @@ class _RoleFormState extends State<_RoleForm> {
 
   @override
   Widget build(BuildContext context) {
-    return DiscardGuard(isDirty: () => _fp() != _fp0, child: _buildContent(context));
+    return DiscardGuard(
+      title: widget.existing == null ? 'New role' : 'Edit role',
+      isDirty: () => _fp() != _fp0,
+      child: _buildContent(context),
+    );
   }
 
   Widget _buildContent(BuildContext context) {
@@ -129,15 +133,12 @@ class _RoleFormState extends State<_RoleForm> {
     return FractionallySizedBox(
       heightFactor: 0.92,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
+        padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
         child: Form(
           key: _formKey,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(widget.existing == null ? 'New role' : 'Edit role',
-                  style: Theme.of(context).textTheme.titleLarge),
-              const SizedBox(height: 16),
               TextFormField(
                 controller: _name,
                 decoration: const InputDecoration(labelText: 'Name'),

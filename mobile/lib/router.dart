@@ -89,6 +89,7 @@ GoRouter buildRouter(AuthController auth) {
           final q = state.uri.queryParameters;
           return TransactionsScreen(
             standalone: true,
+            initialDate: q['date'] == null ? null : DateTime.tryParse(q['date']!),
             initialAccount: q['account'],
             initialContact: q['contact'],
             initialCategory: q['category'],

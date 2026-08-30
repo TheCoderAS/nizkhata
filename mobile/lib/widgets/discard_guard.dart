@@ -18,11 +18,17 @@ class DiscardGuard extends StatelessWidget {
   final bool Function() isDirty;
   final Widget child;
   final bool showCloseButton;
+
+  /// The sheet's heading. Given here rather than inside [child] so it shares a
+  /// row with the close button instead of sitting under it.
+  final String? title;
+
   const DiscardGuard({
     super.key,
     required this.isDirty,
     required this.child,
     this.showCloseButton = true,
+    this.title,
   });
 
   /// Closes the sheet, asking first when there are unsaved edits. Use this
@@ -59,20 +65,32 @@ class DiscardGuard extends StatelessWidget {
         );
         if (discard == true) nav.pop();
       },
-      child: showCloseButton
+      child: (showCloseButton || title != null)
           ? Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(0, 6, 6, 0),
-                    child: IconButton(
-                      tooltip: 'Close',
-                      visualDensity: VisualDensity.compact,
-                      onPressed: () => requestClose(context),
-                      icon: const Icon(Icons.close),
-                    ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 12, 8, 4),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: title == null
+                            ? const SizedBox.shrink()
+                            : Text(
+                                title!,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context).textTheme.titleLarge,
+                              ),
+                      ),
+                      if (showCloseButton)
+                        IconButton(
+                          tooltip: 'Close',
+                          visualDensity: VisualDensity.compact,
+                          onPressed: () => requestClose(context),
+                          icon: const Icon(Icons.close),
+                        ),
+                    ],
                   ),
                 ),
                 Flexible(child: child),

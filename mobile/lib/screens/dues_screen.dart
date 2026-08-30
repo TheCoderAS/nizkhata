@@ -503,10 +503,10 @@ Future<void> showDuePayment(BuildContext context, Due due) {
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
-// Guarded form: a swipe-down would pop the route without asking, so
-// dragging is off and DiscardGuard supplies the close button.
-showDragHandle: false,
-enableDrag: false,
+    // Guarded form: a swipe-down would pop the route without asking, so
+    // dragging is off and DiscardGuard supplies the close button.
+    showDragHandle: false,
+    enableDrag: false,
     builder: (_) => Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: _DuePaymentSheet(due: due),
@@ -594,14 +594,18 @@ class _DuePaymentSheetState extends State<_DuePaymentSheet> {
 
   @override
   Widget build(BuildContext context) {
-    return DiscardGuard(isDirty: () => _fp() != _fp0, child: _buildContent(context));
+    return DiscardGuard(
+      title: 'Record payment: ${widget.due.title}',
+      isDirty: () => _fp() != _fp0,
+      child: _buildContent(context),
+    );
   }
 
   Widget _buildContent(BuildContext context) {
     final data = context.watch<DataController>();
     final accounts = data.accounts;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
       child: SingleChildScrollView(
         child: Form(
           key: _formKey,
@@ -609,9 +613,6 @@ class _DuePaymentSheetState extends State<_DuePaymentSheet> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Record payment: ${widget.due.title}',
-                  style: Theme.of(context).textTheme.titleLarge),
-              const SizedBox(height: 16),
               TextFormField(
                 controller: _amount,
                 decoration: const InputDecoration(labelText: 'Amount', prefixText: '₹ '),

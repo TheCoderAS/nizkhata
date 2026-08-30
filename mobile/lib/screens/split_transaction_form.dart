@@ -16,26 +16,31 @@ import '../widgets/discard_guard.dart';
 /// (date / account / contact / note) plus a dynamic list of typed lines with
 /// "Add line" (single-line by default, split when you add more), including
 /// per-line tax info. Signed total and validation mirror the web engine.
-Future<void> showSplitTransactionForm(BuildContext context, {Txn? existing}) {
+Future<void> showSplitTransactionForm(BuildContext context,
+    {Txn? existing, DateTime? initialDate}) {
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
-// Guarded form: a swipe-down would pop the route without asking, so
-// dragging is off and DiscardGuard supplies the close button.
-showDragHandle: false,
-enableDrag: false,
+    // Guarded form: a swipe-down would pop the route without asking, so
+    // dragging is off and DiscardGuard supplies the close button.
+    showDragHandle: false,
+    enableDrag: false,
     // Own context for MediaQuery — the caller's may be unmounted when this is
     // opened right after the detail sheet pops on Edit (would blank the sheet).
     builder: (ctx) => Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
-      child: _TransactionForm(existing: existing),
+      child: _TransactionForm(existing: existing, initialDate: initialDate),
     ),
   );
 }
 
 class _TransactionForm extends StatefulWidget {
   final Txn? existing;
-  const _TransactionForm({this.existing});
+
+  /// Date to start on when creating — the calendar opens the form on the day
+  /// that was tapped.
+  final DateTime? initialDate;
+  const _TransactionForm({this.existing, this.initialDate});
   @override
   State<_TransactionForm> createState() => _TransactionFormState();
 }
@@ -59,6 +64,7 @@ class _TransactionFormState extends State<_TransactionForm> {
   void initState() {
     super.initState();
     final txn = widget.existing;
+    if (widget.initialDate != null) _date = widget.initialDate!;
     if (txn != null) {
       _date = txn.date;
       _accountId = txn.accountId;
@@ -169,7 +175,11 @@ class _TransactionFormState extends State<_TransactionForm> {
 
   @override
   Widget build(BuildContext context) {
-    return DiscardGuard(isDirty: () => _fp() != _fp0, child: _buildContent(context));
+    return DiscardGuard(
+      title: _isEditing ? 'Edit transaction' : 'New transaction',
+      isDirty: () => _fp() != _fp0,
+      child: _buildContent(context),
+    );
   }
 
   Widget _buildContent(BuildContext context) {
@@ -185,7 +195,7 @@ class _TransactionFormState extends State<_TransactionForm> {
     final canSave = !_busy && accounts.isNotEmpty && errors.isEmpty;
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
       child: SafeArea(
         top: false,
         child: SingleChildScrollView(
@@ -193,9 +203,6 @@ class _TransactionFormState extends State<_TransactionForm> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(_isEditing ? 'Edit transaction' : 'New transaction',
-                  style: Theme.of(context).textTheme.titleLarge),
-              const SizedBox(height: 16),
               _sectionLabel('Details'),
               // Date
               InkWell(
