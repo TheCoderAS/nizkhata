@@ -13,6 +13,7 @@ import '../data/models.dart';
 import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
 import '../widgets/common.dart';
+import '../widgets/segmented_tabs.dart';
 import 'transaction_detail.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -256,23 +257,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
       PeriodKind.fy: 'FY',
       PeriodKind.custom: 'Custom',
     };
-    return SizedBox(
-      width: double.infinity,
-      child: SegmentedButton<PeriodKind>(
-        showSelectedIcon: false,
-        style: ButtonStyle(
-          visualDensity: VisualDensity.compact,
-          textStyle: WidgetStatePropertyAll(
-            Theme.of(context).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
-          ),
-        ),
-        segments: [
-          for (final p in [PeriodKind.week, PeriodKind.month, PeriodKind.year, PeriodKind.fy, PeriodKind.custom])
-            ButtonSegment(value: p, label: Text(short[p]!)),
-        ],
-        selected: {period},
-        onSelectionChanged: (s) => setState(() => period = s.first),
-      ),
+    return SegmentedTabs<PeriodKind>(
+      accent: AppColors.accent2,
+      selected: period,
+      onChanged: (p) => setState(() => period = p),
+      segments: [
+        for (final p in [
+          PeriodKind.week,
+          PeriodKind.month,
+          PeriodKind.year,
+          PeriodKind.fy,
+          PeriodKind.custom
+        ])
+          (p, short[p]!),
+      ],
     );
   }
 

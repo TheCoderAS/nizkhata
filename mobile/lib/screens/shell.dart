@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
+import '../widgets/floating_nav_bar.dart';
 
 class AppShell extends StatefulWidget {
   final Widget child;
@@ -75,16 +76,12 @@ class _AppShellState extends State<AppShell> {
         body: (ws.loading || data.loading)
             ? const Center(child: CircularProgressIndicator())
             : widget.child,
-        bottomNavigationBar: NavigationBar(
+        bottomNavigationBar: FloatingNavBar(
           selectedIndex: _index(tabs),
-          onDestinationSelected: (i) => context.go(tabs[i].$1),
-          destinations: [
+          onSelected: (i) => context.go(tabs[i].$1),
+          items: [
             for (final t in tabs)
-              NavigationDestination(
-                icon: Icon(t.$2),
-                selectedIcon: Icon(t.$3),
-                label: t.$4,
-              ),
+              FloatingNavItem(icon: t.$2, selectedIcon: t.$3, label: t.$4),
           ],
         ),
       ),

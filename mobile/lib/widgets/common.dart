@@ -53,47 +53,59 @@ class StatCard extends StatelessWidget {
         break;
     }
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: Text(label,
-                      style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant)),
-                ),
-                if (icon != null)
-                  Container(
-                    width: 32,
-                    height: 32,
-                    decoration: BoxDecoration(color: iconBg, borderRadius: BorderRadius.circular(9)),
-                    child: Icon(icon, size: 16, color: iconFg),
+      child: DecoratedBox(
+        // A whisper of the card's own tone, strongest at the top-left corner
+        // and gone by the opposite one, so the number is framed by colour
+        // instead of sitting on flat grey.
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [iconFg.withValues(alpha: 0.10), iconFg.withValues(alpha: 0.0)],
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text(label, style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant)),
                   ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            FittedBox(
-              fit: BoxFit.scaleDown,
-              alignment: Alignment.centerLeft,
-              child: Text(
-                formatMoneyCompact(amount, currency),
-                maxLines: 1,
-                softWrap: false,
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: valueColor),
+                  if (icon != null)
+                    Container(
+                      width: 32,
+                      height: 32,
+                      decoration:
+                          BoxDecoration(color: iconBg, borderRadius: BorderRadius.circular(9)),
+                      child: Icon(icon, size: 16, color: iconFg),
+                    ),
+                ],
               ),
-            ),
-            if (hint != null) ...[
-              const SizedBox(height: 4),
-              Text(hint!, style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant)),
+              const SizedBox(height: 8),
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  formatMoneyCompact(amount, currency),
+                  maxLines: 1,
+                  softWrap: false,
+                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: valueColor),
+                ),
+              ),
+              if (hint != null) ...[
+                const SizedBox(height: 4),
+                Text(hint!, style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant)),
+              ],
+              if (chart != null) ...[
+                const SizedBox(height: 10),
+                SizedBox(height: 30, child: chart),
+              ],
             ],
-            if (chart != null) ...[
-              const SizedBox(height: 10),
-              SizedBox(height: 30, child: chart),
-            ],
-          ],
+          ),
         ),
       ),
     );
@@ -133,7 +145,8 @@ class SectionCard extends StatelessWidget {
   final Widget child;
   final Widget? trailing;
   final IconData? icon;
-  const SectionCard({super.key, required this.title, required this.child, this.trailing, this.icon});
+  const SectionCard(
+      {super.key, required this.title, required this.child, this.trailing, this.icon});
 
   @override
   Widget build(BuildContext context) {
@@ -186,7 +199,8 @@ class EmptyView extends StatelessWidget {
   final String? hint;
   final Widget? action;
   final IconData icon;
-  const EmptyView({super.key, required this.title, this.hint, this.action, this.icon = Icons.inbox_outlined});
+  const EmptyView(
+      {super.key, required this.title, this.hint, this.action, this.icon = Icons.inbox_outlined});
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
@@ -209,7 +223,8 @@ class EmptyView extends StatelessWidget {
             Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
             if (hint != null) ...[
               const SizedBox(height: 6),
-              Text(hint!, textAlign: TextAlign.center, style: TextStyle(color: cs.onSurfaceVariant)),
+              Text(hint!,
+                  textAlign: TextAlign.center, style: TextStyle(color: cs.onSurfaceVariant)),
             ],
             if (action != null) ...[const SizedBox(height: 20), action!],
           ],

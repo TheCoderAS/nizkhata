@@ -1,7 +1,7 @@
 name: nizkhata
 description: NizKhata — native Android app. Every rupee, accounted for.
 publish_to: "none"
-version: 1.5.0+47
+version: 1.6.0+48
 
 environment:
   sdk: ">=3.4.0 <4.0.0"
