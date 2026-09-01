@@ -336,7 +336,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
 
     bool sameDay(DateTime d) =>
         d.year == date.year && d.month == date.month && d.day == date.day;
-    final dueCount = data.dues.where((d) => sameDay(d.dueDate)).length;
+    // Count what the day view will actually list, or the sheet promises six
+    // dues and the screen shows one.
+    final dueCount = duesOnDay(data.dues, date, data.settledOf).length;
     final txnCount = data.transactions.where((t) => sameDay(t.date)).length;
 
     showModalBottomSheet<void>(
