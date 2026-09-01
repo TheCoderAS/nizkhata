@@ -414,3 +414,22 @@ List<BudgetProgress> budgetProgress(
 }
 
 double maxOf(double a, double b) => math.max(a, b);
+
+/// Dues falling on [day] that a day view will actually list. The dues screen
+/// opens on its unsettled view, so counting every due — settled and cancelled
+/// included — promised six on a day and then showed one.
+List<Due> duesOnDay(
+  List<Due> dues,
+  DateTime day,
+  double Function(String dueId) settledOf,
+) {
+  return dues.where((d) {
+    if (d.dueDate.year != day.year ||
+        d.dueDate.month != day.month ||
+        d.dueDate.day != day.day) {
+      return false;
+    }
+    final st = dueStatusFromSettled(d, settledOf(d.id));
+    return st == 'open' || st == 'partial';
+  }).toList();
+}

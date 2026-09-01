@@ -78,7 +78,7 @@ class _Root extends StatefulWidget {
   State<_Root> createState() => _RootState();
 }
 
-class _RootState extends State<_Root> {
+class _RootState extends State<_Root> with WidgetsBindingObserver {
   late final router = buildRouter(context.read<AuthController>());
   Timer? _syncDebounce;
   DataController? _data;
@@ -87,6 +87,7 @@ class _RootState extends State<_Root> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     // Notification taps route into the app (works warm and, via the pending
     // route, cold-started from a tap).
     DueReminders.onOpenRoute = (route) => router.push(route);
@@ -187,16 +188,30 @@ class _RootState extends State<_Root> {
 
   void _scheduleSync() {
     _syncDebounce?.cancel();
-    _syncDebounce = Timer(const Duration(seconds: 2), () {
-      final data = _data;
-      if (data == null) return;
-      final currency = _ws?.activeWorkspace?.baseCurrency ?? 'INR';
-      DueReminders.sync(data.dues, data.settledOf);
-      WidgetSync.sync(data.dues, data.settledOf, currency);
-      _updateShortcuts();
-      _attemptAutoLink();
-      _materializeRecurringDues();
-    });
+    _syncDebounce = Timer(const Duration(seconds: 2), _runSync);
+  }
+
+  void _runSync() {
+    _syncDebounce?.cancel();
+    final data = _data;
+    if (data == null) return;
+    final currency = _ws?.activeWorkspace?.baseCurrency ?? 'INR';
+    DueReminders.sync(data.dues, data.settledOf);
+    WidgetSync.sync(data.dues, data.settledOf, currency);
+    _updateShortcuts();
+    _attemptAutoLink();
+    _materializeRecurringDues();
+  }
+
+  /// Reminders are alarms scheduled ahead of time, so a change only reaches
+  /// them when this sync runs. Leaving the app within the debounce window used
+  /// to drop the pending run, which left yesterday's alarm to fire for a due
+  /// that had since been moved. Flush before going away.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.detached) {
+      if (_syncDebounce?.isActive ?? false) _runSync();
+    }
   }
 
   /// Create the next instance of any recurring due that has settled or fallen
@@ -241,6 +256,7 @@ class _RootState extends State<_Root> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _syncDebounce?.cancel();
     _data?.removeListener(_scheduleSync);
     _ws?.removeListener(_scheduleSync);
