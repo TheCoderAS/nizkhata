@@ -9,7 +9,6 @@ import '../data/mutations.dart';
 import '../state/auth_controller.dart';
 import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
-import '../services/recurrence.dart';
 import '../services/title_tokens.dart';
 import '../widgets/token_assist.dart';
 import '../widgets/txn_lines_editor.dart';
@@ -262,13 +261,14 @@ class _TransactionFormState extends State<_TransactionForm> {
                 decoration: const InputDecoration(labelText: 'Note (optional)'),
               ),
               // Placeholders only earn their space once the transaction
-              // repeats — that is when a stamped note goes stale.
+              // repeats — that is when a stamped note goes stale. The preview
+              // renders this transaction's own date.
               if (_recurrence.isNotEmpty)
                 TokenAssist(
                   controller: _note,
-                  nextDate: nextOccurrence(_date, _recurrence),
+                  date: _date,
                   fyStartMonth: fyStart,
-                  previewLabel: 'Next note',
+                  previewLabel: 'Note shows as',
                 ),
               const SizedBox(height: 14),
               // Recurring transactions are suggested on the dashboard when the

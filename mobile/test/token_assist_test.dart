@@ -12,7 +12,7 @@ void main() {
 
   late TextEditingController controller;
 
-  Future<void> pump(WidgetTester tester, {String text = ''}) async {
+  Future<void> pump(WidgetTester tester, {String text = '', DateTime? date, int occurrence = 1}) async {
     controller = TextEditingController(text: text);
     // A phone-width surface: the chip strip has to survive 360dp, not 800.
     tester.view.physicalSize = const Size(360, 800);
@@ -26,7 +26,8 @@ void main() {
             TextField(controller: controller),
             TokenAssist(
               controller: controller,
-              nextDate: DateTime(2026, 10, 5),
+              date: date ?? DateTime(2026, 10, 5),
+              occurrence: occurrence,
               fyStartMonth: 4,
             ),
           ],
@@ -52,25 +53,45 @@ void main() {
     expect(controller.selection.baseOffset, 8);
   });
 
-  testWidgets('the preview shows what the NEXT entry will read', (tester) async {
+  testWidgets('the preview reads what this entry will be called', (tester) async {
     await pump(tester, text: 'RD Payment - {MMM}');
-    expect(find.text('Next: RD Payment - Oct'), findsOneWidget);
+    expect(find.text('Shows as: RD Payment - Oct'), findsOneWidget);
   });
 
   testWidgets('the preview appears only once there is a placeholder', (tester) async {
     await pump(tester, text: 'RD Payment - Aug');
-    expect(find.textContaining('Next:'), findsNothing);
+    expect(find.textContaining('Shows as:'), findsNothing);
     controller.text = 'RD Payment - {MMM}';
     await tester.pump();
-    expect(find.text('Next: RD Payment - Oct'), findsOneWidget);
+    expect(find.text('Shows as: RD Payment - Oct'), findsOneWidget);
   });
 
   testWidgets('the preview keeps up as you type', (tester) async {
     await pump(tester, text: '{MMM}');
-    expect(find.text('Next: Oct'), findsOneWidget);
+    expect(find.text('Shows as: Oct'), findsOneWidget);
     controller.text = '{MMM} {YYYY}';
     await tester.pump();
-    expect(find.text('Next: Oct 2026'), findsOneWidget);
+    expect(find.text('Shows as: Oct 2026'), findsOneWidget);
+  });
+
+  testWidgets('the preview follows the entry date, not today', (tester) async {
+    // The whole point: a due dated December previews December, whatever
+    // month it happens to be when you open the form.
+    await pump(tester, text: 'RD Payment - {MMM} {YYYY}', date: DateTime(2027, 12, 8));
+    expect(find.text('Shows as: RD Payment - Dec 2027'), findsOneWidget);
+  });
+
+  testWidgets('a date change moves the preview with it', (tester) async {
+    await pump(tester, text: '{MMM}', date: DateTime(2026, 10, 5));
+    expect(find.text('Shows as: Oct'), findsOneWidget);
+    // Re-pump the same widget with a new date, as picking a date does.
+    await pump(tester, text: '{MMM}', date: DateTime(2026, 11, 5));
+    expect(find.text('Shows as: Nov'), findsOneWidget);
+  });
+
+  testWidgets('{#} previews this entry\'s number in the series', (tester) async {
+    await pump(tester, text: 'EMI {#} of 24', occurrence: 7);
+    expect(find.text('Shows as: EMI 7 of 24'), findsOneWidget);
   });
 
   testWidgets('"More" lists every placeholder with a live example', (tester) async {

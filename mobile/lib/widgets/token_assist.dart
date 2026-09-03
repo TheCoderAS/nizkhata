@@ -8,25 +8,30 @@ import '../services/title_tokens.dart';
 ///
 /// It only ever appears once a form has a repeat set, because that is the only
 /// moment the distinction matters: a one-off due's title is used once, so
-/// there is nothing to fill in. The preview shows the NEXT occurrence rather
-/// than this one, since seeing "RD Payment - Oct" while typing "- {MMM}" for a
-/// September due is what explains the feature without a paragraph of help.
+/// there is nothing to fill in. The preview renders THIS entry's own date —
+/// the one in the form above it — so what you read in the preview is exactly
+/// what the entry you are saving will be called.
 class TokenAssist extends StatefulWidget {
   final TextEditingController controller;
 
-  /// The occurrence after the one being edited — what the preview renders.
-  final DateTime nextDate;
+  /// The date of the entry being edited: its due date, or a transaction's
+  /// date. Change the date in the form and the preview follows it.
+  final DateTime date;
   final int fyStartMonth;
 
-  /// Label in front of the preview, e.g. "Next" or "Next note".
+  /// Which occurrence of the series this entry is, for `{#}`.
+  final int occurrence;
+
+  /// Label in front of the preview, e.g. "Shows as" or "Note shows as".
   final String previewLabel;
 
   const TokenAssist({
     super.key,
     required this.controller,
-    required this.nextDate,
+    required this.date,
     required this.fyStartMonth,
-    this.previewLabel = 'Next',
+    this.occurrence = 1,
+    this.previewLabel = 'Shows as',
   });
 
   @override
@@ -68,8 +73,9 @@ class _TokenAssistState extends State<TokenAssist> {
       isScrollControlled: true,
       showDragHandle: true,
       builder: (ctx) => _TokenCatalogue(
-        date: widget.nextDate,
+        date: widget.date,
         fyStartMonth: widget.fyStartMonth,
+        occurrence: widget.occurrence,
       ),
     );
     if (picked != null) _insert(picked);
@@ -79,7 +85,8 @@ class _TokenAssistState extends State<TokenAssist> {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final text = widget.controller.text;
-    final preview = renderTokens(text, widget.nextDate, fyStartMonth: widget.fyStartMonth);
+    final preview =
+        renderTokens(text, widget.date, occurrence: widget.occurrence, fyStartMonth: widget.fyStartMonth);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -156,7 +163,12 @@ class _TokenChip extends StatelessWidget {
 class _TokenCatalogue extends StatelessWidget {
   final DateTime date;
   final int fyStartMonth;
-  const _TokenCatalogue({required this.date, required this.fyStartMonth});
+  final int occurrence;
+  const _TokenCatalogue({
+    required this.date,
+    required this.fyStartMonth,
+    required this.occurrence,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -182,7 +194,7 @@ class _TokenCatalogue extends StatelessWidget {
                 Text('Placeholders', style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 4),
                 Text(
-                  'Each one fills itself in when the next ${formatDate(date)} entry is created. Tap to insert.',
+                  'Rendered here for this entry, dated ${formatDate(date)}. Each later one fills itself in with its own date. Tap to insert.',
                   style: TextStyle(fontSize: 12.5, color: cs.onSurfaceVariant),
                 ),
                 const SizedBox(height: 12),
@@ -196,7 +208,8 @@ class _TokenCatalogue extends StatelessWidget {
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            renderTokens(spec.token, date, fyStartMonth: fyStartMonth),
+                            renderTokens(spec.token, date,
+                                occurrence: occurrence, fyStartMonth: fyStartMonth),
                             style: const TextStyle(fontSize: 13),
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -222,7 +235,7 @@ class _TokenCatalogue extends StatelessWidget {
                       children: [
                         Text(example, style: mono),
                         const SizedBox(width: 8),
-                        Text(renderTokens(example, date, fyStartMonth: fyStartMonth),
+                        Text(renderTokens(example, date, occurrence: occurrence, fyStartMonth: fyStartMonth),
                             style: const TextStyle(fontSize: 13)),
                       ],
                     ),

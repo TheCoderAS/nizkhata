@@ -10,7 +10,6 @@ import '../data/mutations.dart';
 import '../state/auth_controller.dart';
 import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
-import '../services/recurrence.dart';
 import '../services/title_tokens.dart';
 import '../widgets/token_assist.dart';
 import '../widgets/txn_lines_editor.dart';
@@ -244,11 +243,14 @@ class _DueFormState extends State<_DueForm> {
                 validator: (v) => (v == null || v.trim().isEmpty) ? 'Title is required' : null,
               ),
               // Placeholders only make sense once the due repeats, so the
-              // strip appears with the repeat and not before.
+              // strip appears with the repeat and not before. The preview
+              // renders this due's own date, so it reads exactly what saving
+              // will store.
               if (_recurrence.isNotEmpty)
                 TokenAssist(
                   controller: _title,
-                  nextDate: nextOccurrence(_dueDate, _recurrence),
+                  date: _dueDate,
+                  occurrence: widget.existing?.occurrence ?? 1,
                   fyStartMonth: ws.activeWorkspace?.fyStartMonth ?? 4,
                 ),
               const SizedBox(height: 14),
@@ -276,9 +278,10 @@ class _DueFormState extends State<_DueForm> {
               if (_recurrence.isNotEmpty)
                 TokenAssist(
                   controller: _note,
-                  nextDate: nextOccurrence(_dueDate, _recurrence),
+                  date: _dueDate,
+                  occurrence: widget.existing?.occurrence ?? 1,
                   fyStartMonth: ws.activeWorkspace?.fyStartMonth ?? 4,
-                  previewLabel: 'Next note',
+                  previewLabel: 'Note shows as',
                 ),
               const SizedBox(height: 16),
               // Same line editor as the transaction form — types, categories,
