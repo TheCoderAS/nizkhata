@@ -340,6 +340,15 @@ class Due {
   // recurrenceId groups all instances of one series (the first due's id).
   final String? recurrence;
   final String? recurrenceId;
+  // The title/note as typed, tokens and all ("RD Payment - {MMM}"). `title`
+  // and `note` always hold rendered text, so lists, exports and the widget
+  // never have to know tokens exist; these are only read when the recurrence
+  // engine renders the next instance. Null when the text has no tokens.
+  final String? titlePattern;
+  final String? notePattern;
+  // Which instance of the series this is: 1 for the one you created, 2 for the
+  // first the engine spawned. Backs the `{#}` placeholder.
+  final int occurrence;
   Due({
     required this.id,
     required this.workspaceId,
@@ -355,6 +364,9 @@ class Due {
     this.lines = const [],
     this.recurrence,
     this.recurrenceId,
+    this.titlePattern,
+    this.notePattern,
+    this.occurrence = 1,
   });
   factory Due.fromDoc(DocumentSnapshot d) {
     final m = d.data() as Map<String, dynamic>;
@@ -373,6 +385,9 @@ class Due {
       note: m['note'],
       recurrence: m['recurrence'],
       recurrenceId: m['recurrenceId'],
+      titlePattern: m['titlePattern'],
+      notePattern: m['notePattern'],
+      occurrence: (m['occurrence'] as num?)?.toInt() ?? 1,
       lines: rawLines
           .whereType<Map>()
           .map((l) => TxnLine.fromMap(Map<String, dynamic>.from(l)))
@@ -444,6 +459,8 @@ class Txn {
   // 'monthly' | 'weekly' | 'yearly': the attention strip suggests (never
   // auto-creates) the next occurrence of this transaction when it comes due.
   final String? recurrence;
+  // The note as typed, tokens and all — see Due.notePattern.
+  final String? notePattern;
   Txn({
     required this.id,
     required this.workspaceId,
@@ -458,6 +475,7 @@ class Txn {
     this.dueId,
     this.importKey,
     this.recurrence,
+    this.notePattern,
   });
   factory Txn.fromDoc(DocumentSnapshot d) {
     final m = d.data() as Map<String, dynamic>;
@@ -475,6 +493,7 @@ class Txn {
       financialYear: m['financialYear'] ?? '',
       importKey: m['importKey'],
       recurrence: m['recurrence'],
+      notePattern: m['notePattern'],
       lines: rawLines.map((l) => TxnLine.fromMap(Map<String, dynamic>.from(l))).toList(),
     );
   }

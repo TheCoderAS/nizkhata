@@ -9,6 +9,9 @@ import '../data/mutations.dart';
 import '../state/auth_controller.dart';
 import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
+import '../services/recurrence.dart';
+import '../services/title_tokens.dart';
+import '../widgets/token_assist.dart';
 import '../widgets/txn_lines_editor.dart';
 import '../widgets/discard_guard.dart';
 import '../widgets/common.dart';
@@ -72,7 +75,7 @@ class _TransactionFormState extends State<_TransactionForm> {
       _accountId = txn.accountId;
       _contactId = txn.contactId;
       _recurrence = txn.recurrence ?? '';
-      _note.text = txn.note ?? '';
+      _note.text = txn.notePattern ?? txn.note ?? '';
       // Transfers are stored as a balancing pair but authored as one line.
       _lines = draftsFromLines(txn.lines);
       if (_lines.isEmpty) _lines.add(LineDraft(type: 'expense'));
@@ -135,7 +138,13 @@ class _TransactionFormState extends State<_TransactionForm> {
     setState(() => _busy = true);
     try {
       final m = Mutations(Actor.fromUser(user));
-      final note = _note.text.trim().isEmpty ? null : _note.text.trim();
+      // The field holds the pattern; the stored note is what it renders to
+      // for this transaction's own date.
+      final notePattern = _note.text.trim();
+      final note = notePattern.isEmpty
+          ? null
+          : renderTokens(notePattern, _date, fyStartMonth: fyStart);
+      final storedPattern = hasTokens(notePattern) ? notePattern : null;
       if (widget.existing != null) {
         await m.updateTransaction(
           ws,
@@ -148,6 +157,7 @@ class _TransactionFormState extends State<_TransactionForm> {
           financialYear: financialYearOf(_date, fyStart),
           lines: lines,
           recurrence: _recurrence.isEmpty ? null : _recurrence,
+          notePattern: storedPattern,
         );
       } else {
         await m.createTransaction(
@@ -160,6 +170,7 @@ class _TransactionFormState extends State<_TransactionForm> {
           financialYear: financialYearOf(_date, fyStart),
           lines: lines,
           recurrence: _recurrence.isEmpty ? null : _recurrence,
+          notePattern: storedPattern,
         );
       }
       if (mounted) {
@@ -188,6 +199,7 @@ class _TransactionFormState extends State<_TransactionForm> {
     final data = context.watch<DataController>();
     final ws = context.watch<WorkspaceController>();
     final currency = ws.activeWorkspace?.baseCurrency ?? 'INR';
+    final fyStart = ws.activeWorkspace?.fyStartMonth ?? 4;
     final accounts = data.accounts;
     final contacts = data.contacts.where((c) => c.connectionUid == null).toList();
 
@@ -249,6 +261,15 @@ class _TransactionFormState extends State<_TransactionForm> {
                 controller: _note,
                 decoration: const InputDecoration(labelText: 'Note (optional)'),
               ),
+              // Placeholders only earn their space once the transaction
+              // repeats — that is when a stamped note goes stale.
+              if (_recurrence.isNotEmpty)
+                TokenAssist(
+                  controller: _note,
+                  nextDate: nextOccurrence(_date, _recurrence),
+                  fyStartMonth: fyStart,
+                  previewLabel: 'Next note',
+                ),
               const SizedBox(height: 14),
               // Recurring transactions are suggested on the dashboard when the
               // next occurrence arrives — never auto-created.

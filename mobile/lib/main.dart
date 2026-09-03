@@ -8,7 +8,6 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:quick_actions/quick_actions.dart';
 
-import 'package:cloud_firestore/cloud_firestore.dart' show Timestamp;
 
 import 'core/theme.dart';
 import 'firebase_options.dart';
@@ -227,24 +226,12 @@ class _RootState extends State<_Root> with WidgetsBindingObserver {
     final missing = missingDueInstances(data.dues, DateTime.now());
     if (missing.isEmpty) return;
     final m = Mutations(Actor.fromUser(user));
+    final fyStart = ws.activeWorkspace?.fyStartMonth ?? 4;
     for (final inst in missing) {
-      final t = inst.template;
       try {
         await m.createDue(
           wsId,
-          {
-            'direction': t.direction,
-            'title': t.title,
-            'amount': t.amount,
-            'dueDate': Timestamp.fromDate(inst.dueDate),
-            'contactId': t.contactId,
-            'accountId': t.accountId,
-            'categoryId': t.categoryId,
-            'note': t.note,
-            'lines': [for (final l in t.lines) l.toMap()],
-            'recurrence': t.recurrence,
-            'recurrenceId': t.recurrenceId ?? t.id,
-          },
+          nextDueDoc(inst, fyStartMonth: fyStart),
           id: inst.id,
         );
       } catch (_) {
