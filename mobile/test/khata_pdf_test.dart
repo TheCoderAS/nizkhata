@@ -9,8 +9,7 @@ void main() {
   // A realistic mix: a lend (moves the position), a tagged-only expense
   // (does NOT move it), and a partial repayment. Σ deltas = 17,549.50 = net.
   final entries = [
-    KhataEntry(DateTime(2025, 4, 20), 'Part repayment received', 450.50,
-        positionDelta: -450.50),
+    KhataEntry(DateTime(2025, 4, 20), 'Part repayment received', 450.50, positionDelta: -450.50),
     KhataEntry(DateTime(2025, 4, 2), 'Grocery split', -220, positionDelta: 0),
     KhataEntry(DateTime(2025, 4, 1), 'Rent April lent', -18000, positionDelta: 18000),
   ];
@@ -54,7 +53,9 @@ void main() {
   test('many entries paginate without errors', () {
     final big = [
       for (var i = 0; i < 120; i++)
-        KhataEntry(DateTime(2025, 1, 1).add(Duration(days: i)), 'Entry number $i', (i % 2 == 0 ? 1 : -1) * (100.0 + i), positionDelta: (i % 2 == 0 ? 1 : -1) * (100.0 + i)),
+        KhataEntry(DateTime(2025, 1, 1).add(Duration(days: i)), 'Entry number $i',
+            (i % 2 == 0 ? 1 : -1) * (100.0 + i),
+            positionDelta: (i % 2 == 0 ? 1 : -1) * (100.0 + i)),
     ];
     final bytes = buildKhataPdf(
       workspaceName: 'Biz',
@@ -72,18 +73,18 @@ void main() {
   });
 
   test('khata text summary reads correctly for both directions', () {
-    final receive = buildKhataText(
-        contactName: 'Rahul', net: 500, entries: entries, openDues: dues, currency: 'INR');
-    expect(receive, contains('pending to be received'));
+    final receive =
+        buildKhataText(contactName: 'Rahul', net: 500, entries: entries, openDues: dues, currency: 'INR');
+    expect(receive, contains('Closing balance receivable'));
     expect(receive, contains('Rent May'));
     expect(receive, contains('https://nizkhata.web.app'));
     expect(receive, isNot(contains('—'))); // humanized: no em-dashes
     final pay = buildKhataText(
         contactName: 'Rahul', net: -500, entries: entries, openDues: const [], currency: 'INR');
-    expect(pay, contains('pending to be paid'));
-    final even = buildKhataText(
-        contactName: 'Rahul', net: 0, entries: const [], openDues: const [], currency: 'INR');
-    expect(even, contains('All settled'));
+    expect(pay, contains('Closing balance payable'));
+    final even =
+        buildKhataText(contactName: 'Rahul', net: 0, entries: const [], openDues: const [], currency: 'INR');
+    expect(even, contains('The account is settled'));
   });
 
   test('due reminder text adapts to direction and timing', () {
@@ -94,9 +95,13 @@ void main() {
         dueDate: DateTime(2020, 4, 5),
         currency: 'INR',
         direction: 'receivable');
-    expect(askOverdue, contains('was due on'));
-    expect(askOverdue, contains('Please clear it'));
+    // The figures stand on their own lines so they can be checked at a glance.
+    expect(askOverdue, contains('*Payment reminder: Rent April*'));
+    expect(askOverdue, contains('Amount: '));
+    expect(askOverdue, contains('Due date: 05 Apr 2020 (overdue)'));
+    expect(askOverdue, contains('Kindly arrange the payment at the earliest'));
     expect(askOverdue, contains('https://nizkhata.web.app'));
+    expect(askOverdue, isNot(contains('—'))); // humanized: no em-dashes
 
     final askUpcoming = buildDueReminderText(
         contactName: 'Rahul',
@@ -105,9 +110,10 @@ void main() {
         dueDate: DateTime.now().add(const Duration(days: 10)),
         currency: 'INR',
         direction: 'receivable');
-    expect(askUpcoming, contains('is due by'));
+    expect(askUpcoming, contains('on or before the due date'));
+    expect(askUpcoming, isNot(contains('(overdue)')));
 
-    // Payable: a heads-up that YOU owe, never a request for them to pay.
+    // Payable: an advice about money going OUT, never a request for payment.
     final oweUpcoming = buildDueReminderText(
         contactName: 'Sonali',
         dueTitle: 'Partner RD - Aug',
@@ -115,9 +121,11 @@ void main() {
         dueDate: DateTime.now().add(const Duration(days: 3)),
         currency: 'INR',
         direction: 'payable');
-    expect(oweUpcoming, contains('from my side'));
-    expect(oweUpcoming, contains('I will make the payment'));
-    expect(oweUpcoming, isNot(contains('Please clear it')));
+    expect(oweUpcoming, contains('*Payment advice: Partner RD - Aug*'));
+    expect(oweUpcoming, contains('will be released on or before the due date'));
+    // Nothing in a payable notice may read as asking them for money.
+    expect(oweUpcoming, isNot(contains('Kindly arrange')));
+    expect(oweUpcoming, isNot(contains('Payment reminder')));
 
     final oweOverdue = buildDueReminderText(
         contactName: 'Sonali',
@@ -126,6 +134,8 @@ void main() {
         dueDate: DateTime(2020, 7, 31),
         currency: 'INR',
         direction: 'payable');
-    expect(oweOverdue, contains('Sorry for the delay'));
+    expect(oweOverdue, contains('pending at my end'));
+    expect(oweOverdue, contains('Apologies for the delay'));
+    expect(oweOverdue, isNot(contains('Kindly arrange')));
   });
 }
