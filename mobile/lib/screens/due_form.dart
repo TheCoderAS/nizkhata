@@ -10,6 +10,9 @@ import '../data/mutations.dart';
 import '../state/auth_controller.dart';
 import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
+import '../services/recurrence.dart';
+import '../services/title_tokens.dart';
+import '../widgets/token_assist.dart';
 import '../widgets/txn_lines_editor.dart';
 import '../widgets/discard_guard.dart';
 import '../widgets/common.dart';
@@ -52,13 +55,18 @@ class _DueFormState extends State<_DueForm> {
   String _fp() => [_title.text, _dueDate.toIso8601String(), '$_contactId', '$_accountId', _note.text, _recurrence, for (final r in _lines) lineDraftFingerprint(r)].join('|');
 
   final _formKey = GlobalKey<FormState>();
-  late final _title = TextEditingController(text: widget.existing?.title ?? '');
+  // The fields hold the PATTERN — what the user typed, tokens and all. The
+  // rendered text is derived on save; an entry with no tokens has no pattern
+  // stored and behaves exactly as before.
+  late final _title = TextEditingController(
+      text: widget.existing?.titlePattern ?? widget.existing?.title ?? '');
   late DateTime _dueDate =
       widget.existing?.dueDate ?? widget.initialDate ?? DateTime.now();
   late String _recurrence = widget.existing?.recurrence ?? '';
   late String? _contactId = widget.existing?.contactId;
   late String? _accountId = widget.existing?.accountId;
-  late final _note = TextEditingController(text: widget.existing?.note ?? '');
+  late final _note = TextEditingController(
+      text: widget.existing?.notePattern ?? widget.existing?.note ?? '');
   late final List<LineDraft> _lines;
   bool _busy = false;
 
@@ -113,7 +121,8 @@ class _DueFormState extends State<_DueForm> {
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     if (_errors().isNotEmpty) return;
-    final ws = context.read<WorkspaceController>().activeWorkspaceId;
+    final wsC = context.read<WorkspaceController>();
+    final ws = wsC.activeWorkspaceId;
     final user = context.read<AuthController>().user;
     final dataC = context.read<DataController>();
     if (ws == null || user == null) return;
@@ -127,7 +136,14 @@ class _DueFormState extends State<_DueForm> {
 
     setState(() => _busy = true);
     final m = Mutations(Actor.fromUser(user));
-    final note = _note.text.trim().isEmpty ? null : _note.text.trim();
+    final fyStart = wsC.activeWorkspace?.fyStartMonth ?? 4;
+    final occurrence = widget.existing?.occurrence ?? 1;
+    final titlePattern = _title.text.trim();
+    final notePattern = _note.text.trim();
+    final note = notePattern.isEmpty
+        ? null
+        : renderTokens(notePattern, _dueDate,
+            occurrence: occurrence, fyStartMonth: fyStart);
     final micros = DateTime.now().microsecondsSinceEpoch;
     final lineMaps = lineMapsFromDrafts(_lines, micros);
     // First categorised line doubles as the legacy categoryId (web back-compat).
@@ -140,7 +156,13 @@ class _DueFormState extends State<_DueForm> {
     }
     final data = <String, dynamic>{
       'direction': direction,
-      'title': _title.text.trim(),
+      'title': renderTokens(titlePattern, _dueDate,
+          occurrence: occurrence, fyStartMonth: fyStart),
+      // Stored only when it actually carries tokens, so a plain title leaves
+      // no trace of a feature it never used.
+      'titlePattern': hasTokens(titlePattern) ? titlePattern : null,
+      'notePattern': hasTokens(notePattern) ? notePattern : null,
+      'occurrence': occurrence,
       'amount': roundMoney(signedTotal.abs()),
       'dueDate': Timestamp.fromDate(_dueDate),
       'contactId': _contactId,
@@ -161,7 +183,7 @@ class _DueFormState extends State<_DueForm> {
         // Cascade to any transactions already settled from this due — their
         // lines are replaced by the due's lines scaled to each paid magnitude.
         final linked = dataC.transactions.where((t) => t.dueId == widget.existing!.id).toList();
-        final title = _title.text.trim();
+        final title = data['title'] as String;
         await m.syncDueLinkedTxns(
           ws,
           linked: linked,
@@ -221,6 +243,14 @@ class _DueFormState extends State<_DueForm> {
                 textCapitalization: TextCapitalization.sentences,
                 validator: (v) => (v == null || v.trim().isEmpty) ? 'Title is required' : null,
               ),
+              // Placeholders only make sense once the due repeats, so the
+              // strip appears with the repeat and not before.
+              if (_recurrence.isNotEmpty)
+                TokenAssist(
+                  controller: _title,
+                  nextDate: nextOccurrence(_dueDate, _recurrence),
+                  fyStartMonth: ws.activeWorkspace?.fyStartMonth ?? 4,
+                ),
               const SizedBox(height: 14),
               InkWell(
                 onTap: () async {
@@ -243,6 +273,13 @@ class _DueFormState extends State<_DueForm> {
                 decoration: const InputDecoration(labelText: 'Note (optional)'),
                 textCapitalization: TextCapitalization.sentences,
               ),
+              if (_recurrence.isNotEmpty)
+                TokenAssist(
+                  controller: _note,
+                  nextDate: nextOccurrence(_dueDate, _recurrence),
+                  fyStartMonth: ws.activeWorkspace?.fyStartMonth ?? 4,
+                  previewLabel: 'Next note',
+                ),
               const SizedBox(height: 16),
               // Same line editor as the transaction form — types, categories,
               // tax info, add/remove lines.

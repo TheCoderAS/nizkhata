@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../data/mutations.dart';
 import '../services/recurrence.dart';
+import '../services/title_tokens.dart';
 import '../state/auth_controller.dart';
 
 import '../core/format.dart';
@@ -558,7 +559,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
         items.add(_attentionTile(
           icon: Icons.repeat,
           color: AppColors.accent2,
-          title: 'Add "${s.template.note ?? 'Transaction'}" for ${formatDate(s.nextDate)}',
+          title: 'Add "${_recurringNote(s, ws.activeWorkspace?.fyStartMonth ?? 4) ?? 'Transaction'}"'
+              ' for ${formatDate(s.nextDate)}',
           subtitle:
               'Recurring ${s.template.recurrence} · ${formatMoney(s.template.totalAmount, currency)}',
           onTap: () => _addRecurringTxn(context, s),
@@ -602,10 +604,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  /// The note this occurrence will carry: re-rendered from the pattern for the
+  /// new date, so a suggestion never offers to add last month's label again.
+  static String? _recurringNote(TxnSuggestion s, int fyStartMonth) {
+    final pattern = s.template.notePattern;
+    if (pattern == null) return s.template.note;
+    return renderTokens(pattern, s.nextDate, fyStartMonth: fyStartMonth);
+  }
+
   Future<void> _addRecurringTxn(BuildContext context, TxnSuggestion s) async {
     final wsC = context.read<WorkspaceController>();
     final wsId = wsC.activeWorkspaceId;
     final fyStart = wsC.activeWorkspace?.fyStartMonth ?? 4;
+    final note = _recurringNote(s, fyStart);
     final user = context.read<AuthController>().user;
     final currency = wsC.activeWorkspace?.baseCurrency ?? 'INR';
     if (wsId == null || user == null) return;
@@ -614,7 +625,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       useRootNavigator: true,
       builder: (ctx) => AlertDialog(
         title: const Text('Add recurring transaction?'),
-        content: Text('"${s.template.note ?? 'Transaction'}" for '
+        content: Text('"${note ?? 'Transaction'}" for '
             '${formatDate(s.nextDate)}, ${formatMoney(s.template.totalAmount, currency)}.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Not now')),
@@ -632,7 +643,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       await Mutations(Actor.fromUser(user)).createTransaction(
         wsId,
         date: s.nextDate,
-        note: s.template.note,
+        note: note,
+        notePattern: s.template.notePattern,
         accountId: s.template.accountId,
         contactId: s.template.contactId,
         totalAmount: s.template.totalAmount,

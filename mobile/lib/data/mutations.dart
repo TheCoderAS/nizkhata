@@ -321,6 +321,7 @@ class Mutations {
     required String financialYear,
     required List<Map<String, dynamic>> lines,
     String? recurrence,
+    String? notePattern,
   }) async {
     final id = newId('transactions');
     final batch = _db.batch();
@@ -337,6 +338,7 @@ class Mutations {
             financialYear: financialYear,
             lines: lines),
         if (recurrence != null) 'recurrence': recurrence,
+        if (notePattern != null) 'notePattern': notePattern,
       },
     );
     _appendRevision(batch, workspaceId: ws, entityType: 'transactions', entityId: id, action: 'create');
@@ -409,6 +411,7 @@ class Mutations {
     required String financialYear,
     required List<Map<String, dynamic>> lines,
     String? recurrence,
+    String? notePattern,
   }) async {
     final batch = _db.batch();
     batch.update(_db.collection('transactions').doc(id), {
@@ -424,6 +427,7 @@ class Mutations {
       'contactId': contactId ?? FieldValue.delete(),
       'dueId': dueId ?? FieldValue.delete(),
       'recurrence': recurrence ?? FieldValue.delete(),
+      'notePattern': notePattern ?? FieldValue.delete(),
     });
     _appendRevision(batch, workspaceId: ws, entityType: 'transactions', entityId: id, action: 'update');
     await batch.commit();
