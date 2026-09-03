@@ -113,6 +113,14 @@ class Account {
   final String? nameOnCard;
   final String? cardLast4;
   final String? cardExpiry;
+  // Billing cycle, credit cards only. [statementDay] is the day of the month
+  // the bill is generated and [paymentDueDay] the day it must be paid by —
+  // both as printed on the card's statement, so a card billed on the 25th and
+  // due on the 12th needs no arithmetic from you. Null on a card whose cycle
+  // has not been set up; everything cycle-related then stays out of the way.
+  final int? statementDay;
+  final int? paymentDueDay;
+  final double? creditLimit;
   Account({
     required this.id,
     required this.workspaceId,
@@ -128,6 +136,9 @@ class Account {
     this.nameOnCard,
     this.cardLast4,
     this.cardExpiry,
+    this.statementDay,
+    this.paymentDueDay,
+    this.creditLimit,
   });
   factory Account.fromDoc(DocumentSnapshot d) {
     final m = d.data() as Map<String, dynamic>;
@@ -146,8 +157,16 @@ class Account {
       nameOnCard: m['nameOnCard'],
       cardLast4: m['cardLast4'],
       cardExpiry: m['cardExpiry'],
+      statementDay: (m['statementDay'] as num?)?.toInt(),
+      paymentDueDay: (m['paymentDueDay'] as num?)?.toInt(),
+      creditLimit: (m['creditLimit'] as num?)?.toDouble(),
     );
   }
+
+  /// True once this card knows when it bills and when the bill is due — the
+  /// point from which statements can be worked out at all.
+  bool get hasBillingCycle =>
+      type == 'credit_card' && statementDay != null && paymentDueDay != null;
 }
 
 class AppCategory {

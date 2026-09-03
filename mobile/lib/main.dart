@@ -17,6 +17,7 @@ import 'router.dart';
 import 'services/app_lock.dart';
 import 'services/due_reminders.dart';
 import 'services/recurrence.dart';
+import 'services/statement_cycle.dart';
 import 'services/widget_sync.dart';
 import 'state/auth_controller.dart';
 import 'state/data_controller.dart';
@@ -200,6 +201,7 @@ class _RootState extends State<_Root> with WidgetsBindingObserver {
     _updateShortcuts();
     _attemptAutoLink();
     _materializeRecurringDues();
+    _materializeCardStatements();
   }
 
   /// Reminders are alarms scheduled ahead of time, so a change only reaches
@@ -237,6 +239,44 @@ class _RootState extends State<_Root> with WidgetsBindingObserver {
       } catch (_) {
         // A concurrent device may have created it first — that's the point of
         // the deterministic id; skip quietly.
+      }
+    }
+  }
+
+  /// Raise the bill for any credit card whose statement date has passed, and
+  /// keep an unpaid bill's amount in step with the ledger behind it. The due id
+  /// is derived from the card and the statement date, so running this on every
+  /// sync and on every device converges on one document per statement.
+  Future<void> _materializeCardStatements() async {
+    final data = _data;
+    final ws = _ws;
+    final user = context.read<AuthController>().user;
+    final wsId = ws?.activeWorkspaceId;
+    if (data == null || ws == null || wsId == null || user == null) return;
+    if (!ws.can('dues.manage')) return;
+    final plans = statementDuePlans(
+      accounts: data.accounts,
+      dues: data.dues,
+      txns: data.transactions,
+      debtsById: data.debtsById,
+      settledOf: data.settledOf,
+      now: DateTime.now(),
+    );
+    if (plans.isEmpty) return;
+    final m = Mutations(Actor.fromUser(user));
+    for (final plan in plans) {
+      try {
+        if (plan.isUpdate) {
+          await m.updateDue(wsId, plan.dueId, {
+            'amount': plan.doc['amount'],
+            'lines': plan.doc['lines'],
+          });
+        } else {
+          await m.createDue(wsId, plan.doc, id: plan.dueId);
+        }
+      } catch (_) {
+        // Another device may have raised it first — which is exactly what the
+        // deterministic id is for. Skip quietly.
       }
     }
   }

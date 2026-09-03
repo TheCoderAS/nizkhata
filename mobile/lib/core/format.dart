@@ -108,3 +108,15 @@ String initialsOf(String nameOrEmail) {
     to: HSLColor.fromAHSL(1, ((hue + 40) % 360).toDouble(), 0.72, 0.48).toColor(),
   );
 }
+
+/// A day of the month as people say it: 1st, 2nd, 3rd, 21st, 31st.
+String ordinalDay(int day) {
+  // 11th, 12th and 13th break the pattern the last digit would suggest.
+  if (day >= 11 && day <= 13) return '${day}th';
+  return switch (day % 10) {
+    1 => '${day}st',
+    2 => '${day}nd',
+    3 => '${day}rd',
+    _ => '${day}th',
+  };
+}
