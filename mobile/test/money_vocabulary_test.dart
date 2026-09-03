@@ -18,14 +18,16 @@ void main() {
   });
 
   group('an account balance', () {
-    test('calls a drawn credit card outstanding, not owed', () {
-      expect(accountBalanceLabel('credit_card', -1000), '₹1,000.00 outstanding');
+    test('writes money you are down in parentheses, with no word for it', () {
+      // A drawn credit card and an overdrawn bank account read alike.
+      expect(accountBalanceLabel('credit_card', -1000), '(₹1,000.00)');
+      expect(accountBalanceLabel('bank', -1000), '(₹1,000.00)');
+      expect(accountBalanceLabel('cash', -500), '(₹500.00)');
     });
 
-    test('leaves every other balance as a plain figure', () {
+    test('leaves a positive balance plain', () {
       expect(accountBalanceLabel('bank', 25000), '₹25,000.00');
-      expect(accountBalanceLabel('cash', -500), '(₹500.00)');
-      // A card in credit is an ordinary positive balance, not an outstanding.
+      // A card in credit is an ordinary positive balance.
       expect(accountBalanceLabel('credit_card', 500), '₹500.00');
     });
   });

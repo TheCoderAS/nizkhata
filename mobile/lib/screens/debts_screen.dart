@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
-import '../core/format.dart';
 import '../core/theme.dart';
 import '../data/derive.dart';
 import '../data/models.dart';
@@ -338,11 +337,10 @@ class _DebtsScreenState extends State<DebtsScreen> {
                         label: 'Outstanding',
                         role: CardRole.amount,
                         sortValue: (d) => data.outstandingOf(d.id),
-                        widget: (d) => Text(
-                          formatMoney(data.outstandingOf(d.id), currency),
-                          style: TextStyle(
-                            color: d.direction == 'owed' ? AppColors.accent2 : AppColors.danger,
-                          ),
+                        widget: (d) => SignedAmount(
+                          amount: data.outstandingOf(d.id),
+                          inbound: d.direction == 'owed',
+                          currency: currency,
                         ),
                       ),
                     ],

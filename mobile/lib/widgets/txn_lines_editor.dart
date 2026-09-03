@@ -23,6 +23,7 @@ import '../data/derive.dart';
 import '../data/models.dart';
 import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
+import 'common.dart';
 import 'discard_guard.dart';
 import 'row_actions.dart';
 
@@ -358,11 +359,12 @@ List<String> validateLineDrafts(
 
 // ---- pickers ---------------------------------------------------------------
 
-/// How a debt reads in a picker: its label (or the contact's name) plus which
-/// way it runs.
+/// How a debt reads in a picker: its label, or the contact's name.
+///
+/// Which way it runs is shown by the arrow beside it rather than spelled out,
+/// so the name gets the width. This is also the sort key.
 String debtPickerLabel(Debt d, Map<String, Contact> contactsById) =>
-    '${d.label ?? contactsById[d.contactId]?.name ?? 'Debt'}'
-    ' · ${d.direction == 'owe' ? 'payable' : 'receivable'}';
+    d.label ?? contactsById[d.contactId]?.name ?? 'Debt';
 
 /// Debts a line may link: this contact's own debts, name-sorted. Shared-expense
 /// debts are managed by the shared ledger, never hand-picked here.
@@ -692,7 +694,14 @@ class LineFields extends StatelessWidget {
             decoration: const InputDecoration(labelText: 'Debt'),
             items: [
               for (final d in debts)
-                DropdownMenuItem(value: d.id, child: Text(debtPickerLabel(d, data.contactsById))),
+                DropdownMenuItem(
+                  value: d.id,
+                  child: DirectionOption(
+                    icon: d.direction == 'owe' ? Icons.north_east : Icons.south_west,
+                    color: d.direction == 'owe' ? AppColors.danger : AppColors.accent2,
+                    label: debtPickerLabel(d, data.contactsById),
+                  ),
+                ),
             ],
             onChanged: (v) {
               r.debtId = v;

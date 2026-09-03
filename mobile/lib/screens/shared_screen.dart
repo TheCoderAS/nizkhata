@@ -371,21 +371,21 @@ class _PartnerTile extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final settled = net.abs() < 0.005;
     final owesMe = net > 0;
-    final sub = settled
-        ? 'Settled up'
-        : owesMe
-            ? 'Receivable ${formatMoney(net, currency)}'
-            : 'Payable ${formatMoney(-net, currency)}';
-    final subColor = settled
-        ? cs.onSurfaceVariant
-        : owesMe
-            ? AppColors.accent2
-            : AppColors.danger;
     return ListTile(
       contentPadding: EdgeInsets.zero,
       leading: EntityAvatar(name: partner.name),
       title: Text(partner.name),
-      subtitle: Text(sub, style: TextStyle(color: subColor)),
+      subtitle: settled
+          ? Text('Settled up', style: TextStyle(color: cs.onSurfaceVariant))
+          : Align(
+              alignment: Alignment.centerLeft,
+              child: SignedAmount(
+                amount: net,
+                inbound: owesMe,
+                currency: currency,
+                fontSize: 13,
+              ),
+            ),
       trailing: canSettle ? OutlinedButton(onPressed: onSettle, child: const Text('Settle')) : null,
     );
   }

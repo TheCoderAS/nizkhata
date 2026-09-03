@@ -505,10 +505,6 @@ class ContactDetailScreen extends StatelessWidget {
                           spacing: 6,
                           runSpacing: 6,
                           children: [
-                            _Badge(
-                              d.direction == 'owed' ? 'Receivable' : 'Payable',
-                              color: d.direction == 'owed' ? AppColors.accent2 : AppColors.danger,
-                            ),
                             _Badge(d.status),
                           ],
                         ),
@@ -516,9 +512,10 @@ class ContactDetailScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 12),
-                  Text(
-                    formatMoney(data.outstandingOf(d.id), currency),
-                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  SignedAmount(
+                    amount: data.outstandingOf(d.id),
+                    inbound: d.direction == 'owed',
+                    currency: currency,
                   ),
                 ],
               ),
@@ -737,19 +734,18 @@ class _MiniBadge extends StatelessWidget {
 
 class _Badge extends StatelessWidget {
   final String text;
-  final Color? color;
-  const _Badge(this.text, {this.color});
+  const _Badge(this.text);
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final fg = color ?? cs.onSurfaceVariant;
+    final fg = cs.onSurfaceVariant;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: (color ?? cs.outlineVariant).withValues(alpha: 0.14),
+        color: cs.outlineVariant.withValues(alpha: 0.14),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: (color ?? cs.outlineVariant).withValues(alpha: 0.5)),
+        border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.5)),
       ),
       child: Text(
         text,

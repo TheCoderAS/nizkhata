@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart' show Timestamp;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../core/theme.dart';
 import '../data/derive.dart';
 import '../data/models.dart';
 import '../data/mutations.dart';
@@ -185,9 +186,18 @@ class _DebtFormState extends State<_DebtForm> {
                   // run is worth saying once, on the screen that sets it.
                   helperText: _direction == 'owed' ? 'Money due to you' : 'Money you have to pay',
                 ),
-                items: const [
-                  DropdownMenuItem(value: 'owe', child: Text('Payable')),
-                  DropdownMenuItem(value: 'owed', child: Text('Receivable')),
+                // The same arrows the lists use, so the choice made here is
+                // recognisable wherever the debt turns up later.
+                items: [
+                  const DropdownMenuItem(
+                    value: 'owe',
+                    child: DirectionOption(icon: Icons.north_east, color: AppColors.danger, label: 'Payable'),
+                  ),
+                  const DropdownMenuItem(
+                    value: 'owed',
+                    child: DirectionOption(
+                        icon: Icons.south_west, color: AppColors.accent2, label: 'Receivable'),
+                  ),
                 ],
                 onChanged: _isEdit ? null : (v) => setState(() => _direction = v ?? 'owe'),
               ),

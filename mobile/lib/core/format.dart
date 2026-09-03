@@ -74,15 +74,17 @@ String _currencySymbol(String code) {
   }
 }
 
-/// Balance label for an account row. A credit card is a liability: a negative
-/// balance is money you have drawn and not yet repaid, so it reads
-/// "₹1,000.00 outstanding" rather than as a negative asset.
-String accountBalanceLabel(String accountType, num balance, [String currency = 'INR']) {
-  if (accountType == 'credit_card' && balance < 0) {
-    return '${formatMoney(-balance, currency)} outstanding';
-  }
-  return formatMoney(balance, currency);
-}
+/// Balance label for an account row.
+///
+/// Every account reads the same way, in the oldest notation there is: money you
+/// are down shows in parentheses. A drawn credit card is "(₹1,000.00)", an
+/// overdrawn bank account is "(₹1,000.00)", and no word is needed to say which
+/// direction either one runs.
+///
+/// The account type is still taken so callers do not all have to change if a
+/// type ever needs its own treatment again.
+String accountBalanceLabel(String accountType, num balance, [String currency = 'INR']) =>
+    formatMoney(balance, currency);
 
 /// Short readable date, e.g. "9 Aug 2026".
 String formatDate(DateTime date, [String locale = 'en_IN']) {
