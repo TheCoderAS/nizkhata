@@ -3,42 +3,55 @@ import 'package:flutter/services.dart';
 
 import '../core/format.dart';
 import '../services/title_tokens.dart';
+import 'common.dart';
 
-/// The chips-and-preview strip that turns a plain title into a pattern.
+/// A text field that can carry placeholders, for the title and note of an
+/// entry that repeats.
 ///
-/// It only ever appears once a form has a repeat set, because that is the only
-/// moment the distinction matters: a one-off due's title is used once, so
-/// there is nothing to fill in. The preview renders THIS entry's own date —
-/// the one in the form above it — so what you read in the preview is exactly
-/// what the entry you are saving will be called.
-class TokenAssist extends StatefulWidget {
+/// The placeholder affordance lives INSIDE the field: a button in the trailing
+/// slot opens the picker, and the field's own helper line says what the entry
+/// will be called. Nothing is added to the form's layout — a row of chips and
+/// a preview line under every field turned two inputs into six rows of
+/// furniture, which is most of the form for something most entries never use.
+///
+/// With [repeats] false this is an ordinary text field, down to the pixel: no
+/// button, no helper line, no reserved space.
+class TokenTextField extends StatefulWidget {
   final TextEditingController controller;
+  final String label;
+  final String? Function(String?)? validator;
 
-  /// The date of the entry being edited: its due date, or a transaction's
-  /// date. Change the date in the form and the preview follows it.
+  /// Whether this entry repeats. Placeholders only matter then: a one-off
+  /// title is used once, so there is nothing to fill in.
+  final bool repeats;
+
+  /// The date of the entry being edited — its due date, or a transaction's
+  /// date. The preview renders this, so it reads what saving will store, and
+  /// it follows the date field when that changes.
   final DateTime date;
-  final int fyStartMonth;
 
   /// Which occurrence of the series this entry is, for `{#}`.
   final int occurrence;
+  final int fyStartMonth;
+  final TextCapitalization textCapitalization;
 
-  /// Label in front of the preview, e.g. "Shows as" or "Note shows as".
-  final String previewLabel;
-
-  const TokenAssist({
+  const TokenTextField({
     super.key,
     required this.controller,
+    required this.label,
+    required this.repeats,
     required this.date,
     required this.fyStartMonth,
     this.occurrence = 1,
-    this.previewLabel = 'Shows as',
+    this.validator,
+    this.textCapitalization = TextCapitalization.sentences,
   });
 
   @override
-  State<TokenAssist> createState() => _TokenAssistState();
+  State<TokenTextField> createState() => _TokenTextFieldState();
 }
 
-class _TokenAssistState extends State<TokenAssist> {
+class _TokenTextFieldState extends State<TokenTextField> {
   @override
   void initState() {
     super.initState();
@@ -55,10 +68,24 @@ class _TokenAssistState extends State<TokenAssist> {
     if (mounted) setState(() {});
   }
 
-  void _insert(String token) {
+  Future<void> _pick() async {
+    final picked = await showModalBottomSheet<String>(
+      context: context,
+      useRootNavigator: true,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => _TokenCatalogue(
+        date: widget.date,
+        fyStartMonth: widget.fyStartMonth,
+        occurrence: widget.occurrence,
+      ),
+    );
+    if (picked == null) return;
+    // Insert at the caret rather than at the end — the difference between the
+    // picker being useful and being a nuisance.
     final sel = widget.controller.selection;
     final at = sel.isValid ? sel.start : widget.controller.text.length;
-    final r = insertToken(widget.controller.text, at, token);
+    final r = insertToken(widget.controller.text, at, picked);
     widget.controller.value = TextEditingValue(
       text: r.text,
       selection: TextSelection.collapsed(offset: r.cursor),
@@ -66,100 +93,40 @@ class _TokenAssistState extends State<TokenAssist> {
     HapticFeedback.selectionClick();
   }
 
-  Future<void> _showAll() async {
-    final picked = await showModalBottomSheet<String>(
-      context: context,
-      useRootNavigator: true,
-      isScrollControlled: true,
-      showDragHandle: true,
-      builder: (ctx) => _TokenCatalogue(
-        date: widget.date,
-        fyStartMonth: widget.fyStartMonth,
-        occurrence: widget.occurrence,
-      ),
-    );
-    if (picked != null) _insert(picked);
-  }
-
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
     final text = widget.controller.text;
-    final preview =
-        renderTokens(text, widget.date, occurrence: widget.occurrence, fyStartMonth: widget.fyStartMonth);
+    String? helper;
+    if (widget.repeats) {
+      helper = hasTokens(text)
+          ? 'Shows as: ${renderTokens(text, widget.date, occurrence: widget.occurrence, fyStartMonth: widget.fyStartMonth)}'
+          // Without this the button is a cryptic glyph nobody presses.
+          : 'Add a placeholder so every repeat dates itself';
+    }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const SizedBox(height: 8),
-        // A wrap, not a scroll strip: on a 360dp phone the last chip would sit
-        // off the right edge, and a chip nobody can see is a chip nobody taps.
-        Wrap(
-          spacing: 6,
-          runSpacing: 6,
-          children: [
-            for (final spec in kTitleTokens.take(kPrimaryTokenCount))
-              _TokenChip(label: spec.label, onTap: () => _insert(spec.token)),
-            _TokenChip(label: 'More', trailing: Icons.expand_more, onTap: _showAll),
-          ],
-        ),
-        if (hasTokens(text)) ...[
-          const SizedBox(height: 8),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(Icons.autorenew, size: 14, color: cs.onSurfaceVariant),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  '${widget.previewLabel}: $preview',
-                  style: TextStyle(fontSize: 12.5, color: cs.onSurfaceVariant),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ],
-    );
-  }
-}
-
-class _TokenChip extends StatelessWidget {
-  final String label;
-  final IconData? trailing;
-  final VoidCallback onTap;
-  const _TokenChip({required this.label, required this.onTap, this.trailing});
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Material(
-      color: cs.surfaceContainerHighest.withValues(alpha: 0.6),
-      borderRadius: BorderRadius.circular(9),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(9),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(label, style: TextStyle(fontSize: 12.5, color: cs.onSurface)),
-              if (trailing != null) ...[
-                const SizedBox(width: 2),
-                Icon(trailing, size: 15, color: cs.onSurfaceVariant),
-              ],
-            ],
-          ),
-        ),
+    return TextFormField(
+      controller: widget.controller,
+      validator: widget.validator,
+      textCapitalization: widget.textCapitalization,
+      decoration: InputDecoration(
+        labelText: widget.label,
+        helperText: helper,
+        helperMaxLines: 2,
+        suffixIcon: widget.repeats
+            ? IconButton(
+                icon: const Icon(Icons.data_object, size: 20),
+                tooltip: 'Insert placeholder',
+                onPressed: _pick,
+              )
+            : null,
       ),
     );
   }
 }
 
-/// The full list behind "More", with each token rendered for the real date so
-/// the example is never stale, plus the one thing the chips cannot express:
-/// offsets, for people whose RD title names the month being paid for.
+/// The picker: every placeholder rendered for this entry's real date, so the
+/// examples cannot go stale, plus the one thing a list cannot show — offsets,
+/// for a title that names the period being paid for rather than the pay date.
 class _TokenCatalogue extends StatelessWidget {
   final DateTime date;
   final int fyStartMonth;
@@ -170,14 +137,33 @@ class _TokenCatalogue extends StatelessWidget {
     required this.occurrence,
   });
 
+  String _render(String pattern) =>
+      renderTokens(pattern, date, occurrence: occurrence, fyStartMonth: fyStartMonth);
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final mono = TextStyle(
-      fontFamily: 'monospace',
-      fontSize: 13,
-      color: cs.primary,
-    );
+    final mono = TextStyle(fontFamily: 'monospace', fontSize: 13, color: cs.primary);
+
+    Widget row(String token, String description) => ListTile(
+          contentPadding: EdgeInsets.zero,
+          dense: true,
+          title: Row(
+            children: [
+              SizedBox(width: 76, child: Text(token, style: mono)),
+              Expanded(
+                child: Text(
+                  _render(token),
+                  style: const TextStyle(fontSize: 13),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          subtitle: Text(description, style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
+          onTap: () => Navigator.of(context).pop(token),
+        );
+
     // Capped rather than left to size itself: the full list is taller than a
     // phone, and an uncapped sheet lays its tail out below the screen where
     // scrolling cannot reach it.
@@ -194,49 +180,30 @@ class _TokenCatalogue extends StatelessWidget {
                 Text('Placeholders', style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 4),
                 Text(
-                  'Rendered here for this entry, dated ${formatDate(date)}. Each later one fills itself in with its own date. Tap to insert.',
+                  'Every repeat fills these in with its own date. Shown here for '
+                  '${formatDate(date)}.',
                   style: TextStyle(fontSize: 12.5, color: cs.onSurfaceVariant),
                 ),
+                const SizedBox(height: 16),
+                for (final spec in kTitleTokens.take(kPrimaryTokenCount)) row(spec.token, spec.description),
                 const SizedBox(height: 12),
-                for (final spec in kTitleTokens)
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    dense: true,
-                    title: Row(
-                      children: [
-                        Text(spec.token, style: mono),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            renderTokens(spec.token, date,
-                                occurrence: occurrence, fyStartMonth: fyStartMonth),
-                            style: const TextStyle(fontSize: 13),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                    subtitle:
-                        Text(spec.description, style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
-                    onTap: () => Navigator.of(context).pop(spec.token),
-                  ),
-                const Divider(height: 24),
-                Text('Shift it', style: Theme.of(context).textTheme.titleSmall),
-                const SizedBox(height: 6),
+                const SectionLabel('More'),
+                for (final spec in kTitleTokens.skip(kPrimaryTokenCount)) row(spec.token, spec.description),
+                const SizedBox(height: 16),
+                const SectionLabel('Shift it'),
                 Text(
-                  'Add +1 or -1 inside a placeholder to move it. Handy when the title names the period being paid for rather than the payment date.',
+                  'Add +1 or -1 inside a placeholder to move it. Handy when the title names '
+                  'the period being paid for rather than the payment date.',
                   style: TextStyle(fontSize: 12.5, color: cs.onSurfaceVariant),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 10),
                 for (final example in const ['{MMM-1}', '{MMM+1}', '{YYYY-1}'])
                   Padding(
-                    padding: const EdgeInsets.only(bottom: 4),
+                    padding: const EdgeInsets.only(bottom: 6),
                     child: Row(
                       children: [
-                        Text(example, style: mono),
-                        const SizedBox(width: 8),
-                        Text(renderTokens(example, date, occurrence: occurrence, fyStartMonth: fyStartMonth),
-                            style: const TextStyle(fontSize: 13)),
+                        SizedBox(width: 76, child: Text(example, style: mono)),
+                        Text(_render(example), style: const TextStyle(fontSize: 13)),
                       ],
                     ),
                   ),

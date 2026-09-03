@@ -20,8 +20,7 @@ import '../widgets/common.dart';
 /// same multi-line editor (typed lines, categories, tax info), plus a due date
 /// and direction. The amount is the computed total of the lines; settling the
 /// due materializes these lines into the real transaction.
-Future<void> showDueForm(BuildContext context,
-    {Due? existing, DateTime? initialDate}) {
+Future<void> showDueForm(BuildContext context, {Due? existing, DateTime? initialDate}) {
   return showModalBottomSheet<void>(
     context: context,
     useRootNavigator: true,
@@ -51,21 +50,27 @@ class _DueForm extends StatefulWidget {
 class _DueFormState extends State<_DueForm> {
   // Unsaved-edit detection: snapshot on open, compare on close.
   late final String _fp0;
-  String _fp() => [_title.text, _dueDate.toIso8601String(), '$_contactId', '$_accountId', _note.text, _recurrence, for (final r in _lines) lineDraftFingerprint(r)].join('|');
+  String _fp() => [
+        _title.text,
+        _dueDate.toIso8601String(),
+        '$_contactId',
+        '$_accountId',
+        _note.text,
+        _recurrence,
+        for (final r in _lines) lineDraftFingerprint(r)
+      ].join('|');
 
   final _formKey = GlobalKey<FormState>();
   // The fields hold the PATTERN — what the user typed, tokens and all. The
   // rendered text is derived on save; an entry with no tokens has no pattern
   // stored and behaves exactly as before.
-  late final _title = TextEditingController(
-      text: widget.existing?.titlePattern ?? widget.existing?.title ?? '');
-  late DateTime _dueDate =
-      widget.existing?.dueDate ?? widget.initialDate ?? DateTime.now();
+  late final _title =
+      TextEditingController(text: widget.existing?.titlePattern ?? widget.existing?.title ?? '');
+  late DateTime _dueDate = widget.existing?.dueDate ?? widget.initialDate ?? DateTime.now();
   late String _recurrence = widget.existing?.recurrence ?? '';
   late String? _contactId = widget.existing?.contactId;
   late String? _accountId = widget.existing?.accountId;
-  late final _note = TextEditingController(
-      text: widget.existing?.notePattern ?? widget.existing?.note ?? '');
+  late final _note = TextEditingController(text: widget.existing?.notePattern ?? widget.existing?.note ?? '');
   late final List<LineDraft> _lines;
   bool _busy = false;
 
@@ -141,8 +146,7 @@ class _DueFormState extends State<_DueForm> {
     final notePattern = _note.text.trim();
     final note = notePattern.isEmpty
         ? null
-        : renderTokens(notePattern, _dueDate,
-            occurrence: occurrence, fyStartMonth: fyStart);
+        : renderTokens(notePattern, _dueDate, occurrence: occurrence, fyStartMonth: fyStart);
     final micros = DateTime.now().microsecondsSinceEpoch;
     final lineMaps = lineMapsFromDrafts(_lines, micros);
     // First categorised line doubles as the legacy categoryId (web back-compat).
@@ -155,8 +159,7 @@ class _DueFormState extends State<_DueForm> {
     }
     final data = <String, dynamic>{
       'direction': direction,
-      'title': renderTokens(titlePattern, _dueDate,
-          occurrence: occurrence, fyStartMonth: fyStart),
+      'title': renderTokens(titlePattern, _dueDate, occurrence: occurrence, fyStartMonth: fyStart),
       // Stored only when it actually carries tokens, so a plain title leaves
       // no trace of a feature it never used.
       'titlePattern': hasTokens(titlePattern) ? titlePattern : null,
@@ -170,9 +173,7 @@ class _DueFormState extends State<_DueForm> {
       'note': note,
       'lines': lineMaps,
       'recurrence': _recurrence.isEmpty ? null : _recurrence,
-      'recurrenceId': _recurrence.isEmpty
-          ? null
-          : (widget.existing?.recurrenceId ?? widget.existing?.id),
+      'recurrenceId': _recurrence.isEmpty ? null : (widget.existing?.recurrenceId ?? widget.existing?.id),
     };
     try {
       if (widget.existing == null) {
@@ -205,7 +206,6 @@ class _DueFormState extends State<_DueForm> {
     }
   }
 
-
   @override
   Widget build(BuildContext context) {
     return DiscardGuard(
@@ -226,8 +226,7 @@ class _DueFormState extends State<_DueForm> {
     final errors = _errors();
 
     return Padding(
-      padding: EdgeInsets.fromLTRB(
-          20, 0, 20, 20 + MediaQuery.of(context).padding.bottom),
+      padding: EdgeInsets.fromLTRB(20, 0, 20, 20 + MediaQuery.of(context).padding.bottom),
       child: SingleChildScrollView(
         padding: const EdgeInsets.only(top: kSheetFieldTopPad),
         child: Form(
@@ -236,23 +235,15 @@ class _DueFormState extends State<_DueForm> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              TextFormField(
+              TokenTextField(
                 controller: _title,
-                decoration: const InputDecoration(labelText: 'Title'),
-                textCapitalization: TextCapitalization.sentences,
+                label: 'Title',
+                repeats: _recurrence.isNotEmpty,
+                date: _dueDate,
+                occurrence: widget.existing?.occurrence ?? 1,
+                fyStartMonth: ws.activeWorkspace?.fyStartMonth ?? 4,
                 validator: (v) => (v == null || v.trim().isEmpty) ? 'Title is required' : null,
               ),
-              // Placeholders only make sense once the due repeats, so the
-              // strip appears with the repeat and not before. The preview
-              // renders this due's own date, so it reads exactly what saving
-              // will store.
-              if (_recurrence.isNotEmpty)
-                TokenAssist(
-                  controller: _title,
-                  date: _dueDate,
-                  occurrence: widget.existing?.occurrence ?? 1,
-                  fyStartMonth: ws.activeWorkspace?.fyStartMonth ?? 4,
-                ),
               const SizedBox(height: 14),
               InkWell(
                 onTap: () async {
@@ -270,19 +261,14 @@ class _DueFormState extends State<_DueForm> {
                 ),
               ),
               const SizedBox(height: 14),
-              TextFormField(
+              TokenTextField(
                 controller: _note,
-                decoration: const InputDecoration(labelText: 'Note (optional)'),
-                textCapitalization: TextCapitalization.sentences,
+                label: 'Note (optional)',
+                repeats: _recurrence.isNotEmpty,
+                date: _dueDate,
+                occurrence: widget.existing?.occurrence ?? 1,
+                fyStartMonth: ws.activeWorkspace?.fyStartMonth ?? 4,
               ),
-              if (_recurrence.isNotEmpty)
-                TokenAssist(
-                  controller: _note,
-                  date: _dueDate,
-                  occurrence: widget.existing?.occurrence ?? 1,
-                  fyStartMonth: ws.activeWorkspace?.fyStartMonth ?? 4,
-                  previewLabel: 'Note shows as',
-                ),
               const SizedBox(height: 16),
               // Same line editor as the transaction form — types, categories,
               // tax info, add/remove lines.
@@ -367,7 +353,8 @@ class _DueFormState extends State<_DueForm> {
                 child: FilledButton(
                   onPressed: (_busy || errors.isNotEmpty || signedTotal.abs() <= 0.005) ? null : _save,
                   child: _busy
-                      ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                      ? const SizedBox(
+                          height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2))
                       : const Text('Save'),
                 ),
               ),
