@@ -9,7 +9,6 @@ import '../data/mutations.dart';
 import '../state/auth_controller.dart';
 import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
-import '../services/recurrence.dart';
 import '../services/title_tokens.dart';
 import '../widgets/token_assist.dart';
 import '../widgets/txn_lines_editor.dart';
@@ -20,8 +19,7 @@ import '../widgets/common.dart';
 /// (date / account / contact / note) plus a dynamic list of typed lines with
 /// "Add line" (single-line by default, split when you add more), including
 /// per-line tax info. Signed total and validation mirror the web engine.
-Future<void> showSplitTransactionForm(BuildContext context,
-    {Txn? existing, DateTime? initialDate}) {
+Future<void> showSplitTransactionForm(BuildContext context, {Txn? existing, DateTime? initialDate}) {
   return showModalBottomSheet<void>(
     context: context,
     useRootNavigator: true,
@@ -53,7 +51,14 @@ class _TransactionForm extends StatefulWidget {
 class _TransactionFormState extends State<_TransactionForm> {
   // Unsaved-edit detection: snapshot on open, compare on close.
   late final String _fp0;
-  String _fp() => [_date.toIso8601String(), '$_accountId', '$_contactId', _note.text, _recurrence, for (final r in _lines) lineDraftFingerprint(r)].join('|');
+  String _fp() => [
+        _date.toIso8601String(),
+        '$_accountId',
+        '$_contactId',
+        _note.text,
+        _recurrence,
+        for (final r in _lines) lineDraftFingerprint(r)
+      ].join('|');
 
   DateTime _date = DateTime.now();
   String? _accountId;
@@ -113,8 +118,7 @@ class _TransactionFormState extends State<_TransactionForm> {
     final user = context.read<AuthController>().user;
     final data = context.read<DataController>();
     if (ws == null || user == null || _accountId == null) return;
-    if (validateLineDrafts(_lines,
-            accountId: _accountId, contactId: _contactId, debtsById: data.debtsById)
+    if (validateLineDrafts(_lines, accountId: _accountId, contactId: _contactId, debtsById: data.debtsById)
         .isNotEmpty) {
       return;
     }
@@ -141,9 +145,7 @@ class _TransactionFormState extends State<_TransactionForm> {
       // The field holds the pattern; the stored note is what it renders to
       // for this transaction's own date.
       final notePattern = _note.text.trim();
-      final note = notePattern.isEmpty
-          ? null
-          : renderTokens(notePattern, _date, fyStartMonth: fyStart);
+      final note = notePattern.isEmpty ? null : renderTokens(notePattern, _date, fyStartMonth: fyStart);
       final storedPattern = hasTokens(notePattern) ? notePattern : null;
       if (widget.existing != null) {
         await m.updateTransaction(
@@ -175,8 +177,8 @@ class _TransactionFormState extends State<_TransactionForm> {
       }
       if (mounted) {
         Navigator.of(context).pop();
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text(_isEditing ? 'Transaction updated' : 'Transaction added')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(_isEditing ? 'Transaction updated' : 'Transaction added')));
       }
     } catch (e) {
       if (mounted) {
@@ -204,8 +206,8 @@ class _TransactionFormState extends State<_TransactionForm> {
     final contacts = data.contacts.where((c) => c.connectionUid == null).toList();
 
     final total = computeTotal(_txnLines(), data.debtsById);
-    final errors = validateLineDrafts(_lines,
-        accountId: _accountId, contactId: _contactId, debtsById: data.debtsById);
+    final errors =
+        validateLineDrafts(_lines, accountId: _accountId, contactId: _contactId, debtsById: data.debtsById);
     final canSave = !_busy && accounts.isNotEmpty && errors.isEmpty;
 
     return Padding(
@@ -257,19 +259,14 @@ class _TransactionFormState extends State<_TransactionForm> {
                 }),
               ),
               const SizedBox(height: 14),
-              TextFormField(
+              TokenTextField(
                 controller: _note,
-                decoration: const InputDecoration(labelText: 'Note (optional)'),
+                label: 'Note (optional)',
+                repeats: _recurrence.isNotEmpty,
+                date: _date,
+                fyStartMonth: fyStart,
+                textCapitalization: TextCapitalization.none,
               ),
-              // Placeholders only earn their space once the transaction
-              // repeats — that is when a stamped note goes stale.
-              if (_recurrence.isNotEmpty)
-                TokenAssist(
-                  controller: _note,
-                  nextDate: nextOccurrence(_date, _recurrence),
-                  fyStartMonth: fyStart,
-                  previewLabel: 'Next note',
-                ),
               const SizedBox(height: 14),
               // Recurring transactions are suggested on the dashboard when the
               // next occurrence arrives — never auto-created.
@@ -328,7 +325,8 @@ class _TransactionFormState extends State<_TransactionForm> {
                 child: FilledButton(
                   onPressed: canSave ? _save : null,
                   child: _busy
-                      ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                      ? const SizedBox(
+                          height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2))
                       : Text(accounts.isEmpty ? 'Add an account first' : 'Save'),
                 ),
               ),
@@ -338,5 +336,4 @@ class _TransactionFormState extends State<_TransactionForm> {
       ),
     );
   }
-
 }
