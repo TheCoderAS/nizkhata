@@ -58,8 +58,7 @@ const kSelectableLineTypes = <String, String>{
   'tax': 'Tax / GST',
 };
 
-String lineTypeLabel(String type) =>
-    kSelectableLineTypes[type] ?? kLineTypes[type] ?? type;
+String lineTypeLabel(String type) => kSelectableLineTypes[type] ?? kLineTypes[type] ?? type;
 
 bool needsCategory(String type) =>
     type == 'income' ||
@@ -341,8 +340,8 @@ List<String> validateLineDrafts(
   final errs = <String>[];
   if (accountId == null) errs.add('Pick an account.');
   for (var i = 0; i < drafts.length; i++) {
-    for (final e in validateLineDraft(drafts[i],
-        accountId: accountId, contactId: contactId, debtsById: debtsById)) {
+    for (final e
+        in validateLineDraft(drafts[i], accountId: accountId, contactId: contactId, debtsById: debtsById)) {
       errs.add('Line ${i + 1}: ${e[0].toLowerCase()}${e.substring(1)}');
     }
   }
@@ -363,7 +362,7 @@ List<String> validateLineDrafts(
 /// way it runs.
 String debtPickerLabel(Debt d, Map<String, Contact> contactsById) =>
     '${d.label ?? contactsById[d.contactId]?.name ?? 'Debt'}'
-    ' · ${d.direction == 'owe' ? 'you owe' : 'they owe'}';
+    ' · ${d.direction == 'owe' ? 'payable' : 'receivable'}';
 
 /// Debts a line may link: this contact's own debts, name-sorted. Shared-expense
 /// debts are managed by the shared ledger, never hand-picked here.
@@ -516,12 +515,11 @@ class TxnLinesEditor extends StatelessWidget {
   Widget _summaryRow(BuildContext context, DataController data, int i) {
     final d = lines[i];
     final cs = Theme.of(context).colorScheme;
-    final currency =
-        context.watch<WorkspaceController>().activeWorkspace?.baseCurrency ?? 'INR';
+    final currency = context.watch<WorkspaceController>().activeWorkspace?.baseCurrency ?? 'INR';
     final signed = draftSignedAmount(d, data.debtsById);
     final target = lineTargetLabel(d, data);
-    final problems = validateLineDraft(d,
-        accountId: accountId, contactId: contactId, debtsById: data.debtsById);
+    final problems =
+        validateLineDraft(d, accountId: accountId, contactId: contactId, debtsById: data.debtsById);
 
     final card = Card(
       child: InkWell(
@@ -577,11 +575,10 @@ class TxnLinesEditor extends StatelessWidget {
     return RowActions(
       id: 'line-$i',
       title: '${lineTypeLabel(d.type)}${target.isEmpty ? '' : ' · $target'}',
-      swipeStart: RowAction(
-          icon: Icons.edit_outlined, label: 'Edit line', onTap: () => _editLine(context, i)),
+      swipeStart:
+          RowAction(icon: Icons.edit_outlined, label: 'Edit line', onTap: () => _editLine(context, i)),
       menu: [
-        RowAction(
-            icon: Icons.edit_outlined, label: 'Edit line', onTap: () => _editLine(context, i)),
+        RowAction(icon: Icons.edit_outlined, label: 'Edit line', onTap: () => _editLine(context, i)),
         if (lines.length > 1)
           RowAction(
             icon: Icons.delete_outline,
@@ -617,17 +614,15 @@ class LineFields extends StatelessWidget {
   Widget build(BuildContext context) {
     final data = context.watch<DataController>();
     final r = draft;
-    final cats = data.categories
-        .where((c) => c.kind == (isIncomeCategory(r.type) ? 'income' : 'expense'))
-        .toList();
+    final cats =
+        data.categories.where((c) => c.kind == (isIncomeCategory(r.type) ? 'income' : 'expense')).toList();
     final debts = debtsForContact(data.debts, contactId, data.contactsById);
     final destinations = data.accounts.where((a) => a.id != accountId).toList();
     // A type that is no longer offered (a legacy transfer_in) still has to
     // show as the current value, so it joins the list for this line only.
     final typeItems = {
       ...kSelectableLineTypes,
-      if (!kSelectableLineTypes.containsKey(r.type))
-        r.type: kLineTypes[r.type] ?? r.type,
+      if (!kSelectableLineTypes.containsKey(r.type)) r.type: kLineTypes[r.type] ?? r.type,
     };
 
     return Column(
@@ -637,8 +632,7 @@ class LineFields extends StatelessWidget {
           value: typeItems.containsKey(r.type) ? r.type : null,
           decoration: const InputDecoration(labelText: 'Type'),
           items: [
-            for (final e in typeItems.entries)
-              DropdownMenuItem(value: e.key, child: Text(e.value)),
+            for (final e in typeItems.entries) DropdownMenuItem(value: e.key, child: Text(e.value)),
           ],
           onChanged: (v) {
             r.type = v ?? 'expense';
@@ -673,13 +667,11 @@ class LineFields extends StatelessWidget {
             value: destinations.any((a) => a.id == r.toAccountId) ? r.toAccountId : null,
             decoration: InputDecoration(
               labelText: 'To account',
-              helperText: r.type == 'transfer_out'
-                  ? 'The money leaves the account above and lands here.'
-                  : null,
+              helperText:
+                  r.type == 'transfer_out' ? 'The money leaves the account above and lands here.' : null,
             ),
             items: [
-              for (final a in destinations)
-                DropdownMenuItem(value: a.id, child: Text(a.name)),
+              for (final a in destinations) DropdownMenuItem(value: a.id, child: Text(a.name)),
             ],
             onChanged: (v) {
               r.toAccountId = v;
@@ -700,8 +692,7 @@ class LineFields extends StatelessWidget {
             decoration: const InputDecoration(labelText: 'Debt'),
             items: [
               for (final d in debts)
-                DropdownMenuItem(
-                    value: d.id, child: Text(debtPickerLabel(d, data.contactsById))),
+                DropdownMenuItem(value: d.id, child: Text(debtPickerLabel(d, data.contactsById))),
             ],
             onChanged: (v) {
               r.debtId = v;
@@ -763,8 +754,7 @@ class LineFields extends StatelessWidget {
               isDense: true,
               decoration: const InputDecoration(labelText: 'Head'),
               items: [
-                for (final e in kTaxHeads.entries)
-                  DropdownMenuItem(value: e.key, child: Text(e.value)),
+                for (final e in kTaxHeads.entries) DropdownMenuItem(value: e.key, child: Text(e.value)),
               ],
               onChanged: (v) {
                 r.taxHead = v ?? 'other';
@@ -895,8 +885,7 @@ class _LineEditorSheetState extends State<_LineEditorSheet> {
                 for (final e in errors)
                   Padding(
                     padding: const EdgeInsets.only(top: 2),
-                    child: Text(e,
-                        style: const TextStyle(fontSize: 12, color: AppColors.danger)),
+                    child: Text(e, style: const TextStyle(fontSize: 12, color: AppColors.danger)),
                   ),
               ],
               const SizedBox(height: 20),
@@ -905,8 +894,7 @@ class _LineEditorSheetState extends State<_LineEditorSheet> {
                   if (widget.canDelete) ...[
                     Expanded(
                       child: OutlinedButton.icon(
-                        onPressed: () =>
-                            Navigator.of(context).pop(LineEditorAction.delete),
+                        onPressed: () => Navigator.of(context).pop(LineEditorAction.delete),
                         icon: const Icon(Icons.delete_outline, size: 18),
                         label: const Text('Remove'),
                         style: OutlinedButton.styleFrom(
@@ -919,9 +907,8 @@ class _LineEditorSheetState extends State<_LineEditorSheet> {
                   ],
                   Expanded(
                     child: FilledButton(
-                      onPressed: errors.isEmpty
-                          ? () => Navigator.of(context).pop(LineEditorAction.save)
-                          : null,
+                      onPressed:
+                          errors.isEmpty ? () => Navigator.of(context).pop(LineEditorAction.save) : null,
                       style: FilledButton.styleFrom(
                         minimumSize: const Size.fromHeight(46),
                       ),

@@ -270,7 +270,7 @@ class _AccountFormState extends State<_AccountForm> {
                 SectionLabel('Billing cycle'),
                 Text(
                   'Both days are on your statement. Fill them in and NizKhata raises the '
-                  'bill for you each month, for what the card owed on the statement day.',
+                  'bill for you each month, for the balance outstanding on the statement day.',
                   style: TextStyle(
                     fontSize: 12,
                     color: Theme.of(context).colorScheme.onSurfaceVariant,

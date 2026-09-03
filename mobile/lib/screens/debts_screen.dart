@@ -40,10 +40,9 @@ class _DebtsScreenState extends State<DebtsScreen> {
   String _direction = 'all'; // all | owe (you owe) | owed (they owe)
 
   static const _statusLabels = {'outstanding': 'Outstanding', 'settled': 'Settled', 'all': 'All'};
-  static const _dirLabels = {'all': 'All', 'owed': 'They owe', 'owe': 'You owe'};
+  static const _dirLabels = {'all': 'All', 'owed': 'Receivable', 'owe': 'Payable'};
 
-  int get _activeFilterCount =>
-      (_status != 'outstanding' ? 1 : 0) + (_direction != 'all' ? 1 : 0);
+  int get _activeFilterCount => (_status != 'outstanding' ? 1 : 0) + (_direction != 'all' ? 1 : 0);
 
   // Same filter UX as Transactions/Dues: a bottom sheet with dropdowns, opened
   // from the tonal filter button; active choices surface as removable chips.
@@ -119,7 +118,6 @@ class _DebtsScreenState extends State<DebtsScreen> {
     );
   }
 
-
   @override
   Widget build(BuildContext context) {
     final data = context.watch<DataController>();
@@ -172,10 +170,22 @@ class _DebtsScreenState extends State<DebtsScreen> {
               child: Row(
                 children: [
                   if (theyOwe > 0)
-                    Expanded(child: StatCard(label: 'They owe you', amount: theyOwe, currency: currency, tone: StatTone.success, icon: Icons.arrow_downward)),
+                    Expanded(
+                        child: StatCard(
+                            label: 'Receivable',
+                            amount: theyOwe,
+                            currency: currency,
+                            tone: StatTone.success,
+                            icon: Icons.arrow_downward)),
                   if (theyOwe > 0 && youOwe > 0) const SizedBox(width: 12),
                   if (youOwe > 0)
-                    Expanded(child: StatCard(label: 'You owe', amount: youOwe, currency: currency, tone: StatTone.danger, icon: Icons.arrow_upward)),
+                    Expanded(
+                        child: StatCard(
+                            label: 'Payable',
+                            amount: youOwe,
+                            currency: currency,
+                            tone: StatTone.danger,
+                            icon: Icons.arrow_upward)),
                 ],
               ),
             ),
@@ -217,8 +227,8 @@ class _DebtsScreenState extends State<DebtsScreen> {
                               () => setState(() => _status = 'outstanding')),
                         ),
                       if (_direction != 'all')
-                        RemovableChip('Direction: ${_dirLabels[_direction]}',
-                            () => setState(() => _direction = 'all')),
+                        RemovableChip(
+                            'Direction: ${_dirLabels[_direction]}', () => setState(() => _direction = 'all')),
                     ],
                   ),
                 ),
@@ -306,7 +316,7 @@ class _DebtsScreenState extends State<DebtsScreen> {
                         icon: Icons.swap_vert,
                         defaultVisible: false,
                         sortValue: (d) => d.direction,
-                        text: (d) => d.direction == 'owed' ? 'They owe you' : 'You owe',
+                        text: (d) => d.direction == 'owed' ? 'Receivable' : 'Payable',
                       ),
                       CardField<Debt>(
                         key: 'purpose',
@@ -352,7 +362,8 @@ void _confirmDelete(BuildContext context, Debt debt) {
     useRootNavigator: true,
     builder: (ctx) => AlertDialog(
       title: Text('Delete "${debt.label ?? 'debt'}"?'),
-      content: const Text('Linked transactions keep their reference but this debt will no longer be tracked.'),
+      content:
+          const Text('Linked transactions keep their reference but this debt will no longer be tracked.'),
       actions: [
         TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
         FilledButton(
@@ -514,7 +525,8 @@ class _DebtPaymentSheetState extends State<_DebtPaymentSheet> {
                 child: FilledButton(
                   onPressed: _busy || accounts.isEmpty ? null : _save,
                   child: _busy
-                      ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                      ? const SizedBox(
+                          height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2))
                       : Text(accounts.isEmpty ? 'Add an account first' : 'Save'),
                 ),
               ),

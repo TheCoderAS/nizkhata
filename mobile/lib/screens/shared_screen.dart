@@ -104,9 +104,8 @@ class SharedScreen extends StatelessWidget {
     final partners = _partnersOf(shared.connections, myUid);
     final balances = sharedBalances(myUid, shared.entries);
     final inbox = shared.entries.where((e) => e.pendingForUids.contains(myUid)).toList();
-    final conflicts = shared.entries
-        .where((e) => e.creatorUid == myUid && e.status == 'rejected' && !e.resolved)
-        .toList();
+    final conflicts =
+        shared.entries.where((e) => e.creatorUid == myUid && e.status == 'rejected' && !e.resolved).toList();
     final pendingInvites = shared.sentInvites.where((i) => i.status == 'pending').toList();
 
     var owedToMe = 0.0;
@@ -155,7 +154,7 @@ class SharedScreen extends StatelessWidget {
             children: [
               Expanded(
                 child: StatCard(
-                  label: 'You are owed',
+                  label: 'Receivable',
                   amount: owedToMe,
                   currency: currency,
                   tone: StatTone.success,
@@ -165,7 +164,7 @@ class SharedScreen extends StatelessWidget {
               const SizedBox(width: 10),
               Expanded(
                 child: StatCard(
-                  label: 'You owe',
+                  label: 'Payable',
                   amount: iOwe,
                   currency: currency,
                   tone: StatTone.danger,
@@ -272,7 +271,10 @@ class SharedScreen extends StatelessWidget {
           SectionCard(
             title: 'History',
             child: shared.entries.isEmpty
-                ? const EmptyView(icon: Icons.receipt_long_outlined, title: 'Nothing shared yet', hint: 'Add a shared expense to start tracking who owes whom.')
+                ? const EmptyView(
+                    icon: Icons.receipt_long_outlined,
+                    title: 'Nothing shared yet',
+                    hint: 'Add a shared expense to start tracking balances.')
                 : Column(
                     children: [
                       for (final e in shared.entries)
@@ -309,8 +311,7 @@ class _Pill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(color: cs.primary, borderRadius: BorderRadius.circular(999)),
-      child: Text(text,
-          style: TextStyle(color: cs.onPrimary, fontSize: 12, fontWeight: FontWeight.w700)),
+      child: Text(text, style: TextStyle(color: cs.onPrimary, fontSize: 12, fontWeight: FontWeight.w700)),
     );
   }
 }
@@ -373,8 +374,8 @@ class _PartnerTile extends StatelessWidget {
     final sub = settled
         ? 'Settled up'
         : owesMe
-            ? 'owes you ${formatMoney(net, currency)}'
-            : 'you owe ${formatMoney(-net, currency)}';
+            ? 'Receivable ${formatMoney(net, currency)}'
+            : 'Payable ${formatMoney(-net, currency)}';
     final subColor = settled
         ? cs.onSurfaceVariant
         : owesMe
@@ -385,9 +386,7 @@ class _PartnerTile extends StatelessWidget {
       leading: EntityAvatar(name: partner.name),
       title: Text(partner.name),
       subtitle: Text(sub, style: TextStyle(color: subColor)),
-      trailing: canSettle
-          ? OutlinedButton(onPressed: onSettle, child: const Text('Settle'))
-          : null,
+      trailing: canSettle ? OutlinedButton(onPressed: onSettle, child: const Text('Settle')) : null,
     );
   }
 }
@@ -564,9 +563,8 @@ class _InboxCardState extends State<_InboxCard> {
             children: [
               Expanded(
                 child: FilledButton.icon(
-                  onPressed: _busy || (_isSettlement && _accountId == null)
-                      ? null
-                      : () => _run(_accept, 'Accepted'),
+                  onPressed:
+                      _busy || (_isSettlement && _accountId == null) ? null : () => _run(_accept, 'Accepted'),
                   icon: const Icon(Icons.check, size: 18),
                   label: const Text('Accept'),
                 ),
@@ -780,8 +778,7 @@ class _AddExpenseSheetState extends State<_AddExpenseSheet> {
       );
       if (mounted) {
         Navigator.of(context).pop();
-        ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('Shared expense recorded')));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Shared expense recorded')));
       }
     } catch (e) {
       if (mounted) {
@@ -847,8 +844,7 @@ class _AddExpenseSheetState extends State<_AddExpenseSheet> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('Split equally between',
-                    style: TextStyle(fontWeight: FontWeight.w600)),
+                const Text('Split equally between', style: TextStyle(fontWeight: FontWeight.w600)),
                 if (_splitCount > 0 && _total > 0)
                   Text('${formatMoney(_perHead, currency)} each',
                       style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
@@ -883,9 +879,7 @@ class _AddExpenseSheetState extends State<_AddExpenseSheet> {
               DropdownButtonFormField<String>(
                 value: _categoryId,
                 decoration: const InputDecoration(labelText: 'My share category'),
-                items: [
-                  for (final c in expenseCats) DropdownMenuItem(value: c.id, child: Text(c.name))
-                ],
+                items: [for (final c in expenseCats) DropdownMenuItem(value: c.id, child: Text(c.name))],
                 onChanged: (v) => setState(() => _categoryId = v),
               ),
             ],
@@ -895,8 +889,7 @@ class _AddExpenseSheetState extends State<_AddExpenseSheet> {
               child: FilledButton(
                 onPressed: _busy || !_valid ? null : _save,
                 child: _busy
-                    ? const SizedBox(
-                        height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                    ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2))
                     : const Text('Record & request'),
               ),
             ),
@@ -976,8 +969,7 @@ class _SettleSheetState extends State<_SettleSheet> {
       );
       if (mounted) {
         Navigator.of(context).pop();
-        ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('Settlement proposed')));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Settlement proposed')));
       }
     } catch (e) {
       if (mounted) {

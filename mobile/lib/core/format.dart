@@ -74,11 +74,12 @@ String _currencySymbol(String code) {
   }
 }
 
-/// Balance label with credit-card "owed" treatment: a negative credit-card
-/// balance reads "₹1,000.00 owed" (matches the web), else plain formatMoney.
+/// Balance label for an account row. A credit card is a liability: a negative
+/// balance is money you have drawn and not yet repaid, so it reads
+/// "₹1,000.00 outstanding" rather than as a negative asset.
 String accountBalanceLabel(String accountType, num balance, [String currency = 'INR']) {
   if (accountType == 'credit_card' && balance < 0) {
-    return '${formatMoney(-balance, currency)} owed';
+    return '${formatMoney(-balance, currency)} outstanding';
   }
   return formatMoney(balance, currency);
 }
