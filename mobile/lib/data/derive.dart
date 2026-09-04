@@ -74,6 +74,20 @@ Map<String, double> accountBalances(List<Account> accounts, List<Txn> txns, Map<
   return balances;
 }
 
+/// What is sitting in the bank, for the dashboard's headline figure.
+///
+/// Bank accounts only. Cash in hand is not in an account, and a credit card is
+/// a liability whose balance would subtract from a figure meant to answer "how
+/// much have I got". Net worth is where everything nets off; this is not that.
+double bankBalanceTotal(List<Account> accounts, double Function(String id) balanceOf) {
+  var total = 0.0;
+  for (final a in accounts) {
+    if (a.type != 'bank') continue;
+    total += balanceOf(a.id);
+  }
+  return roundMoney(total);
+}
+
 // ---- debt outstanding ------------------------------------------------------
 
 double debtOutstanding(Debt debt, List<Txn> txns) {

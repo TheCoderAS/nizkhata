@@ -40,13 +40,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ? (
             start: DateTime(_customStart.year, _customStart.month, _customStart.day),
             // End is inclusive: extend to the start of the following day.
-            end: DateTime(_customEnd.year, _customEnd.month, _customEnd.day)
-                .add(const Duration(days: 1)),
+            end: DateTime(_customEnd.year, _customEnd.month, _customEnd.day).add(const Duration(days: 1)),
           )
         : resolvePeriod(period, now, fyStart);
 
     final trend = trendSeries(data.transactions, range.start, range.end);
-    final totalInAccounts = data.accounts.fold<double>(0, (s, a) => s + data.balanceOf(a.id));
+    final inBank = bankBalanceTotal(data.accounts, data.balanceOf);
     final held = custodialHeld(data.debts, data.transactions);
 
     // Net worth (trailing 6 months).
@@ -59,9 +58,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final int? nwPct = first != 0 ? (delta / first.abs() * 100).round() : null;
 
     final topSpend =
-        spendByCategoryInRange(data.transactions, data.categories, range.start, range.end)
-            .take(6)
-            .toList();
+        spendByCategoryInRange(data.transactions, data.categories, range.start, range.end).take(6).toList();
 
     // Upcoming dues within the selected period (open/partial), soonest first.
     final upcoming = data.dues.where((d) {
@@ -73,9 +70,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ..sort((a, b) => a.dueDate.compareTo(b.dueDate));
     final upcomingTop = upcoming.take(5).toList();
 
-    final budgetRows = budgetProgress(data.budgets, data.transactions, data.categoriesById, fyStart)
-        .take(4)
-        .toList();
+    final budgetRows =
+        budgetProgress(data.budgets, data.transactions, data.categoriesById, fyStart).take(4).toList();
 
     final recent = [...data.transactions]..sort((a, b) => b.date.compareTo(a.date));
     final recentTop = recent.take(6).toList();
@@ -90,8 +86,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           _customRangePickers(),
         ],
         const SizedBox(height: 12),
-        _NetWorthHero(
-            current: current, delta: delta, pct: nwPct, series: nwSeries, currency: currency),
+        _NetWorthHero(current: current, delta: delta, pct: nwPct, series: nwSeries, currency: currency),
         const SizedBox(height: 12),
         IntrinsicHeight(
           child: Row(
@@ -141,8 +136,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
               const SizedBox(width: 12),
               Expanded(
                 child: StatCard(
-                  label: 'In accounts',
-                  amount: totalInAccounts,
+                  // Named for what it counts. "In accounts" over a
+                  // bank-only figure would be a quiet lie once there is a
+                  // card or a cash account in the workspace.
+                  label: 'In bank accounts',
+                  amount: inBank,
                   currency: currency,
                   icon: Icons.account_balance_wallet_outlined,
                 ),
@@ -162,8 +160,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           icon: Icons.event_note_outlined,
           trailing: _seeAll('/dues'),
           child: upcomingTop.isEmpty
-              ? Text('Nothing due.',
-                  style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant))
+              ? Text('Nothing due.', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant))
               : Column(
                   children: [
                     for (final d in upcomingTop) _dueRow(d, currency),
@@ -387,8 +384,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(fontWeight: FontWeight.w500)),
-                Text(formatDate(d.dueDate),
-                    style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
+                Text(formatDate(d.dueDate), style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
               ],
             ),
           ),
@@ -407,8 +403,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Widget _budgetRow(BudgetProgress p, String currency) {
     final cs = Theme.of(context).colorScheme;
-    final Color barColor =
-        p.ratio > 1 ? AppColors.danger : (p.ratio > 0.8 ? AppColors.warning : cs.primary);
+    final Color barColor = p.ratio > 1 ? AppColors.danger : (p.ratio > 0.8 ? AppColors.warning : cs.primary);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 5),
       child: Column(
@@ -421,8 +416,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               Text(
                 '${formatMoney(p.spent, currency)} / ${formatMoney(p.limit, currency)}',
                 style: TextStyle(
-                    fontWeight: FontWeight.w500,
-                    color: p.ratio > 1 ? AppColors.danger : cs.onSurfaceVariant),
+                    fontWeight: FontWeight.w500, color: p.ratio > 1 ? AppColors.danger : cs.onSurfaceVariant),
               ),
             ],
           ),
@@ -453,8 +447,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Expanded(child: Text(c.name, maxLines: 1, overflow: TextOverflow.ellipsis)),
-                Text(formatMoney(c.amount, currency),
-                    style: const TextStyle(fontWeight: FontWeight.w500)),
+                Text(formatMoney(c.amount, currency), style: const TextStyle(fontWeight: FontWeight.w500)),
               ],
             ),
             const SizedBox(height: 4),
@@ -473,8 +466,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   /// The dashboard's to-do strip: overdue receivables, dues this week,
   /// uncategorised transactions, stale statement imports, and recurring
   /// transactions whose next occurrence has arrived. Hidden when all clear.
-  List<Widget> _attentionItems(BuildContext context, DataController data, WorkspaceController ws,
-      String currency, DateTime now) {
+  List<Widget> _attentionItems(
+      BuildContext context, DataController data, WorkspaceController ws, String currency, DateTime now) {
     final items = <Widget>[];
     final today = DateTime(now.year, now.month, now.day);
 
@@ -490,8 +483,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       if (d.direction == 'receivable' && d.dueDate.isBefore(today)) {
         overdueCount++;
         overdueAmount += remaining;
-      } else if (!d.dueDate.isBefore(today) &&
-          d.dueDate.isBefore(today.add(const Duration(days: 8)))) {
+      } else if (!d.dueDate.isBefore(today) && d.dueDate.isBefore(today.add(const Duration(days: 8)))) {
         weekCount++;
       }
     }
@@ -516,8 +508,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     // Uncategorised transactions (imports mostly).
     final uncategorized = data.transactions
-        .where((t) =>
-            t.lines.any((l) => (l.type == 'expense' || l.type == 'income') && l.categoryId == null))
+        .where((t) => t.lines.any((l) => (l.type == 'expense' || l.type == 'income') && l.categoryId == null))
         .length;
     if (uncategorized > 0 && ws.can('transactions.edit')) {
       items.add(_attentionTile(
@@ -539,8 +530,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           if (lastImport == null || t.date.isAfter(lastImport)) lastImport = t.date;
         }
         if (lastImport == null) continue;
-        final days =
-            today.difference(DateTime(lastImport.year, lastImport.month, lastImport.day)).inDays;
+        final days = today.difference(DateTime(lastImport.year, lastImport.month, lastImport.day)).inDays;
         if (days > 30) {
           items.add(_attentionTile(
             icon: Icons.upload_file_outlined,
@@ -561,8 +551,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           color: AppColors.accent2,
           title: 'Add "${_recurringNote(s, ws.activeWorkspace?.fyStartMonth ?? 4) ?? 'Transaction'}"'
               ' for ${formatDate(s.nextDate)}',
-          subtitle:
-              'Recurring ${s.template.recurrence} · ${formatMoney(s.template.totalAmount, currency)}',
+          subtitle: 'Recurring ${s.template.recurrence} · ${formatMoney(s.template.totalAmount, currency)}',
           onTap: () => _addRecurringTxn(context, s),
         ));
       }
@@ -653,8 +642,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         recurrence: s.template.recurrence,
       );
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('Transaction added')));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Transaction added')));
       }
     } catch (e) {
       if (mounted) {
@@ -692,12 +680,10 @@ class _NetWorthHero extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text('Net worth',
-                    style: TextStyle(
-                        color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w500)),
+                    style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w500)),
                 const SizedBox(height: 4),
                 Text(formatMoney(current, currency),
-                    style: const TextStyle(
-                        color: Colors.white, fontSize: 30, fontWeight: FontWeight.w800)),
+                    style: const TextStyle(color: Colors.white, fontSize: 30, fontWeight: FontWeight.w800)),
                 if (delta.abs() > 0.005) ...[
                   const SizedBox(height: 6),
                   Row(
@@ -729,16 +715,14 @@ class _NetWorthHero extends StatelessWidget {
                   lineBarsData: [
                     LineChartBarData(
                       spots: [
-                        for (var i = 0; i < series.length; i++)
-                          FlSpot(i.toDouble(), series[i].netWorth),
+                        for (var i = 0; i < series.length; i++) FlSpot(i.toDouble(), series[i].netWorth),
                       ],
                       isCurved: true,
                       preventCurveOverShooting: true,
                       color: Colors.white,
                       barWidth: 2,
                       dotData: const FlDotData(show: false),
-                      belowBarData:
-                          BarAreaData(show: true, color: Colors.white.withValues(alpha: 0.2)),
+                      belowBarData: BarAreaData(show: true, color: Colors.white.withValues(alpha: 0.2)),
                     ),
                   ],
                 ),
