@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
+import '../widgets/common.dart';
 import '../widgets/floating_nav_bar.dart';
 
 class AppShell extends StatefulWidget {
@@ -25,10 +26,8 @@ class _AppShellState extends State<AppShell> {
         ('/dashboard', Icons.dashboard_outlined, Icons.dashboard, 'Home'),
         if (ws.can('transactions.view'))
           ('/transactions', Icons.swap_horiz_outlined, Icons.swap_horiz, 'Txns'),
-        if (ws.can('dues.view'))
-          ('/dues', Icons.receipt_long_outlined, Icons.receipt_long, 'Dues'),
-        if (ws.can('debts.view'))
-          ('/debts', Icons.handshake_outlined, Icons.handshake, 'Debts'),
+        if (ws.can('dues.view')) ('/dues', Icons.receipt_long_outlined, Icons.receipt_long, 'Dues'),
+        if (ws.can('debts.view')) ('/debts', Icons.handshake_outlined, Icons.handshake, 'Debts'),
         ('/more', Icons.menu, Icons.menu, 'More'),
       ];
 
@@ -73,15 +72,17 @@ class _AppShellState extends State<AppShell> {
           title: Text(title),
           centerTitle: false,
         ),
-        body: (ws.loading || data.loading)
-            ? const Center(child: CircularProgressIndicator())
-            : widget.child,
+        // One listener over the whole body, so every tab's action button
+        // steps aside while its list is scrolling and no screen has to know.
+        body: FabScrollScope(
+          child:
+              (ws.loading || data.loading) ? const Center(child: CircularProgressIndicator()) : widget.child,
+        ),
         bottomNavigationBar: FloatingNavBar(
           selectedIndex: _index(tabs),
           onSelected: (i) => context.go(tabs[i].$1),
           items: [
-            for (final t in tabs)
-              FloatingNavItem(icon: t.$2, selectedIcon: t.$3, label: t.$4),
+            for (final t in tabs) FloatingNavItem(icon: t.$2, selectedIcon: t.$3, label: t.$4),
           ],
         ),
       ),

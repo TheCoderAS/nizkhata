@@ -60,6 +60,32 @@ void main() {
     expect(find.text('₹1,500.00'), findsOneWidget);
   });
 
+  group('a debt that has been paid off', () {
+    testWidgets('is neither, so it points nowhere and takes no tone', (tester) async {
+      await pump(tester, inbound: false, amount: 0);
+      // The bug this replaced: an outbound arrow in the colour of money owed,
+      // next to a dash, on a debt that had been cleared.
+      expect(find.byType(Icon), findsNothing);
+      expect(amountText(tester).style?.color, isNot(AppColors.danger));
+      expect(amountText(tester).style?.color, isNot(AppColors.accent2));
+    });
+
+    testWidgets('reads as a dash, the way a ledger writes nil', (tester) async {
+      await pump(tester, inbound: true, amount: 0);
+      expect(find.text('—'), findsOneWidget);
+    });
+
+    testWidgets('tells a screen reader it is settled', (tester) async {
+      await pump(tester, inbound: false, amount: 0);
+      expect(find.bySemanticsLabel('Settled'), findsOneWidget);
+    });
+
+    testWidgets('treats a rounding crumb as nil', (tester) async {
+      await pump(tester, inbound: false, amount: 0.004);
+      expect(find.byType(Icon), findsNothing);
+    });
+  });
+
   testWidgets('says the word for a reader who cannot see the colour', (tester) async {
     // Colour and an arrow are no use to a screen reader; the semantics label
     // is where the text still belongs.

@@ -1,6 +1,7 @@
 // Shared UI atoms — ports of StatCard, EntityAvatar, and simple state views.
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show ScrollDirection;
 
 import '../core/format.dart';
 import '../core/theme.dart';
@@ -463,38 +464,47 @@ class AppFab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    // Steps aside while you scroll down a list, so it stops covering the
+    // figure in the row beneath it. Scale rather than opacity: a half-faded
+    // button still takes the tap.
+    final visible = FabVisibility.of(context);
     // MergeSemantics: without it the InkWell publishes its own unlabelled
     // button node beside this one, and a screen reader reads an anonymous
     // button.
-    return MergeSemantics(
-      child: Tooltip(
-        message: tooltip,
-        child: Semantics(
-          button: true,
-          label: tooltip,
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: cs.primaryContainer,
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.30),
-                  blurRadius: 16,
-                  offset: const Offset(0, 5),
-                ),
-              ],
-            ),
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
+    return AnimatedScale(
+      scale: visible ? 1 : 0,
+      duration: const Duration(milliseconds: 160),
+      curve: Curves.easeOutCubic,
+      child: MergeSemantics(
+        child: Tooltip(
+          message: tooltip,
+          child: Semantics(
+            button: true,
+            label: tooltip,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: cs.primaryContainer,
                 borderRadius: BorderRadius.circular(20),
-                onTap: onPressed,
-                child: SizedBox(
-                  width: 56,
-                  height: 56,
-                  child: IconTheme(
-                    data: IconThemeData(color: cs.onPrimaryContainer, size: 26),
-                    child: child ?? Icon(icon),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.30),
+                    blurRadius: 16,
+                    offset: const Offset(0, 5),
+                  ),
+                ],
+              ),
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(20),
+                  onTap: onPressed,
+                  child: SizedBox(
+                    width: 56,
+                    height: 56,
+                    child: IconTheme(
+                      data: IconThemeData(color: cs.onPrimaryContainer, size: 26),
+                      child: child ?? Icon(icon),
+                    ),
                   ),
                 ),
               ),
@@ -561,6 +571,21 @@ class SignedAmount extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // A debt that has been paid off is neither a receivable nor a payable any
+    // more. Pointing an arrow at nothing, in the colour of money still owed,
+    // says the opposite of what a settled row means.
+    if (amount.abs() <= 0.005) {
+      final cs = Theme.of(context).colorScheme;
+      return Semantics(
+        label: 'Settled',
+        child: ExcludeSemantics(
+          child: Text(
+            formatMoney(0, currency),
+            style: TextStyle(fontSize: fontSize, fontWeight: fontWeight, color: cs.onSurfaceVariant),
+          ),
+        ),
+      );
+    }
     final tone = inbound ? AppColors.accent2 : AppColors.danger;
     // formatMoney parenthesises a negative, which is the whole convention.
     final text = formatMoney(inbound ? amount.abs() : -amount.abs(), currency);
@@ -605,5 +630,63 @@ class DirectionOption extends StatelessWidget {
           const SizedBox(width: 8),
           Flexible(child: Text(label, overflow: TextOverflow.ellipsis)),
         ],
+      );
+}
+
+/// Whether the floating action button should currently be showing.
+///
+/// A FAB parked in the bottom-right corner sits exactly where a list puts its
+/// amounts, so on a screen of figures it permanently hides one of them. Rather
+/// than move the button or give up the corner, it gets out of the way while you
+/// are scrolling down through the list and comes back the moment you stop or
+/// scroll up.
+///
+/// It lives above the shell's body so one listener covers every tab, and every
+/// screen's AppFab reads it without knowing any of this.
+class FabVisibility extends InheritedNotifier<ValueNotifier<bool>> {
+  const FabVisibility({super.key, required ValueNotifier<bool> super.notifier, required super.child});
+
+  static bool of(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<FabVisibility>()?.notifier?.value ?? true;
+}
+
+/// Watches the body's scrolling and drives a [FabVisibility] from it.
+class FabScrollScope extends StatefulWidget {
+  final Widget child;
+  const FabScrollScope({super.key, required this.child});
+
+  @override
+  State<FabScrollScope> createState() => _FabScrollScopeState();
+}
+
+class _FabScrollScopeState extends State<FabScrollScope> {
+  final _visible = ValueNotifier<bool>(true);
+
+  @override
+  void dispose() {
+    _visible.dispose();
+    super.dispose();
+  }
+
+  bool _onScroll(ScrollNotification n) {
+    // Only the body's own vertical list. A horizontal strip of chips, or a
+    // list inside a sheet on top of it, is not what this is about.
+    if (n.depth != 0 || n.metrics.axis != Axis.vertical) return false;
+    // Hide while the list is being pulled up, come back the moment it is
+    // pulled down again. Coming back on `idle` instead would pop the button
+    // out the instant a finger lifts, while a fling is still running.
+    if (n is UserScrollNotification) {
+      if (n.direction == ScrollDirection.reverse) _visible.value = false;
+      if (n.direction == ScrollDirection.forward) _visible.value = true;
+    } else if (n is ScrollEndNotification) {
+      _visible.value = true;
+    }
+    return false;
+  }
+
+  @override
+  Widget build(BuildContext context) => NotificationListener<ScrollNotification>(
+        onNotification: _onScroll,
+        child: FabVisibility(notifier: _visible, child: widget.child),
       );
 }
