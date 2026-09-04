@@ -24,8 +24,7 @@ class StatementPasswordRequired implements Exception {
   final bool wrongPassword;
   StatementPasswordRequired({required this.wrongPassword});
   @override
-  String toString() =>
-      wrongPassword ? 'Incorrect password.' : 'This PDF is password-protected.';
+  String toString() => wrongPassword ? 'Incorrect password.' : 'This PDF is password-protected.';
 }
 
 /// The file can't be parsed on-device; [message] says why and what to do.
@@ -45,8 +44,7 @@ class StatementGrid {
   StatementGrid({required this.kind, required this.rows, required this.headerRow});
 
   List<String> get header => rows.isEmpty ? const [] : rows[headerRow];
-  List<List<String>> get dataRows =>
-      headerRow + 1 >= rows.length ? const [] : rows.sublist(headerRow + 1);
+  List<List<String>> get dataRows => headerRow + 1 >= rows.length ? const [] : rows.sublist(headerRow + 1);
 }
 
 // ---- entry point -----------------------------------------------------------
@@ -81,8 +79,7 @@ StatementGrid parseStatement(Uint8List bytes, String filename, {String? password
       } on WrongOfficePassword {
         throw StatementPasswordRequired(wrongPassword: true);
       } on UnsupportedOfficeEncryption catch (e) {
-        throw StatementUnsupported(
-            "This protected Excel file uses an encryption we can't open "
+        throw StatementUnsupported("This protected Excel file uses an encryption we can't open "
             'on-device (${e.message}). Please export the statement as CSV or '
             'PDF and try again.');
       }
@@ -91,16 +88,13 @@ StatementGrid parseStatement(Uint8List bytes, String filename, {String? password
     try {
       final rows = decodeXls(bytes);
       if (rows.isEmpty) throw StatementUnsupported('The Excel file has no data.');
-      return StatementGrid(
-          kind: StatementKind.excel, rows: rows, headerRow: detectHeaderRow(rows));
+      return StatementGrid(kind: StatementKind.excel, rows: rows, headerRow: detectHeaderRow(rows));
     } on XlsPasswordProtected {
-      throw StatementUnsupported(
-          'This is a password-protected legacy .xls file, whose old encryption '
+      throw StatementUnsupported('This is a password-protected legacy .xls file, whose old encryption '
           "can't be opened on-device. Re-save it as .xlsx (Excel → Save As), "
           'or export the statement as CSV or PDF, and try again.');
     } on XlsUnreadable catch (e) {
-      throw StatementUnsupported(
-          "This legacy Excel file couldn't be read (${e.message}) — "
+      throw StatementUnsupported("This legacy Excel file couldn't be read (${e.message}) — "
           'export the statement as CSV, XLSX or PDF instead.');
     }
   }
@@ -195,8 +189,7 @@ StatementGrid _excelGrid(Uint8List bytes) {
   try {
     rows = readXlsx(bytes);
   } on XlsxError catch (e) {
-    throw StatementUnsupported(
-        "This Excel file couldn't be read (${e.message}). If it's "
+    throw StatementUnsupported("This Excel file couldn't be read (${e.message}). If it's "
         'password-protected, enter its password; otherwise export it as CSV or PDF.');
   }
   return StatementGrid(kind: StatementKind.excel, rows: rows, headerRow: detectHeaderRow(rows));
@@ -250,8 +243,7 @@ StatementGrid _pdfGrid(Uint8List bytes, String? password) {
     final lines = PdfTextExtractor(doc).extractTextLines();
     final rows = _pdfLinesToGrid(lines);
     if (rows == null) {
-      throw StatementUnsupported(
-          'No transaction table was found in this PDF. If the statement is a '
+      throw StatementUnsupported('No transaction table was found in this PDF. If the statement is a '
           'scanned image, export a CSV from your bank instead.');
     }
     return StatementGrid(kind: StatementKind.pdf, rows: rows, headerRow: 0);
@@ -324,8 +316,7 @@ List<List<String>>? _pdfLinesToGrid(List<TextLine> lines) {
 /// A line that reads like a transaction row: at least two words and either a
 /// parseable date or a decimal amount somewhere in it.
 bool _looksLikeTableRow(TextLine line) {
-  final words = [for (final w in line.wordCollection) w.text.trim()]
-    ..removeWhere((w) => w.isEmpty);
+  final words = [for (final w in line.wordCollection) w.text.trim()]..removeWhere((w) => w.isEmpty);
   if (words.length < 2) return false;
   var hasDate = false, hasAmount = false;
   for (final w in words) {
@@ -410,13 +401,11 @@ List<double>? _headerBoundaries(TextLine headerLine) {
   final clusters = _clusterWords(headerLine);
   if (clusters.length < 2) return null;
   return [
-    for (var i = 0; i + 1 < clusters.length; i++)
-      (clusters[i].right + clusters[i + 1].left) / 2,
+    for (var i = 0; i + 1 < clusters.length; i++) (clusters[i].right + clusters[i + 1].left) / 2,
   ];
 }
 
-List<String> _lineWordTexts(TextLine line) =>
-    [for (final w in line.wordCollection) w.text.trim()];
+List<String> _lineWordTexts(TextLine line) => [for (final w in line.wordCollection) w.text.trim()];
 
 String _normText(String s) => s.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
 
@@ -493,14 +482,43 @@ class ColumnMapping {
   int? amount; // single signed/CR-DR amount column
   int? debit; // separate withdrawal column
   int? credit; // separate deposit column
+  // A column saying which way a single amount runs: "Debit"/"Credit", "Dr"/
+  // "Cr", "W"/"D". Common on Indian card and bank statements, which print one
+  // unsigned Amount column and a direction beside it.
+  int? direction;
   int? reference;
   int? balance; // running balance — used for reconciliation, never imported
-  ColumnMapping(
-      {this.date, this.description, this.amount, this.debit, this.credit, this.reference, this.balance});
+  ColumnMapping({
+    this.date,
+    this.description,
+    this.amount,
+    this.debit,
+    this.credit,
+    this.direction,
+    this.reference,
+    this.balance,
+  });
 
   /// Two-column (debit/credit) mode vs single-amount mode.
   bool get splitAmounts => debit != null || credit != null;
   bool get complete => date != null && (amount != null || splitAmounts);
+}
+
+/// Which way a row runs, read from a direction cell.
+///
+/// Returns null when the cell says nothing recognisable, so an unreadable
+/// direction leaves the amount's own sign to speak rather than silently
+/// turning every row into money out.
+bool? isMoneyOutCell(String raw) {
+  final t = raw.trim().toLowerCase();
+  if (t.isEmpty) return null;
+  // Longest-first: "credit" must be tested before "cr", and note that "dr"
+  // is a prefix of nothing else here.
+  if (t.startsWith('debit') || t.startsWith('withdraw') || t == 'dr' || t == 'd' || t == 'w') {
+    return true;
+  }
+  if (t.startsWith('credit') || t.startsWith('deposit') || t == 'cr' || t == 'c') return false;
+  return null;
 }
 
 /// Best-guess mapping from header labels. The user can override on-screen.
@@ -513,6 +531,7 @@ ColumnMapping suggestMapping(List<String> header) {
       i != m.description &&
       i != m.debit &&
       i != m.credit &&
+      i != m.direction &&
       i != m.amount &&
       i != m.reference &&
       i != m.balance;
@@ -549,6 +568,19 @@ ColumnMapping suggestMapping(List<String> header) {
         !h.contains('date') &&
         const ['description', 'narration', 'particular', 'details', 'remarks'].any(h.contains)) {
       m.description = i;
+    }
+  }
+  // A header naming BOTH directions ("Debit/Credit", "Dr/Cr", "Cr/Dr") is a
+  // direction flag, not an amount. Claiming it as the debit column was how a
+  // perfectly ordinary card statement parsed to zero rows: the amount column
+  // was never looked for, and every "Debit" cell held no number.
+  for (var i = 0; i < cells.length; i++) {
+    final h = cells[i];
+    if (h.isEmpty || !freeFor(i)) continue;
+    final namesBoth = (h.contains('debit') || h.contains('dr')) && (h.contains('credit') || h.contains('cr'));
+    if (m.direction == null && (namesBoth || h.contains('type') || h.contains('dr/cr'))) {
+      m.direction = i;
+      break;
     }
   }
   for (var i = 0; i < cells.length; i++) {
@@ -588,8 +620,18 @@ ColumnMapping suggestMapping(List<String> header) {
 enum DateOrder { dmy, mdy, ymd }
 
 const _monthNames = <String, int>{
-  'jan': 1, 'feb': 2, 'mar': 3, 'apr': 4, 'may': 5, 'jun': 6,
-  'jul': 7, 'aug': 8, 'sep': 9, 'oct': 10, 'nov': 11, 'dec': 12,
+  'jan': 1,
+  'feb': 2,
+  'mar': 3,
+  'apr': 4,
+  'may': 5,
+  'jun': 6,
+  'jul': 7,
+  'aug': 8,
+  'sep': 9,
+  'oct': 10,
+  'nov': 11,
+  'dec': 12,
 };
 
 int? _monthFromName(String s) {
@@ -607,7 +649,11 @@ DateTime? _mkDate(int year, int month, int day) {
   return dt;
 }
 
-final _dateTokenRe = RegExp(r'^\s*([A-Za-z0-9]{1,9})[-/. ,]+([A-Za-z0-9]{1,9})[-/. ,]+([A-Za-z0-9]{1,4})');
+// The separator class carries an apostrophe so a shortened year written the
+// way statements print it, "20 Aug '26", is read rather than skipped. A row
+// whose date will not parse is dropped entirely, so this was the difference
+// between a card statement importing and importing as nothing.
+final _dateTokenRe = RegExp(r"^\s*([A-Za-z0-9]{1,9})[-/. ,']+([A-Za-z0-9]{1,9})[-/. ,']+([A-Za-z0-9]{1,4})");
 
 /// Parse one date cell using the given day/month order for all-numeric dates.
 /// Month names ("03 Jan 2025", "Jan 3, 2025") parse regardless of order.
@@ -621,9 +667,7 @@ DateTime? parseFlexibleDate(String raw, DateOrder order) {
   final midMonth = _monthFromName(t[1]);
   if (nums[1] == null && midMonth != null && nums[0] != null && nums[2] != null) {
     // "03 Jan 2025" or "2025 Jan 03"
-    return t[0].length == 4
-        ? _mkDate(nums[0]!, midMonth, nums[2]!)
-        : _mkDate(nums[2]!, midMonth, nums[0]!);
+    return t[0].length == 4 ? _mkDate(nums[0]!, midMonth, nums[2]!) : _mkDate(nums[2]!, midMonth, nums[0]!);
   }
   final firstMonth = _monthFromName(t[0]);
   if (nums[0] == null && firstMonth != null && nums[1] != null && nums[2] != null) {
@@ -735,7 +779,12 @@ List<ImportRowDraft> buildImportRows(StatementGrid grid, ColumnMapping m, DateOr
       return null;
     }
     final v = parseAmountText(cell(row, m.amount));
-    return v != null && v.abs() > 0.004 ? v : null;
+    if (v == null || v.abs() <= 0.004) return null;
+    // A direction column overrules the figure's own sign, since a statement
+    // that prints one carries unsigned amounts.
+    final out = m.direction != null ? isMoneyOutCell(cell(row, m.direction)) : null;
+    if (out == null) return v;
+    return out ? -v.abs() : v.abs();
   }
 
   final out = <ImportRowDraft>[];
@@ -771,8 +820,7 @@ List<ImportRowDraft> buildImportRows(StatementGrid grid, ColumnMapping m, DateOr
     if (amount != null && current.amount == null) current.amount = amount;
     if (balance != null && current.balance == null) current.balance = balance;
     if (desc.isNotEmpty) {
-      current.description =
-          current.description.isEmpty ? desc : '${current.description} $desc';
+      current.description = current.description.isEmpty ? desc : '${current.description} $desc';
     }
     if (ref.isNotEmpty && current.reference.isEmpty) current.reference = ref;
   }
