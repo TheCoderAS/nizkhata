@@ -50,7 +50,7 @@ class _DebtDetail extends StatelessWidget {
     final canManage = ws.can('debts.manage');
     final canTxn = ws.can('transactions.create');
     final outstanding = data.outstandingOf(debt.id);
-    final settleable = debt.status == 'open' && outstanding > 0;
+    final settleable = debtIsOutstanding(debt, outstanding) && outstanding > 0;
     final settleLabel = debt.direction == 'owed' ? 'Record receipt' : 'Record repayment';
     final contactName = data.contactsById[debt.contactId]?.name ?? '—';
     final title = debt.label ?? contactName;
@@ -85,7 +85,7 @@ class _DebtDetail extends StatelessWidget {
             DetailRow('Contact', contactName),
             DetailRow('Type', debt.direction == 'owed' ? 'Receivable' : 'Payable'),
             DetailRow('Purpose', _purposeLabel(debt.purpose)),
-            DetailRow('Status', debt.status),
+            DetailRow('Status', debtStatusFrom(debt, outstanding)),
             DetailRow('Principal', formatMoney(debt.principal, currency)),
             DetailRow('Outstanding', formatMoney(outstanding, currency)),
             if (debt.interestRate != null && debt.interestRate! > 0) ...[

@@ -505,7 +505,7 @@ class ContactDetailScreen extends StatelessWidget {
                           spacing: 6,
                           runSpacing: 6,
                           children: [
-                            _Badge(d.status),
+                            _Badge(debtStatusFrom(d, data.outstandingOf(d.id))),
                           ],
                         ),
                       ],
@@ -533,7 +533,8 @@ class ContactDetailScreen extends StatelessWidget {
     List<Debt> debts,
     String currency,
   ) {
-    final openDebts = debts.where((d) => d.status == 'open').length;
+    final data = context.read<DataController>();
+    final openDebts = debts.where((d) => debtIsOutstanding(d, data.outstandingOf(d.id))).length;
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [

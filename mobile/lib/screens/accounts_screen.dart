@@ -152,8 +152,7 @@ class AccountsScreen extends StatelessWidget {
     );
   }
 
-  static String _typeLabel(String t) =>
-      t == 'cash' ? 'Cash' : (t == 'credit_card' ? 'Credit card' : 'Bank');
+  static String _typeLabel(String t) => t == 'cash' ? 'Cash' : (t == 'credit_card' ? 'Credit card' : 'Bank');
 
   static String _masked(Account a) {
     if (a.cardLast4 != null && a.cardLast4!.isNotEmpty) return '···· ${a.cardLast4}';
@@ -263,9 +262,7 @@ void showAccountDetail(BuildContext context, Account a) {
             ? 'Bills on the ${ordinalDay(a.statementDay!)}, due on the ${ordinalDay(a.paymentDueDay!)}'
             : null;
       case 'creditLimit':
-        return a.creditLimit == null || a.creditLimit == 0
-            ? null
-            : formatMoney(a.creditLimit!, currency);
+        return a.creditLimit == null || a.creditLimit == 0 ? null : formatMoney(a.creditLimit!, currency);
       case 'code':
         return a.code;
       case 'description':
@@ -311,7 +308,8 @@ void showAccountDetail(BuildContext context, Account a) {
                       ),
                       child: Text(
                         AccountsScreen._typeLabel(a.type),
-                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: cs.onSurfaceVariant),
+                        style:
+                            TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: cs.onSurfaceVariant),
                       ),
                     ),
                   ],
