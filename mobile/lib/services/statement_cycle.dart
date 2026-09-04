@@ -99,6 +99,27 @@ double statementOutstanding(
   return roundMoney(-balance);
 }
 
+/// Money credited to the card after [since]: bill payments, and refunds.
+///
+/// Purchases made afterwards are not netted off. Paying a bill settles it
+/// whatever you spend the next day — the new spending belongs to the next
+/// statement, exactly as the bank treats it.
+double creditedSince(
+  Account card,
+  List<Txn> txns,
+  Map<String, Debt> debtsById,
+  DateTime since,
+) {
+  final from = DateTime(since.year, since.month, since.day).add(const Duration(days: 1));
+  var total = 0.0;
+  for (final txn in txns) {
+    if (txn.date.isBefore(from)) continue;
+    final delta = accountDeltas(txn, debtsById)[card.id] ?? 0;
+    if (delta > 0) total += delta;
+  }
+  return roundMoney(total);
+}
+
 /// Deterministic id for a card's bill, so every device and every run agrees on
 /// which document a statement is, and none of them can create it twice.
 String statementDueId(String accountId, DateTime statementDate) => 'stmt_${accountId}_${statementDate.year}'
@@ -189,6 +210,13 @@ List<StatementDuePlan> statementDuePlans({
     final existing = byId[id];
 
     if (existing == null) {
+      // The live statement can be one that has already been paid: the first
+      // sync after a cycle is set up looks back at last month's, and by then
+      // that bill is usually settled. Raising it would ask for money already
+      // sent, dated in the past, so it would land overdue as well as wrong.
+      if (owed - creditedSince(card, txns, debtsById, cycle.statementDate) <= 0.005) {
+        continue;
+      }
       out.add(StatementDuePlan(id, doc));
       continue;
     }
