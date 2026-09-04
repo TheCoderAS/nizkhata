@@ -76,8 +76,7 @@ Uint8List buildKhataPdf({
     logoPng: logoPng,
   );
 
-  g.drawString(_pdfSafe(contactName),
-      PdfStandardFont(PdfFontFamily.helvetica, 16, style: PdfFontStyle.bold),
+  g.drawString(_pdfSafe(contactName), PdfStandardFont(PdfFontFamily.helvetica, 16, style: PdfFontStyle.bold),
       bounds: Rect.fromLTWH(0, y, w, 22));
   y += 22;
   if (entries.isNotEmpty) {
@@ -87,11 +86,8 @@ Uint8List buildKhataPdf({
       if (e.date.isBefore(oldest)) oldest = e.date;
       if (e.date.isAfter(newest)) newest = e.date;
     }
-    g.drawString(
-        'Statement period: ${dateFmt.format(oldest)} to ${dateFmt.format(newest)}',
-        small,
-        brush: PdfSolidBrush(PdfColor(120, 128, 148)),
-        bounds: Rect.fromLTWH(0, y, w, 12));
+    g.drawString('Statement period: ${dateFmt.format(oldest)} to ${dateFmt.format(newest)}', small,
+        brush: PdfSolidBrush(PdfColor(120, 128, 148)), bounds: Rect.fromLTWH(0, y, w, 12));
     y += 16;
   } else {
     y += 4;
@@ -174,12 +170,10 @@ Uint8List buildKhataPdf({
     r.cells[0].value = dateFmt.format(e.date);
     r.cells[1].value = _pdfSafe(e.description);
     r.cells[2].value = '${e.amount >= 0 ? '+' : '-'}${_money(e.amount.abs(), currency)}';
-    r.cells[3].value =
-        '${bal >= 0.005 ? '' : (bal <= -0.005 ? '-' : '')}${_money(bal.abs(), currency)}';
+    r.cells[3].value = '${bal >= 0.005 ? '' : (bal <= -0.005 ? '-' : '')}${_money(bal.abs(), currency)}';
   }
   styleStatementGrid(grid, body: body, bold: bodyBold, rightCols: {2, 3});
-  currentPage.graphics
-      .drawString('Transactions (${entries.length})', h2, bounds: Rect.fromLTWH(0, y, w, 16));
+  currentPage.graphics.drawString('Transactions (${entries.length})', h2, bounds: Rect.fromLTWH(0, y, w, 16));
   grid.draw(page: currentPage, bounds: Rect.fromLTWH(0, y + 20, w, 0));
 
   drawPdfPageFooters(doc, 'Made with NizKhata | https://nizkhata.web.app');
@@ -200,23 +194,22 @@ String buildKhataText({
 }) {
   final dateFmt = DateFormat('dd MMM');
   final b = StringBuffer();
-  b.writeln('*Khata: $contactName*');
+  b.writeln('*Statement of account: $contactName*');
   if (net.abs() <= 0.005) {
-    b.writeln('All settled, nothing pending.');
+    b.writeln('Closing balance: nil. The account is settled.');
   } else if (net > 0) {
-    b.writeln('${_money(net, currency)} is pending to be received.');
+    b.writeln('Closing balance receivable: ${_money(net, currency)}');
   } else {
-    b.writeln('${_money(net.abs(), currency)} is pending to be paid.');
+    b.writeln('Closing balance payable: ${_money(net.abs(), currency)}');
   }
   if (openDues.isNotEmpty) {
-    b.writeln('\nPending items:');
+    b.writeln('\nOpen items:');
     for (final d in openDues) {
-      b.writeln(
-          '- ${d.title}: ${_money(d.remaining, currency)} (due ${dateFmt.format(d.dueDate)})');
+      b.writeln('- ${d.title}: ${_money(d.remaining, currency)} (due ${dateFmt.format(d.dueDate)})');
     }
   }
   if (entries.isNotEmpty) {
-    b.writeln('\nRecent entries:');
+    b.writeln('\nRecent activity:');
     for (final e in entries.take(recent)) {
       b.writeln(
           '- ${dateFmt.format(e.date)}: ${e.description}, ${e.amount >= 0 ? '+' : '-'}${_money(e.amount.abs(), currency)}');
@@ -226,9 +219,14 @@ String buildKhataText({
   return b.toString();
 }
 
-/// Payment message for an open due, written the way a person would. For a
-/// receivable due it politely asks the contact to pay; for a payable due it's
-/// a heads-up that you owe them and will clear it.
+/// Message for an open due, written as a payment notice rather than a chat.
+///
+/// The amount and the date are set out on their own lines, so the figures can
+/// be read at a glance and checked against the other side's own books. Which
+/// way the money runs decides which notice it is, and the two are never
+/// confused: a receivable is a reminder asking for payment, a payable is a
+/// payment advice about money going out. A payable never asks the contact for
+/// anything.
 String buildDueReminderText({
   required String contactName,
   required String dueTitle,
@@ -241,17 +239,22 @@ String buildDueReminderText({
   final overdue = dueDate.isBefore(DateTime.now());
   final amount = _money(remaining, currency);
   final when = dateFmt.format(dueDate);
-  final String body;
+  final b = StringBuffer();
+  b.writeln('Hi $contactName,');
+  b.writeln();
+  b.writeln(direction == 'receivable' ? '*Payment reminder: $dueTitle*' : '*Payment advice: $dueTitle*');
+  b.writeln('Amount: $amount');
+  b.writeln('Due date: $when${overdue ? ' (overdue)' : ''}');
+  b.writeln();
   if (direction == 'receivable') {
-    body = 'Hi $contactName, hope you are doing well! Just a reminder that '
-        '$amount for "$dueTitle" ${overdue ? 'was due on' : 'is due by'} $when. '
-        'Please clear it when you get a chance. Thank you!';
-  } else if (overdue) {
-    body = 'Hi $contactName, $amount for "$dueTitle" was due on $when from my '
-        'side. Sorry for the delay, I will clear it soon. Thanks for your patience!';
+    b.writeln(overdue
+        ? 'Kindly arrange the payment at the earliest. Please ignore this notice if it has already been settled.'
+        : 'Kindly arrange the payment on or before the due date. Please ignore this notice if it has already been settled.');
   } else {
-    body = 'Hi $contactName, just a note that $amount for "$dueTitle" is due '
-        'by $when from my side. I will make the payment on time.';
+    b.writeln(overdue
+        ? 'This payment is pending at my end and will be released shortly. Apologies for the delay.'
+        : 'This payment is scheduled and will be released on or before the due date.');
   }
-  return '$body\n\nSent from NizKhata: https://nizkhata.web.app';
+  b.write('\nSent from NizKhata: https://nizkhata.web.app');
+  return b.toString();
 }

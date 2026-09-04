@@ -74,14 +74,17 @@ String _currencySymbol(String code) {
   }
 }
 
-/// Balance label with credit-card "owed" treatment: a negative credit-card
-/// balance reads "₹1,000.00 owed" (matches the web), else plain formatMoney.
-String accountBalanceLabel(String accountType, num balance, [String currency = 'INR']) {
-  if (accountType == 'credit_card' && balance < 0) {
-    return '${formatMoney(-balance, currency)} owed';
-  }
-  return formatMoney(balance, currency);
-}
+/// Balance label for an account row.
+///
+/// Every account reads the same way, in the oldest notation there is: money you
+/// are down shows in parentheses. A drawn credit card is "(₹1,000.00)", an
+/// overdrawn bank account is "(₹1,000.00)", and no word is needed to say which
+/// direction either one runs.
+///
+/// The account type is still taken so callers do not all have to change if a
+/// type ever needs its own treatment again.
+String accountBalanceLabel(String accountType, num balance, [String currency = 'INR']) =>
+    formatMoney(balance, currency);
 
 /// Short readable date, e.g. "9 Aug 2026".
 String formatDate(DateTime date, [String locale = 'en_IN']) {
@@ -107,4 +110,16 @@ String initialsOf(String nameOrEmail) {
     from: HSLColor.fromAHSL(1, hue.toDouble(), 0.70, 0.55).toColor(),
     to: HSLColor.fromAHSL(1, ((hue + 40) % 360).toDouble(), 0.72, 0.48).toColor(),
   );
+}
+
+/// A day of the month as people say it: 1st, 2nd, 3rd, 21st, 31st.
+String ordinalDay(int day) {
+  // 11th, 12th and 13th break the pattern the last digit would suggest.
+  if (day >= 11 && day <= 13) return '${day}th';
+  return switch (day % 10) {
+    1 => '${day}st',
+    2 => '${day}nd',
+    3 => '${day}rd',
+    _ => '${day}th',
+  };
 }

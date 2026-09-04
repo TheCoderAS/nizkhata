@@ -14,6 +14,7 @@ import '../core/format.dart';
 import '../core/theme.dart';
 import '../data/derive.dart';
 import '../data/models.dart';
+import '../services/statement_cycle.dart';
 import '../state/data_controller.dart';
 import 'transaction_detail.dart';
 import '../state/workspace_controller.dart';
@@ -132,9 +133,8 @@ class _AccountLedgerScreenState extends State<AccountLedgerScreen> {
     final balance = data.balanceOf(widget.accountId);
     final hasFilter = _from != null || _to != null;
 
-    final typeLabel = account.type == 'cash'
-        ? 'Cash'
-        : (account.type == 'credit_card' ? 'Credit card' : 'Bank');
+    final typeLabel =
+        account.type == 'cash' ? 'Cash' : (account.type == 'credit_card' ? 'Credit card' : 'Bank');
     final masked = account.cardLast4 != null && account.cardLast4!.isNotEmpty
         ? '···· ${account.cardLast4}'
         : (account.accountNumber != null && account.accountNumber!.length >= 4
@@ -188,7 +188,9 @@ class _AccountLedgerScreenState extends State<AccountLedgerScreen> {
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
             child: Row(
               children: [
-                Expanded(child: _SummaryTile(label: 'Opening balance', amount: account.openingBalance, currency: currency)),
+                Expanded(
+                    child: _SummaryTile(
+                        label: 'Opening balance', amount: account.openingBalance, currency: currency)),
                 const SizedBox(width: 12),
                 Expanded(
                   child: _SummaryTile(
@@ -202,6 +204,16 @@ class _AccountLedgerScreenState extends State<AccountLedgerScreen> {
               ],
             ),
           ),
+          if (account.hasBillingCycle)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+              child: StatementSummary(
+                card: account,
+                txns: data.transactions,
+                debtsById: data.debtsById,
+                currency: currency,
+              ),
+            ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
             child: Row(
@@ -344,6 +356,147 @@ class _SummaryTile extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// The card's live bill: what was owed when the statement was drawn, when it
+/// has to be paid, and how much of the limit is gone.
+///
+/// It reads the cycle rather than the due, so it says something useful from the
+/// moment the cycle is set up — before the sync has raised anything, and on a
+/// card whose bill you have already dismissed.
+class StatementSummary extends StatelessWidget {
+  final Account card;
+  final List<Txn> txns;
+  final Map<String, Debt> debtsById;
+  final String currency;
+
+  /// Injectable so the countdown can be asserted against a fixed day.
+  final DateTime? now;
+
+  const StatementSummary({
+    super.key,
+    required this.card,
+    required this.txns,
+    required this.debtsById,
+    required this.currency,
+    this.now,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final now = this.now ?? DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final cycle = latestStatement(card, now);
+    if (cycle == null) return const SizedBox.shrink();
+
+    final owed = statementOutstanding(card, txns, debtsById, cycle.statementDate);
+    final days = cycle.paymentDue.difference(today).inDays;
+    final settled = owed <= 0.005;
+
+    final (String status, Color tone) = switch (days) {
+      _ when settled => ('Nothing to pay', cs.onSurfaceVariant),
+      < 0 => ('Overdue by ${-days} ${-days == 1 ? 'day' : 'days'}', AppColors.danger),
+      0 => ('Due today', AppColors.warning),
+      <= 3 => ('Due in $days ${days == 1 ? 'day' : 'days'}', AppColors.warning),
+      _ => ('Due in $days days', cs.onSurfaceVariant),
+    };
+
+    // Spend since the statement is next month's bill, not this one's — worth
+    // saying, because the card's current balance shows the two added together.
+    final sinceStatement = roundMoney(statementOutstanding(card, txns, debtsById, today) - owed);
+
+    final limit = card.creditLimit;
+    final usedNow = statementOutstanding(card, txns, debtsById, today);
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.receipt_long, size: 16, color: cs.onSurfaceVariant),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Statement of ${formatDate(cycle.statementDate)}',
+                    style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Text(
+              settled ? formatMoney(0, currency) : formatMoney(owed, currency),
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              settled ? status : '$status · by ${formatDate(cycle.paymentDue)}',
+              style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: tone),
+            ),
+            if (sinceStatement.abs() > 0.005) ...[
+              const SizedBox(height: 10),
+              Text(
+                '${formatMoney(sinceStatement, currency)} spent since, on the next bill',
+                style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
+              ),
+            ],
+            if (limit != null && limit > 0) ...[
+              const SizedBox(height: 14),
+              _LimitBar(used: usedNow, limit: limit, currency: currency),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _LimitBar extends StatelessWidget {
+  final double used;
+  final double limit;
+  final String currency;
+  const _LimitBar({required this.used, required this.limit, required this.currency});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final fraction = (used / limit).clamp(0.0, 1.0);
+    final percent = (fraction * 100).round();
+    final tone = percent >= 90 ? AppColors.danger : (percent >= 70 ? AppColors.warning : cs.primary);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                '$percent% of ${formatMoney(limit, currency)} used',
+                style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
+              ),
+            ),
+            Text(
+              '${formatMoney(roundMoney(limit - used), currency)} left',
+              style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: LinearProgressIndicator(
+            value: fraction,
+            minHeight: 6,
+            backgroundColor: cs.surfaceContainerHighest,
+            valueColor: AlwaysStoppedAnimation(tone),
+          ),
+        ),
+      ],
     );
   }
 }

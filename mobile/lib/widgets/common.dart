@@ -79,8 +79,7 @@ class StatCard extends StatelessWidget {
                     Container(
                       width: 32,
                       height: 32,
-                      decoration:
-                          BoxDecoration(color: iconBg, borderRadius: BorderRadius.circular(9)),
+                      decoration: BoxDecoration(color: iconBg, borderRadius: BorderRadius.circular(9)),
                       child: Icon(icon, size: 16, color: iconFg),
                     ),
                 ],
@@ -145,8 +144,7 @@ class SectionCard extends StatelessWidget {
   final Widget child;
   final Widget? trailing;
   final IconData? icon;
-  const SectionCard(
-      {super.key, required this.title, required this.child, this.trailing, this.icon});
+  const SectionCard({super.key, required this.title, required this.child, this.trailing, this.icon});
 
   @override
   Widget build(BuildContext context) {
@@ -199,8 +197,7 @@ class EmptyView extends StatelessWidget {
   final String? hint;
   final Widget? action;
   final IconData icon;
-  const EmptyView(
-      {super.key, required this.title, this.hint, this.action, this.icon = Icons.inbox_outlined});
+  const EmptyView({super.key, required this.title, this.hint, this.action, this.icon = Icons.inbox_outlined});
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
@@ -231,8 +228,7 @@ class EmptyView extends StatelessWidget {
             Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
             if (hint != null) ...[
               const SizedBox(height: 6),
-              Text(hint!,
-                  textAlign: TextAlign.center, style: TextStyle(color: cs.onSurfaceVariant)),
+              Text(hint!, textAlign: TextAlign.center, style: TextStyle(color: cs.onSurfaceVariant)),
             ],
             if (action != null) ...[const SizedBox(height: 20), action!],
           ],
@@ -532,4 +528,82 @@ class EntranceFade extends StatelessWidget {
       child: child,
     );
   }
+}
+
+/// An amount that carries its own direction, so nothing has to say it in words.
+///
+/// Money coming in reads plainly and green; money going out is parenthesised
+/// and red, which is how a ledger has always written a negative. The arrow is
+/// not decoration: colour alone fails a colour-blind reader and dies in a
+/// greyscale screenshot, so the direction survives without it.
+///
+/// The words are still there for anyone who cannot see either — they live in
+/// the semantics label, which is where text belongs once a symbol has done the
+/// job on screen.
+class SignedAmount extends StatelessWidget {
+  /// Always the magnitude. [inbound] decides how it reads.
+  final double amount;
+
+  /// True for a receivable: money owed TO you.
+  final bool inbound;
+  final String currency;
+  final double fontSize;
+  final FontWeight fontWeight;
+
+  const SignedAmount({
+    super.key,
+    required this.amount,
+    required this.inbound,
+    required this.currency,
+    this.fontSize = 14,
+    this.fontWeight = FontWeight.w600,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final tone = inbound ? AppColors.accent2 : AppColors.danger;
+    // formatMoney parenthesises a negative, which is the whole convention.
+    final text = formatMoney(inbound ? amount.abs() : -amount.abs(), currency);
+    return Semantics(
+      label: '${inbound ? 'Receivable' : 'Payable'} ${formatMoney(amount.abs(), currency)}',
+      child: ExcludeSemantics(
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(inbound ? Icons.south_west : Icons.north_east, size: fontSize, color: tone),
+            const SizedBox(width: 4),
+            Text(
+              text,
+              style: TextStyle(fontSize: fontSize, fontWeight: fontWeight, color: tone),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A choice in a picker, marked with the same arrow the lists use so the two
+/// read as one system: pick "Payable" here and the amount shows up red with an
+/// outbound arrow everywhere afterwards.
+class DirectionOption extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final String label;
+  const DirectionOption({
+    super.key,
+    required this.icon,
+    required this.color,
+    required this.label,
+  });
+
+  @override
+  Widget build(BuildContext context) => Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 15, color: color),
+          const SizedBox(width: 8),
+          Flexible(child: Text(label, overflow: TextOverflow.ellipsis)),
+        ],
+      );
 }

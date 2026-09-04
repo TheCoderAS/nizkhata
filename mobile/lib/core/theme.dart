@@ -9,6 +9,7 @@ class AppColors {
   static const brandTo = Color(0xFF7C3AED); // violet (grad-to)
   static const accent2 = Color(0xFF10B981); // emerald (positive / receivable)
   static const danger = Color(0xFFEF4444); // red (negative / payable)
+  static const warning = Color(0xFFF59E0B); // amber (approaching a limit / due soon)
 }
 
 /// Consistent spacing scale (4pt grid) used across screens.

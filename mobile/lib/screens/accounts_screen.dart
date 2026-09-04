@@ -218,7 +218,15 @@ void showAccountDetail(BuildContext context, Account a) {
   const orderByType = <String, List<String>>{
     'cash': ['code', 'description'],
     'bank': ['accountNumber', 'ifsc', 'cif', 'branchName', 'code', 'description'],
-    'credit_card': ['nameOnCard', 'cardLast4', 'cardExpiry', 'code', 'description'],
+    'credit_card': [
+      'nameOnCard',
+      'cardLast4',
+      'cardExpiry',
+      'billingCycle',
+      'creditLimit',
+      'code',
+      'description'
+    ],
   };
   const labels = <String, String>{
     'accountNumber': 'Account number',
@@ -228,6 +236,8 @@ void showAccountDetail(BuildContext context, Account a) {
     'nameOnCard': 'Name on card',
     'cardLast4': 'Card (last 4)',
     'cardExpiry': 'Expiry',
+    'billingCycle': 'Billing cycle',
+    'creditLimit': 'Credit limit',
     'code': 'Code',
     'description': 'Description',
   };
@@ -247,6 +257,15 @@ void showAccountDetail(BuildContext context, Account a) {
         return a.cardLast4;
       case 'cardExpiry':
         return a.cardExpiry;
+      case 'billingCycle':
+        // Said the way the statement says it, so it can be checked at a glance.
+        return a.hasBillingCycle
+            ? 'Bills on the ${ordinalDay(a.statementDay!)}, due on the ${ordinalDay(a.paymentDueDay!)}'
+            : null;
+      case 'creditLimit':
+        return a.creditLimit == null || a.creditLimit == 0
+            ? null
+            : formatMoney(a.creditLimit!, currency);
       case 'code':
         return a.code;
       case 'description':

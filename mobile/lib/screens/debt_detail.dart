@@ -54,9 +54,7 @@ class _DebtDetail extends StatelessWidget {
     final settleLabel = debt.direction == 'owed' ? 'Record receipt' : 'Record repayment';
     final contactName = data.contactsById[debt.contactId]?.name ?? '—';
     final title = debt.label ?? contactName;
-    final linked = data.transactions
-        .where((t) => t.lines.any((l) => l.debtId == debt.id))
-        .toList()
+    final linked = data.transactions.where((t) => t.lines.any((l) => l.debtId == debt.id)).toList()
       ..sort((a, b) => b.date.compareTo(a.date));
 
     return Padding(
@@ -85,7 +83,7 @@ class _DebtDetail extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             DetailRow('Contact', contactName),
-            DetailRow('Direction', debt.direction == 'owed' ? 'They owe you' : 'You owe them'),
+            DetailRow('Type', debt.direction == 'owed' ? 'Receivable' : 'Payable'),
             DetailRow('Purpose', _purposeLabel(debt.purpose)),
             DetailRow('Status', debt.status),
             DetailRow('Principal', formatMoney(debt.principal, currency)),
@@ -100,9 +98,7 @@ class _DebtDetail extends StatelessWidget {
                     roundMoney(outstanding *
                         debt.interestRate! /
                         100 *
-                        DateTime.now()
-                            .difference(debt.interestFrom ?? DateTime.now())
-                            .inDays /
+                        DateTime.now().difference(debt.interestFrom ?? DateTime.now()).inDays /
                         365),
                     currency),
               ),
@@ -126,8 +122,7 @@ class _DebtDetail extends StatelessWidget {
             const SizedBox(height: 12),
             const Divider(height: 1),
             const SizedBox(height: 12),
-            Text('Linked transactions',
-                style: Theme.of(context).textTheme.titleMedium),
+            Text('Linked transactions', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),
             if (linked.isEmpty)
               Text('No transactions linked to this debt yet.',
@@ -143,7 +138,6 @@ class _DebtDetail extends StatelessWidget {
       ),
     );
   }
-
 
   Widget _txnTile(BuildContext context, DataController data, Txn t, String currency) {
     final cs = Theme.of(context).colorScheme;
@@ -168,8 +162,7 @@ class _DebtDetail extends StatelessWidget {
                 ],
               ),
             ),
-            Text(formatMoney(t.totalAmount, currency),
-                style: const TextStyle(fontWeight: FontWeight.w600)),
+            Text(formatMoney(t.totalAmount, currency), style: const TextStyle(fontWeight: FontWeight.w600)),
             Icon(Icons.chevron_right, size: 18, color: cs.onSurfaceVariant),
           ],
         ),

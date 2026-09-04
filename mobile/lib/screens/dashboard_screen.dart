@@ -408,7 +408,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget _budgetRow(BudgetProgress p, String currency) {
     final cs = Theme.of(context).colorScheme;
     final Color barColor =
-        p.ratio > 1 ? AppColors.danger : (p.ratio > 0.8 ? Colors.orange : cs.primary);
+        p.ratio > 1 ? AppColors.danger : (p.ratio > 0.8 ? AppColors.warning : cs.primary);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 5),
       child: Column(

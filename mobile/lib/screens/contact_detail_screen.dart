@@ -64,9 +64,7 @@ class ContactDetailScreen extends StatelessWidget {
     // the legacy single email when no array is present.
     final emailBits = contact.emails.isNotEmpty
         ? contact.emails.map((e) => '${e.label}: ${e.value}').toList()
-        : (contact.email != null && contact.email!.isNotEmpty
-            ? [contact.email!]
-            : <String>[]);
+        : (contact.email != null && contact.email!.isNotEmpty ? [contact.email!] : <String>[]);
     return DefaultTabController(
       length: 3,
       child: Scaffold(
@@ -244,8 +242,7 @@ class ContactDetailScreen extends StatelessWidget {
               final data = context.watch<DataController>();
               final ws = context.watch<WorkspaceController>();
               if (!ws.can('transactions.create')) return const SizedBox.shrink();
-              final plan = buildSettleUpPlan(contactId, data.debts, data.transactions,
-                  lineIdSeed: 0);
+              final plan = buildSettleUpPlan(contactId, data.debts, data.transactions, lineIdSeed: 0);
               if (plan.isEmpty || plan.signedTotal.abs() <= 0.005) {
                 return const SizedBox.shrink();
               }
@@ -304,7 +301,7 @@ class ContactDetailScreen extends StatelessWidget {
               for (final d in plan.debts)
                 Text(
                   '- ${d.label?.isNotEmpty == true ? d.label : _purposeLabels[d.purpose] ?? d.purpose}'
-                  ' (${d.direction == 'owed' ? 'they owe' : 'you owe'})',
+                  ' (${d.direction == 'owed' ? 'receivable' : 'payable'})',
                   style: const TextStyle(fontSize: 13),
                 ),
               const SizedBox(height: 10),
@@ -349,8 +346,7 @@ class ContactDetailScreen extends StatelessWidget {
         lines: plan.lines,
       );
       if (context.mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('Settle-up recorded')));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Settle-up recorded')));
       }
     } catch (e) {
       if (context.mounted) {
@@ -413,8 +409,7 @@ class ContactDetailScreen extends StatelessWidget {
     );
   }
 
-  Widget _txnBubble(BuildContext context, Txn t, String currency, bool incoming,
-      List<String> debtLabels) {
+  Widget _txnBubble(BuildContext context, Txn t, String currency, bool incoming, List<String> debtLabels) {
     final cs = Theme.of(context).colorScheme;
     final amountColor = incoming ? AppColors.accent2 : AppColors.danger;
     final sign = incoming ? '+' : '−';
@@ -423,9 +418,7 @@ class ContactDetailScreen extends StatelessWidget {
         maxWidth: MediaQuery.of(context).size.width * 0.78,
       ),
       child: Material(
-        color: incoming
-            ? cs.surfaceContainerHigh
-            : cs.primary.withValues(alpha: 0.12),
+        color: incoming ? cs.surfaceContainerHigh : cs.primary.withValues(alpha: 0.12),
         borderRadius: BorderRadius.only(
           topLeft: Radius.circular(incoming ? 4 : 16),
           topRight: Radius.circular(incoming ? 16 : 4),
@@ -451,8 +444,7 @@ class ContactDetailScreen extends StatelessWidget {
                 ),
                 if (t.note?.isNotEmpty == true) ...[
                   const SizedBox(height: 2),
-                  Text(t.note!,
-                      style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant)),
+                  Text(t.note!, style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant)),
                 ],
                 if (t.lines.isNotEmpty || debtLabels.isNotEmpty) ...[
                   const SizedBox(height: 6),
@@ -461,8 +453,7 @@ class ContactDetailScreen extends StatelessWidget {
                     runSpacing: 4,
                     children: [
                       for (final l in t.lines.take(3)) _MiniBadge(_lineTypeLabel(l.type)),
-                      for (final label in debtLabels)
-                        _MiniBadge(label, color: AppColors.accent2),
+                      for (final label in debtLabels) _MiniBadge(label, color: AppColors.accent2),
                     ],
                   ),
                 ],
@@ -514,10 +505,6 @@ class ContactDetailScreen extends StatelessWidget {
                           spacing: 6,
                           runSpacing: 6,
                           children: [
-                            _Badge(
-                              d.direction == 'owed' ? 'They owe you' : 'You owe',
-                              color: d.direction == 'owed' ? AppColors.accent2 : AppColors.danger,
-                            ),
                             _Badge(d.status),
                           ],
                         ),
@@ -525,9 +512,10 @@ class ContactDetailScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 12),
-                  Text(
-                    formatMoney(data.outstandingOf(d.id), currency),
-                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  SignedAmount(
+                    amount: data.outstandingOf(d.id),
+                    inbound: d.direction == 'owed',
+                    currency: currency,
                   ),
                 ],
               ),
@@ -567,7 +555,6 @@ class ContactDetailScreen extends StatelessWidget {
       ],
     );
   }
-
 
   // ---- shareable khata -----------------------------------------------------
 
@@ -620,8 +607,8 @@ class ContactDetailScreen extends StatelessWidget {
     }
     entries.sort((a, b) => b.date.compareTo(a.date));
     final openDues = [
-      for (final d in data.dues.where((d) =>
-          d.contactId == contact.id && (d.status == 'open' || d.status == 'partial')))
+      for (final d in data.dues
+          .where((d) => d.contactId == contact.id && (d.status == 'open' || d.status == 'partial')))
         KhataDueLine(d.title, d.dueDate, roundMoney(d.amount - data.settledOf(d.id)), d.direction),
     ]..sort((a, b) => a.dueDate.compareTo(b.dueDate));
     return (
@@ -747,19 +734,18 @@ class _MiniBadge extends StatelessWidget {
 
 class _Badge extends StatelessWidget {
   final String text;
-  final Color? color;
-  const _Badge(this.text, {this.color});
+  const _Badge(this.text);
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final fg = color ?? cs.onSurfaceVariant;
+    final fg = cs.onSurfaceVariant;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: (color ?? cs.outlineVariant).withValues(alpha: 0.14),
+        color: cs.outlineVariant.withValues(alpha: 0.14),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: (color ?? cs.outlineVariant).withValues(alpha: 0.5)),
+        border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.5)),
       ),
       child: Text(
         text,

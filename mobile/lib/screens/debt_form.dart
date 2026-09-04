@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart' show Timestamp;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../core/theme.dart';
 import '../data/derive.dart';
 import '../data/models.dart';
 import '../data/mutations.dart';
@@ -53,7 +54,17 @@ class _DebtFormState extends State<_DebtForm> {
 
   // Unsaved-edit detection: snapshot on open, compare on close.
   late final String _fp0;
-  String _fp() => ['$_contactId', _direction, _purpose, _label.text, _note.text, _opening.text, _interest.text, '$_accountId', _status].join('|');
+  String _fp() => [
+        '$_contactId',
+        _direction,
+        _purpose,
+        _label.text,
+        _note.text,
+        _opening.text,
+        _interest.text,
+        '$_accountId',
+        _status
+      ].join('|');
 
   final _formKey = GlobalKey<FormState>();
   late String? _contactId = widget.existing?.contactId;
@@ -63,8 +74,8 @@ class _DebtFormState extends State<_DebtForm> {
   late final _note = TextEditingController(text: widget.existing?.note ?? '');
   late final _interest = TextEditingController(
       text: widget.existing?.interestRate != null ? widget.existing!.interestRate.toString() : '');
-  late final _opening = TextEditingController(
-      text: widget.existing != null ? widget.existing!.principal.toString() : '0');
+  late final _opening =
+      TextEditingController(text: widget.existing != null ? widget.existing!.principal.toString() : '0');
   String? _accountId; // null = External / none
   late String _status = widget.existing?.status ?? 'open';
   bool _busy = false;
@@ -134,7 +145,6 @@ class _DebtFormState extends State<_DebtForm> {
     }
   }
 
-
   @override
   Widget build(BuildContext context) {
     return DiscardGuard(
@@ -150,8 +160,7 @@ class _DebtFormState extends State<_DebtForm> {
     final accounts = data.accounts;
 
     return Padding(
-      padding: EdgeInsets.fromLTRB(
-          20, 0, 20, 20 + MediaQuery.of(context).padding.bottom),
+      padding: EdgeInsets.fromLTRB(20, 0, 20, 20 + MediaQuery.of(context).padding.bottom),
       child: SingleChildScrollView(
         padding: const EdgeInsets.only(top: kSheetFieldTopPad),
         child: Form(
@@ -171,10 +180,24 @@ class _DebtFormState extends State<_DebtForm> {
               const SizedBox(height: 14),
               DropdownButtonFormField<String>(
                 value: _direction,
-                decoration: const InputDecoration(labelText: 'Direction'),
-                items: const [
-                  DropdownMenuItem(value: 'owe', child: Text('You owe them')),
-                  DropdownMenuItem(value: 'owed', child: Text('They owe you')),
+                decoration: InputDecoration(
+                  labelText: 'Type',
+                  // The terms are the standard ones, but which way round they
+                  // run is worth saying once, on the screen that sets it.
+                  helperText: _direction == 'owed' ? 'Money due to you' : 'Money you have to pay',
+                ),
+                // The same arrows the lists use, so the choice made here is
+                // recognisable wherever the debt turns up later.
+                items: [
+                  const DropdownMenuItem(
+                    value: 'owe',
+                    child: DirectionOption(icon: Icons.north_east, color: AppColors.danger, label: 'Payable'),
+                  ),
+                  const DropdownMenuItem(
+                    value: 'owed',
+                    child: DirectionOption(
+                        icon: Icons.south_west, color: AppColors.accent2, label: 'Receivable'),
+                  ),
                 ],
                 onChanged: _isEdit ? null : (v) => setState(() => _direction = v ?? 'owe'),
               ),
@@ -252,7 +275,8 @@ class _DebtFormState extends State<_DebtForm> {
                 child: FilledButton(
                   onPressed: _busy ? null : _save,
                   child: _busy
-                      ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                      ? const SizedBox(
+                          height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2))
                       : const Text('Save'),
                 ),
               ),
