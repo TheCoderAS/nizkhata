@@ -5,6 +5,8 @@
 // negative balance would subtract from a figure about what you hold).
 // Net worth is where everything nets off; this is not that.
 
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:nizkhata/data/derive.dart';
@@ -52,5 +54,22 @@ void main() {
 
   test('no accounts at all is zero, not a crash', () {
     expect(bankBalanceTotal(const [], balanceOf), 0);
+  });
+
+  test('nothing sums account balances by hand any more', () {
+    // The dashboard and the workspace summary each had their own fold over
+    // every account, which is how they came to disagree: one was changed to
+    // banks only and the other was not, so the same idea read ₹85.2K on one
+    // screen and (₹75,836.28) on the other. Both call the helper now, and a
+    // third copy would be the same bug again.
+    final offenders = <String>[];
+    for (final file in Directory('lib/screens')
+        .listSync(recursive: true)
+        .whereType<File>()
+        .where((f) => f.path.endsWith('.dart'))) {
+      final text = file.readAsStringSync();
+      if (text.contains('s + data.balanceOf(a.id)')) offenders.add(file.path);
+    }
+    expect(offenders, isEmpty, reason: 'use bankBalanceTotal instead of folding over every account');
   });
 }
