@@ -19,6 +19,12 @@ Future<void> deleteWithUndo(
   ScaffoldMessenger.of(context).showSnackBar(SnackBar(
     content: Text('$label deleted'),
     duration: const Duration(seconds: 6),
+    // Flutter defaults `persist` to `action != null`, so the moment this bar
+    // gained an Undo button it stopped ever timing out: it sat on screen until
+    // something else replaced it. The duration above was being ignored.
+    persist: false,
+    // And a bar that can linger needs a way out that is not a guessed swipe.
+    showCloseIcon: true,
     action: snapshot == null
         ? null
         : SnackBarAction(

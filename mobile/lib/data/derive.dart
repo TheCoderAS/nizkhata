@@ -61,8 +61,7 @@ double computeTotal(List<TxnLine> lines, Map<String, Debt> debtsById) {
 
 // ---- balances --------------------------------------------------------------
 
-Map<String, double> accountBalances(
-    List<Account> accounts, List<Txn> txns, Map<String, Debt> debtsById) {
+Map<String, double> accountBalances(List<Account> accounts, List<Txn> txns, Map<String, Debt> debtsById) {
   final balances = <String, double>{};
   for (final a in accounts) {
     balances[a.id] = a.openingBalance;
@@ -110,6 +109,23 @@ String dueStatusFromSettled(Due due, double settled) {
   if (settled + 0.005 < due.amount) return 'partial';
   return 'settled';
 }
+
+/// A debt's status, worked out from what is actually left to pay.
+///
+/// The stored `status` field is only written when a debt is settled through
+/// the repayment sheet. Clear one any other way — a repayment line typed on an
+/// ordinary transaction, an imported statement, an edit — and the field still
+/// reads "open" while the balance reads zero. The money is the truth, so the
+/// balance decides; the stored field can only close a debt early, never keep a
+/// cleared one open.
+String debtStatusFrom(Debt debt, double outstanding) {
+  if (outstanding.abs() <= 0.005) return 'settled';
+  if (debt.status == 'settled') return 'settled';
+  return debt.status.isEmpty ? 'open' : debt.status;
+}
+
+/// True when a debt still has something left to pay.
+bool debtIsOutstanding(Debt debt, double outstanding) => debtStatusFrom(debt, outstanding) != 'settled';
 
 // ---- custodial -------------------------------------------------------------
 
@@ -241,7 +257,8 @@ List<NetWorthPoint> netWorthSeries(
         receivables += o;
       }
     }
-    points.add(NetWorthPoint(DateFormat('MMM').format(cursor), roundMoney(accountsTotal - payables + receivables)));
+    points.add(
+        NetWorthPoint(DateFormat('MMM').format(cursor), roundMoney(accountsTotal - payables + receivables)));
     cursor = DateTime(cursor.year, cursor.month + 1, 1);
   }
   return points;
@@ -339,15 +356,15 @@ TrendResult trendSeries(List<Txn> txns, DateTime start, DateTime end, {DateTime?
   String keyOf(DateTime d) => unitDay ? '${d.year}-${d.month}-${d.day}' : '${d.year}-${d.month}';
   String fmt(DateTime d) => unitDay ? '${d.day}/${d.month}' : DateFormat('MMM').format(d);
 
-  final currentBucket = unitDay
-      ? DateTime(today.year, today.month, today.day)
-      : DateTime(today.year, today.month, start.day);
+  final currentBucket =
+      unitDay ? DateTime(today.year, today.month, today.day) : DateTime(today.year, today.month, start.day);
   var cursor = start;
   while (cursor.isBefore(end)) {
     if (cursor.isAfter(currentBucket)) break;
     index[keyOf(cursor)] = buckets.length;
     buckets.add(TrendBucket(fmt(cursor), 0, 0, 0));
-    cursor = unitDay ? cursor.add(const Duration(days: 1)) : DateTime(cursor.year, cursor.month + 1, cursor.day);
+    cursor =
+        unitDay ? cursor.add(const Duration(days: 1)) : DateTime(cursor.year, cursor.month + 1, cursor.day);
   }
 
   var tIncome = 0.0;
@@ -424,9 +441,7 @@ List<Due> duesOnDay(
   double Function(String dueId) settledOf,
 ) {
   return dues.where((d) {
-    if (d.dueDate.year != day.year ||
-        d.dueDate.month != day.month ||
-        d.dueDate.day != day.day) {
+    if (d.dueDate.year != day.year || d.dueDate.month != day.month || d.dueDate.day != day.day) {
       return false;
     }
     final st = dueStatusFromSettled(d, settledOf(d.id));

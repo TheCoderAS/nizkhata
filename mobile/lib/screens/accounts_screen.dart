@@ -54,7 +54,10 @@ class AccountsScreen extends StatelessWidget {
               // rather than whatever happens to start with an A.
               defaultSortKey: 'balance',
               defaultAscending: false,
-              onRowTap: (a) => showAccountDetail(context, a),
+              // Tap goes where you are actually going: the passbook. The
+              // metadata sheet moves into the long-press menu, which is where
+              // the rest of the account's actions already live.
+              onRowTap: (a) => context.push('/accounts/${a.id}/ledger'),
               leading: (a) => _AccountBadge(type: a.type),
               // Swipe right to import a statement, left to open the ledger;
               // long-press for the full action sheet (was the 3-dot menu).
@@ -76,6 +79,10 @@ class AccountsScreen extends StatelessWidget {
                   swipeEnd: ledger,
                   menu: [
                     ledger,
+                    RowAction(
+                        icon: Icons.info_outline,
+                        label: 'Account details',
+                        onTap: () => showAccountDetail(context, a)),
                     if (canViewTxns)
                       RowAction(
                           icon: Icons.receipt_long_outlined,
@@ -152,8 +159,7 @@ class AccountsScreen extends StatelessWidget {
     );
   }
 
-  static String _typeLabel(String t) =>
-      t == 'cash' ? 'Cash' : (t == 'credit_card' ? 'Credit card' : 'Bank');
+  static String _typeLabel(String t) => t == 'cash' ? 'Cash' : (t == 'credit_card' ? 'Credit card' : 'Bank');
 
   static String _masked(Account a) {
     if (a.cardLast4 != null && a.cardLast4!.isNotEmpty) return '···· ${a.cardLast4}';
@@ -263,9 +269,7 @@ void showAccountDetail(BuildContext context, Account a) {
             ? 'Bills on the ${ordinalDay(a.statementDay!)}, due on the ${ordinalDay(a.paymentDueDay!)}'
             : null;
       case 'creditLimit':
-        return a.creditLimit == null || a.creditLimit == 0
-            ? null
-            : formatMoney(a.creditLimit!, currency);
+        return a.creditLimit == null || a.creditLimit == 0 ? null : formatMoney(a.creditLimit!, currency);
       case 'code':
         return a.code;
       case 'description':
@@ -311,7 +315,8 @@ void showAccountDetail(BuildContext context, Account a) {
                       ),
                       child: Text(
                         AccountsScreen._typeLabel(a.type),
-                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: cs.onSurfaceVariant),
+                        style:
+                            TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: cs.onSurfaceVariant),
                       ),
                     ),
                   ],

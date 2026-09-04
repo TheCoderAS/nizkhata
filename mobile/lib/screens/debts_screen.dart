@@ -131,8 +131,11 @@ class _DebtsScreenState extends State<DebtsScreen> {
     final hasDebts = data.debts.any((d) => d.purpose != 'shared');
     final visible = data.debts.where((d) {
       if (d.purpose == 'shared') return false;
-      if (_status == 'outstanding' && d.status == 'settled') return false;
-      if (_status == 'settled' && d.status != 'settled') return false;
+      // Follows the money, not the stored flag: a debt repaid outside the
+      // repayment sheet still reads "open" on disk while its balance is zero.
+      final derived = debtStatusFrom(d, data.outstandingOf(d.id));
+      if (_status == 'outstanding' && derived == 'settled') return false;
+      if (_status == 'settled' && derived != 'settled') return false;
       if (_direction != 'all' && d.direction != _direction) return false;
       if (query.isNotEmpty) {
         final contactName = data.contactsById[d.contactId]?.name ?? '';
@@ -254,7 +257,7 @@ class _DebtsScreenState extends State<DebtsScreen> {
                     // the full action sheet (was the 3-dot menu).
                     wrapCard: (d, card) {
                       final outstanding = data.outstandingOf(d.id);
-                      final settleable = d.status == 'open' && outstanding > 0;
+                      final settleable = debtIsOutstanding(d, outstanding) && outstanding > 0;
                       final hasContact = d.contactId.isNotEmpty;
                       final settle = (canTxn && settleable)
                           ? RowAction(
@@ -329,8 +332,8 @@ class _DebtsScreenState extends State<DebtsScreen> {
                         key: 'status',
                         label: 'Status',
                         icon: Icons.flag_outlined,
-                        sortValue: (d) => d.status,
-                        text: (d) => d.status,
+                        sortValue: (d) => debtStatusFrom(d, data.outstandingOf(d.id)),
+                        text: (d) => debtStatusFrom(d, data.outstandingOf(d.id)),
                       ),
                       CardField<Debt>(
                         key: 'outstanding',
