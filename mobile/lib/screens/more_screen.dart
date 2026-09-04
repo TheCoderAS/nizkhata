@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../core/format.dart';
+import '../data/derive.dart';
 import '../state/auth_controller.dart';
 import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
@@ -19,7 +20,11 @@ class MoreScreen extends StatelessWidget {
     final currency = ws.activeWorkspace?.baseCurrency ?? 'INR';
     final user = auth.user;
 
-    final totalInAccounts = data.accounts.fold<double>(0, (s, a) => s + data.balanceOf(a.id));
+    // The same figure the dashboard shows, from the same helper. Two lines
+    // that sound like the same thing must not be able to disagree, and this
+    // one summing every account made it read negative on a workspace whose
+    // banks were in credit but whose card was drawn.
+    final inBank = bankBalanceTotal(data.accounts, data.balanceOf);
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -29,7 +34,8 @@ class MoreScreen extends StatelessWidget {
             CircleAvatar(
               radius: 26,
               backgroundImage: user?.photoURL != null ? NetworkImage(user!.photoURL!) : null,
-              child: user?.photoURL == null ? Text(initialsOf(user?.displayName ?? user?.email ?? '?')) : null,
+              child:
+                  user?.photoURL == null ? Text(initialsOf(user?.displayName ?? user?.email ?? '?')) : null,
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -39,7 +45,8 @@ class MoreScreen extends StatelessWidget {
                   Text(user?.displayName ?? 'Signed in',
                       style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
                   if (user?.email != null)
-                    Text(user!.email!, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                    Text(user!.email!,
+                        style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
                 ],
               ),
             ),
@@ -54,7 +61,7 @@ class MoreScreen extends StatelessWidget {
               _kv('Name', ws.activeWorkspace?.name ?? '—'),
               _kv('Base currency', currency),
               _kv('Accounts', '${data.accounts.length}'),
-              _kv('Total in accounts', formatMoney(totalInAccounts, currency)),
+              _kv('In bank accounts', formatMoney(inBank, currency)),
               _kv('Contacts', '${data.contacts.where((c) => c.connectionUid == null).length}'),
               _kv('Transactions', '${data.transactions.length}'),
             ],
