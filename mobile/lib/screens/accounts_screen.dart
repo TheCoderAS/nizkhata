@@ -54,10 +54,7 @@ class AccountsScreen extends StatelessWidget {
               // rather than whatever happens to start with an A.
               defaultSortKey: 'balance',
               defaultAscending: false,
-              // Tap goes where you are actually going: the passbook. The
-              // metadata sheet moves into the long-press menu, which is where
-              // the rest of the account's actions already live.
-              onRowTap: (a) => context.push('/accounts/${a.id}/ledger'),
+              onRowTap: (a) => showAccountDetail(context, a),
               leading: (a) => _AccountBadge(type: a.type),
               // Swipe right to import a statement, left to open the ledger;
               // long-press for the full action sheet (was the 3-dot menu).
@@ -79,10 +76,6 @@ class AccountsScreen extends StatelessWidget {
                   swipeEnd: ledger,
                   menu: [
                     ledger,
-                    RowAction(
-                        icon: Icons.info_outline,
-                        label: 'Account details',
-                        onTap: () => showAccountDetail(context, a)),
                     if (canViewTxns)
                       RowAction(
                           icon: Icons.receipt_long_outlined,
