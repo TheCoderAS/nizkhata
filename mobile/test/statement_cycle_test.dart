@@ -257,6 +257,7 @@ void main() {
       List<Txn>? on,
       double Function(String)? settled,
       List<Account>? accounts,
+      DateTime? asOf,
     }) =>
         statementDuePlans(
           accounts: accounts ?? [_card()],
@@ -264,8 +265,13 @@ void main() {
           txns: on ?? txns,
           debtsById: const {},
           settledOf: settled ?? nothingPaid,
-          now: now,
+          now: asOf ?? now,
         );
+
+    // The 4th, so the live statement is LAST month's (the 5th has not come
+    // round yet). This is the shape of the first sync after a cycle is set up.
+    final beforeThisMonthsStatement = DateTime(2026, 9, 4);
+    final billedInAugust = _spend('t1', DateTime(2026, 7, 20), 5000);
 
     test('raises the bill for a card that owes something', () {
       final p = plans().single;
@@ -305,6 +311,51 @@ void main() {
       expect(
           plans(on: [_spend('t1', DateTime(2026, 8, 20), 3000), _payment('p1', DateTime(2026, 8, 25), 3000)]),
           isEmpty);
+    });
+
+    test('an unpaid bill from before you set the cycle up is still raised', () {
+      // You do owe it, and it is overdue, so it belongs in the list.
+      final p = plans(on: [billedInAugust], asOf: beforeThisMonthsStatement).single;
+      expect(p.dueId, 'stmt_cc1_20260805');
+      expect(p.doc['amount'], 5000);
+    });
+
+    test('is not raised when it was already paid after the statement', () {
+      // The commonest case of all: the cycle is set up mid month, so the live
+      // statement is last month's, and that bill was paid weeks ago. Asking
+      // for it again would post an overdue demand for money already sent.
+      expect(
+        plans(
+          on: [billedInAugust, _payment('p1', DateTime(2026, 8, 20), 5000)],
+          asOf: beforeThisMonthsStatement,
+        ),
+        isEmpty,
+      );
+    });
+
+    test('is still raised when the payment fell short of the bill', () {
+      final p = plans(
+        on: [billedInAugust, _payment('p1', DateTime(2026, 8, 20), 3000)],
+        asOf: beforeThisMonthsStatement,
+      ).single;
+      // It asks for what was billed; the part payment is recorded against it.
+      expect(p.doc['amount'], 5000);
+    });
+
+    test('spending after the statement does not revive a paid bill', () {
+      // Paid in full, then spent again. The new spending belongs to the next
+      // statement and must not make this one look unpaid.
+      expect(
+        plans(
+          on: [
+            billedInAugust,
+            _payment('p1', DateTime(2026, 8, 20), 5000),
+            _spend('t2', DateTime(2026, 8, 28), 2000),
+          ],
+          asOf: beforeThisMonthsStatement,
+        ),
+        isEmpty,
+      );
     });
 
     test('only the current statement, never a backlog of old ones', () {
