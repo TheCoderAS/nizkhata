@@ -132,6 +132,7 @@ class _ImportScreenState extends State<ImportScreen> {
           amount: col('amount'),
           debit: col('debit'),
           credit: col('credit'),
+          direction: col('dir'),
           reference: col('ref'),
           balance: col('balance'),
         );
@@ -294,6 +295,7 @@ class _ImportScreenState extends State<ImportScreen> {
             'amount': _mapping.amount,
             'debit': _mapping.debit,
             'credit': _mapping.credit,
+            'dir': _mapping.direction,
             'ref': _mapping.reference,
             'balance': _mapping.balance,
             'order': _dateOrder.index,
@@ -346,8 +348,8 @@ class _ImportScreenState extends State<ImportScreen> {
       final catsById = {for (final c in data.categories) c.id: c};
       for (final r in rows) {
         if (!r.draft.parseable) continue;
-        final suggestion = memory.suggest(
-            r.draft.description.isNotEmpty ? r.draft.description : r.draft.reference);
+        final suggestion =
+            memory.suggest(r.draft.description.isNotEmpty ? r.draft.description : r.draft.reference);
         if (suggestion == null) continue;
         // Only apply when the category's kind matches the row's direction.
         final kind = catsById[suggestion]?.kind;
@@ -363,9 +365,7 @@ class _ImportScreenState extends State<ImportScreen> {
     // magnitude equals that due's remaining amount (to the paise) very likely
     // IS its settlement. Each due links to at most one row.
     final usedDues = <String>{};
-    final candidates = data.dues
-        .where((d) => d.status == 'open' || d.status == 'partial')
-        .toList();
+    final candidates = data.dues.where((d) => d.status == 'open' || d.status == 'partial').toList();
     final byDate = [...rows.where((r) => r.draft.parseable)]
       ..sort((a, b) => a.draft.date!.compareTo(b.draft.date!));
     for (final r in byDate) {
@@ -425,8 +425,8 @@ class _ImportScreenState extends State<ImportScreen> {
       case _DupMode.strict:
         return _existingStrict.contains(_fingerprintOf(d, accountId));
       case _DupMode.dateAmount:
-        return _existingDateAmount.contains(importFingerprint(
-            accountId: accountId, date: d.date!, amount: d.amount!, refOrDesc: ''));
+        return _existingDateAmount.contains(
+            importFingerprint(accountId: accountId, date: d.date!, amount: d.amount!, refOrDesc: ''));
     }
   }
 
@@ -451,8 +451,7 @@ class _ImportScreenState extends State<ImportScreen> {
     if (picked.isEmpty) return;
     final data = context.read<DataController>();
 
-    final settleRows =
-        picked.where((r) => r.linkDue && r.matchedDueId != null).toList();
+    final settleRows = picked.where((r) => r.linkDue && r.matchedDueId != null).toList();
     final plainRows = picked.where((r) => !(r.linkDue && r.matchedDueId != null)).toList();
 
     final records = <Map<String, dynamic>>[
@@ -461,8 +460,7 @@ class _ImportScreenState extends State<ImportScreen> {
           'date': r.draft.date!,
           'amount': r.draft.amount!,
           'note': _noteOf(r.draft),
-          'categoryId': r.categoryId ??
-              (r.draft.amount! < 0 ? _defaultExpenseCat : _defaultIncomeCat),
+          'categoryId': r.categoryId ?? (r.draft.amount! < 0 ? _defaultExpenseCat : _defaultIncomeCat),
           'importKey': _fingerprintOf(r.draft, accountId),
         }
     ];
@@ -559,8 +557,7 @@ class _ImportScreenState extends State<ImportScreen> {
       useRootNavigator: true,
       builder: (ctx) => AlertDialog(
         title: const Text('Discard import?'),
-        content: const Text(
-            'Your column mapping and row selections will be lost. The imported '
+        content: const Text('Your column mapping and row selections will be lost. The imported '
             'transactions so far (if any) are kept.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Keep editing')),
@@ -623,8 +620,7 @@ class _ImportScreenState extends State<ImportScreen> {
   Widget _buildPick() {
     final data = context.watch<DataController>();
     final cs = Theme.of(context).colorScheme;
-    final accounts = [...data.accounts]
-      ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    final accounts = [...data.accounts]..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
     final validAccount = accounts.any((a) => a.id == _accountId) ? _accountId : null;
 
     return ListView(
@@ -646,8 +642,7 @@ class _ImportScreenState extends State<ImportScreen> {
         FilledButton.icon(
           onPressed: validAccount == null || _busy ? null : _pickFile,
           icon: _busy
-              ? const SizedBox(
-                  width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+              ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
               : const Icon(Icons.upload_file),
           label: Text(_busy ? 'Analysing…' : 'Choose statement file'),
         ),
@@ -661,8 +656,7 @@ class _ImportScreenState extends State<ImportScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Supported files',
-                  style: TextStyle(fontWeight: FontWeight.w600, color: cs.onSurface)),
+              Text('Supported files', style: TextStyle(fontWeight: FontWeight.w600, color: cs.onSurface)),
               const SizedBox(height: 8),
               _hint(Icons.table_chart_outlined, 'CSV and Excel — .xlsx and legacy .xls'),
               _hint(Icons.picture_as_pdf_outlined, 'PDF bank statements'),
@@ -724,11 +718,9 @@ class _ImportScreenState extends State<ImportScreen> {
         isExpanded: true,
         decoration: InputDecoration(labelText: label),
         items: [
-          if (clearable)
-            const DropdownMenuItem<int>(value: -1, child: Text('— not present —')),
+          if (clearable) const DropdownMenuItem<int>(value: -1, child: Text('— not present —')),
           for (var i = 0; i < width; i++)
-            DropdownMenuItem(
-                value: i, child: Text(_colLabel(i), overflow: TextOverflow.ellipsis)),
+            DropdownMenuItem(value: i, child: Text(_colLabel(i), overflow: TextOverflow.ellipsis)),
         ],
         onChanged: (v) => onChanged(v == -1 ? null : v),
       ),
@@ -780,8 +772,7 @@ class _ImportScreenState extends State<ImportScreen> {
           onChanged: (v) => setState(() {
             _mapping.date = v;
             if (v != null) {
-              _dateOrder =
-                  detectDateOrder(grid.dataRows.take(50).map((r) => v < r.length ? r[v] : ''));
+              _dateOrder = detectDateOrder(grid.dataRows.take(50).map((r) => v < r.length ? r[v] : ''));
             }
           }),
         ),
@@ -814,12 +805,14 @@ class _ImportScreenState extends State<ImportScreen> {
               // re-suggest the pair from headers (default to column 1 so the
               // mode sticks even when the guess finds nothing).
               _mapping.amount = null;
+              _mapping.direction = null;
               _mapping.debit = suggested.debit ?? 0;
               _mapping.credit = suggested.credit;
             } else {
               _mapping.debit = null;
               _mapping.credit = null;
               _mapping.amount = suggested.amount ?? 0;
+              _mapping.direction = suggested.direction;
             }
           }),
         ),
@@ -835,13 +828,23 @@ class _ImportScreenState extends State<ImportScreen> {
             value: _mapping.credit,
             onChanged: (v) => setState(() => _mapping.credit = v),
           ),
-        ] else
+        ] else ...[
           _colDropdown(
             label: 'Amount column',
             value: _mapping.amount,
             clearable: false,
             onChanged: (v) => setState(() => _mapping.amount = v),
           ),
+          // Statements that print one unsigned Amount column say which way
+          // each row runs in a column of their own: "Debit"/"Credit",
+          // "Dr"/"Cr". Where there is one it decides the sign; where there
+          // is not, the amount's own sign does.
+          _colDropdown(
+            label: 'Debit / credit column (optional)',
+            value: _mapping.direction,
+            onChanged: (v) => setState(() => _mapping.direction = v),
+          ),
+        ],
         _colDropdown(
           label: 'Reference column (optional)',
           value: _mapping.reference,
@@ -893,9 +896,8 @@ class _ImportScreenState extends State<ImportScreen> {
     final readable = _rows.where((r) => r.draft.parseable).toList();
     final dupCount = _rows.where((r) => r.duplicate).length;
     final unreadable = _rows.length - readable.length;
-    final expenseCats =
-        data.categories.where((c) => c.kind == 'expense').toList()
-          ..sort((a, b) => a.name.compareTo(b.name));
+    final expenseCats = data.categories.where((c) => c.kind == 'expense').toList()
+      ..sort((a, b) => a.name.compareTo(b.name));
     final incomeCats = data.categories.where((c) => c.kind == 'income').toList()
       ..sort((a, b) => a.name.compareTo(b.name));
 
@@ -925,16 +927,15 @@ class _ImportScreenState extends State<ImportScreen> {
                                 r.selected = !all;
                               }
                             }),
-                    child: Text(
-                        readable.isNotEmpty && readable.every((r) => r.selected) ? 'None' : 'All'),
+                    child: Text(readable.isNotEmpty && readable.every((r) => r.selected) ? 'None' : 'All'),
                   ),
                 ],
               ),
               Row(
                 children: [
                   Expanded(
-                    child: _miniCatDropdown('Money-out category', expenseCats,
-                        _defaultExpenseCat, (v) => setState(() => _defaultExpenseCat = v)),
+                    child: _miniCatDropdown('Money-out category', expenseCats, _defaultExpenseCat,
+                        (v) => setState(() => _defaultExpenseCat = v)),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
@@ -951,8 +952,7 @@ class _ImportScreenState extends State<ImportScreen> {
                 decoration: const InputDecoration(labelText: 'Flag duplicates by', isDense: true),
                 items: const [
                   DropdownMenuItem(
-                      value: _DupMode.strict,
-                      child: Text('Date + amount + reference/description')),
+                      value: _DupMode.strict, child: Text('Date + amount + reference/description')),
                   DropdownMenuItem(value: _DupMode.dateAmount, child: Text('Date + amount only')),
                   DropdownMenuItem(value: _DupMode.off, child: Text("Don't flag duplicates")),
                 ],
@@ -1050,8 +1050,7 @@ class _ImportScreenState extends State<ImportScreen> {
       decoration: BoxDecoration(
         color: (matched ? AppColors.accent2 : cs.tertiary).withValues(alpha: 0.10),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-            color: (matched ? AppColors.accent2 : cs.tertiary).withValues(alpha: 0.35)),
+        border: Border.all(color: (matched ? AppColors.accent2 : cs.tertiary).withValues(alpha: 0.35)),
       ),
       child: Row(
         children: [
@@ -1075,8 +1074,8 @@ class _ImportScreenState extends State<ImportScreen> {
     );
   }
 
-  Widget _miniCatDropdown(String label, List<AppCategory> cats, String? value,
-      void Function(String?) onChanged) {
+  Widget _miniCatDropdown(
+      String label, List<AppCategory> cats, String? value, void Function(String?) onChanged) {
     final valid = cats.any((c) => c.id == value) ? value : null;
     return DropdownButtonFormField<String>(
       value: valid,
@@ -1085,7 +1084,8 @@ class _ImportScreenState extends State<ImportScreen> {
       decoration: InputDecoration(labelText: label, isDense: true),
       items: [
         const DropdownMenuItem<String>(value: null, child: Text('Uncategorised')),
-        for (final c in cats) DropdownMenuItem(value: c.id, child: Text(c.name, overflow: TextOverflow.ellipsis)),
+        for (final c in cats)
+          DropdownMenuItem(value: c.id, child: Text(c.name, overflow: TextOverflow.ellipsis)),
       ],
       onChanged: onChanged,
     );
@@ -1122,9 +1122,7 @@ class _ImportScreenState extends State<ImportScreen> {
           children: [
             Checkbox(
               value: row.selected,
-              onChanged: d.parseable
-                  ? (v) => setState(() => row.selected = v ?? false)
-                  : null,
+              onChanged: d.parseable ? (v) => setState(() => row.selected = v ?? false) : null,
             ),
             SizedBox(
               width: 64,
@@ -1146,9 +1144,7 @@ class _ImportScreenState extends State<ImportScreen> {
                   ),
                   if (!d.parseable)
                     Text(
-                      d.date == null
-                          ? 'No readable date — tap to fix'
-                          : 'No readable amount — tap to fix',
+                      d.date == null ? 'No readable date — tap to fix' : 'No readable amount — tap to fix',
                       style: TextStyle(fontSize: 11, color: cs.error),
                     )
                   else if (row.duplicate)
@@ -1209,8 +1205,8 @@ class _ImportScreenState extends State<ImportScreen> {
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDlg) {
           final cats = (isCredit
-              ? data.categories.where((c) => c.kind == 'income')
-              : data.categories.where((c) => c.kind == 'expense'))
+                  ? data.categories.where((c) => c.kind == 'income')
+                  : data.categories.where((c) => c.kind == 'expense'))
               .toList()
             ..sort((a, b) => a.name.compareTo(b.name));
           final validCat = cats.any((c) => c.id == categoryId) ? categoryId : null;
