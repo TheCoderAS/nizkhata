@@ -172,7 +172,7 @@ describe("FIX 1 — no open membership self-join", () => {
       });
     });
     const db = env
-      .authenticatedContext("guest", { email: "guest@x.com" })
+      .authenticatedContext("guest", { email: "guest@x.com", email_verified: true })
       .firestore();
     await assertSucceeds(
       setDoc(doc(db, "memberships", `${WS}_guest`), {
@@ -190,13 +190,119 @@ describe("FIX 1 — no open membership self-join", () => {
       });
     });
     const db = env
-      .authenticatedContext("guest", { email: "guest@x.com" })
+      .authenticatedContext("guest", { email: "guest@x.com", email_verified: true })
       .firestore();
     await assertFails(
       setDoc(doc(db, "memberships", `${WS}_guest`), {
         id: `${WS}_guest`, workspaceId: WS, uid: "guest",
         roleId: `${WS}_owner`, status: "active",
       }),
+    );
+  });
+});
+
+describe("an unverified email is not an identity", () => {
+  // authEmail() returns '' unless the token says the address is verified, so
+  // every email-addressed claim below has nothing to match against.
+  it("cannot claim a workspace invite", async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), "invites", `${WS}_guest@x.com`), {
+        id: `${WS}_guest@x.com`, workspaceId: WS, email: "guest@x.com",
+        roleId: `${WS}_viewer`, status: "pending", invitedBy: "owner",
+      });
+    });
+    const db = env
+      .authenticatedContext("guest", { email: "guest@x.com", email_verified: false })
+      .firestore();
+    await assertFails(
+      setDoc(doc(db, "memberships", `${WS}_guest`), {
+        id: `${WS}_guest`, workspaceId: WS, uid: "guest",
+        roleId: `${WS}_viewer`, status: "active",
+      }),
+    );
+  });
+
+  it("cannot read an invite addressed to that address", async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), "invites", `${WS}_guest@x.com`), {
+        id: `${WS}_guest@x.com`, workspaceId: WS, email: "guest@x.com",
+        roleId: `${WS}_viewer`, status: "pending", invitedBy: "owner",
+      });
+    });
+    const db = env
+      .authenticatedContext("guest", { email: "guest@x.com", email_verified: false })
+      .firestore();
+    await assertFails(getDoc(doc(db, "invites", `${WS}_guest@x.com`)));
+  });
+});
+
+describe("members.invite admits others, it does not promote you", () => {
+  // A custom role with members.invite but not roles.manage: the holder must
+  // not be able to hand themselves a better role.
+  async function seedInviter() {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, "roles", `${WS}_inviter`), {
+        id: `${WS}_inviter`, workspaceId: WS, name: "Manager", isSystem: false,
+        permissions: { ...allPerms(false), "members.invite": true, "members.view": true },
+      });
+      await setDoc(doc(db, "roles", `${WS}_admin`), {
+        id: `${WS}_admin`, workspaceId: WS, name: "Admin", isSystem: false,
+        permissions: allPerms(true),
+      });
+      await setDoc(doc(db, "memberships", `${WS}_manager`), {
+        id: `${WS}_manager`, workspaceId: WS, uid: "manager",
+        roleId: `${WS}_inviter`, status: "active",
+      });
+      await setDoc(doc(db, "memberships", `${WS}_colleague`), {
+        id: `${WS}_colleague`, workspaceId: WS, uid: "colleague",
+        roleId: `${WS}_viewer`, status: "active",
+      });
+    });
+  }
+
+  it("cannot raise its own role", async () => {
+    await seedInviter();
+    const db = env.authenticatedContext("manager").firestore();
+    await assertFails(
+      updateDoc(doc(db, "memberships", `${WS}_manager`), { roleId: `${WS}_admin` }),
+    );
+  });
+
+  it("can still change someone else's role", async () => {
+    await seedInviter();
+    const db = env.authenticatedContext("manager").firestore();
+    await assertSucceeds(
+      updateDoc(doc(db, "memberships", `${WS}_colleague`), { roleId: `${WS}_admin` }),
+    );
+  });
+
+  it("can still edit its own linked contact", async () => {
+    await seedInviter();
+    const db = env.authenticatedContext("manager").firestore();
+    await assertSucceeds(
+      updateDoc(doc(db, "memberships", `${WS}_manager`), { linkedContactId: "c1" }),
+    );
+  });
+});
+
+describe("system roles keep their identity", () => {
+  // isOwnerRole() recognises the Owner role by name + isSystem. Renaming it
+  // would disarm the guard that keeps that role on the workspace owner.
+  it("the Owner role cannot be renamed, even with roles.manage", async () => {
+    const db = env.authenticatedContext("owner").firestore();
+    await assertFails(updateDoc(doc(db, "roles", `${WS}_owner`), { name: "Former Owner" }));
+  });
+
+  it("its system flag cannot be cleared", async () => {
+    const db = env.authenticatedContext("owner").firestore();
+    await assertFails(updateDoc(doc(db, "roles", `${WS}_owner`), { isSystem: false }));
+  });
+
+  it("its permissions are still editable", async () => {
+    const db = env.authenticatedContext("owner").firestore();
+    await assertSucceeds(
+      updateDoc(doc(db, "roles", `${WS}_viewer`), { permissions: allPerms(false) }),
     );
   });
 });
@@ -352,7 +458,7 @@ describe("shared ledger — connections & entries", () => {
 describe("shared ledger — invites", () => {
   const A = "inviterA";
   it("the inviter can create a deterministic-id invite for themselves", async () => {
-    const db = env.authenticatedContext(A, { email: "a@x.com" }).firestore();
+    const db = env.authenticatedContext(A, { email: "a@x.com", email_verified: true }).firestore();
     await assertSucceeds(
       setDoc(doc(db, "shareInvites", `${A}_guest@x.com`), {
         id: `${A}_guest@x.com`,
@@ -366,7 +472,7 @@ describe("shared ledger — invites", () => {
   });
 
   it("you cannot forge an invite from another user", async () => {
-    const db = env.authenticatedContext("someoneElse", { email: "e@x.com" }).firestore();
+    const db = env.authenticatedContext("someoneElse", { email: "e@x.com", email_verified: true }).firestore();
     await assertFails(
       setDoc(doc(db, "shareInvites", `${A}_guest@x.com`), {
         id: `${A}_guest@x.com`,
@@ -390,7 +496,7 @@ describe("shared ledger — invites", () => {
         status: "pending",
       });
     });
-    const db = env.authenticatedContext("guest", { email: "guest@x.com" }).firestore();
+    const db = env.authenticatedContext("guest", { email: "guest@x.com", email_verified: true }).firestore();
     await assertSucceeds(updateDoc(doc(db, "shareInvites", `${A}_guest@x.com`), { status: "accepted" }));
   });
 });
@@ -472,6 +578,32 @@ describe("own-records scope (scope.own)", () => {
     const db = env.authenticatedContext("unlinkedUser").firestore();
     await assertFails(getDoc(doc(db, "transactions", "t-mine")));
     await assertFails(getDoc(doc(db, "dues", "d-mine")));
+  });
+
+  it("the scope binds writes too, not only reads", async () => {
+    // Before scopedWrite the scope was advisory: this role could read only its
+    // own records while editing and deleting anybody's.
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, "roles", `${RWS}_limitedManager`), {
+        id: `${RWS}_limitedManager`, workspaceId: RWS, name: "Limited manager",
+        isSystem: false,
+        permissions: {
+          ...allPerms(false),
+          "dues.view": true, "dues.manage": true, "scope.own": true,
+        },
+      });
+      await setDoc(doc(db, "memberships", `${RWS}_limitedUser`), {
+        id: `${RWS}_limitedUser`, workspaceId: RWS, uid: "limitedUser",
+        roleId: `${RWS}_limitedManager`, status: "active", linkedContactId: "c-mine",
+      });
+    });
+    const db = env.authenticatedContext("limitedUser").firestore();
+    // Someone else's due: not theirs to touch.
+    await assertFails(updateDoc(doc(db, "dues", "d-other"), { amount: 1 }));
+    await assertFails(deleteDoc(doc(db, "dues", "d-other")));
+    // Their own: still fully manageable.
+    await assertSucceeds(updateDoc(doc(db, "dues", "d-mine"), { amount: 1 }));
   });
 
   it("unrestricted roles (no scope.own key) read as before", async () => {
