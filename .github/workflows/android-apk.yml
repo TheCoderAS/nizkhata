@@ -327,10 +327,54 @@ jobs:
         # Note: split APKs get an ABI-offset versionCode (Flutter's Gradle
         # plugin), which is strictly higher than the old universal codes, so
         # in-place updates over previously installed builds keep working.
+        #
+        # --obfuscate renames the Dart identifiers and, with
+        # --split-debug-info, lifts the source paths out of the snapshot into
+        # symbol files. Without it the AOT snapshot carries the repo's own file
+        # list (screens/debt_detail.dart, data/permissions.dart, ...), which
+        # hands a reader a map of the data model and of the permission checks
+        # the client believes in. The symbols are kept, privately, so a crash
+        # report can still be read back; see the upload step below.
         run: |
-          flutter build apk --release --split-per-abi
+          flutter build apk --release --split-per-abi \
+            --obfuscate --split-debug-info=build/symbols
           cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk \
              build/app/outputs/flutter-apk/app-release.apk
+
+      # Proof, not assertion. The flags above are easy to lose in a future edit
+      # and nothing would look wrong; this reads the shipped binary and fails
+      # the release if the app's own source paths are still in it.
+      - name: Verify the shipped binary carries no source paths
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT=build/app/outputs/flutter-apk
+          rm -rf build/obfcheck && mkdir -p build/obfcheck
+          # The paths to look for are this repo's own, read off the source
+          # tree, so the check cannot drift out of step with it or match a
+          # third-party package that happens to share a directory name.
+          find lib -name '*.dart' | sed 's|^lib/||' | sort -u > build/obfcheck/ours.txt
+          echo "Looking for $(wc -l < build/obfcheck/ours.txt) source paths."
+          FOUND=0
+          for APK in "$OUT"/app-arm64-v8a-release.apk "$OUT"/app-armeabi-v7a-release.apk; do
+            D="build/obfcheck/$(basename "$APK" .apk)"
+            mkdir -p "$D"
+            unzip -o -q "$APK" 'lib/*/libapp.so' -d "$D"
+            while IFS= read -r SO; do
+              HITS=$(grep -a -o -F -f build/obfcheck/ours.txt "$SO" | sort -u || true)
+              COUNT=$(printf '%s' "$HITS" | grep -c . || true)
+              echo "$SO: $COUNT source paths"
+              if [ "$COUNT" -gt 0 ]; then
+                printf '%s\n' "$HITS" | head -20
+                FOUND=1
+              fi
+            done < <(find "$D" -name 'libapp.so')
+          done
+          if [ "$FOUND" -ne 0 ]; then
+            echo "::error::Release binary still carries this app's Dart source paths; is --obfuscate --split-debug-info still on the build?"
+            exit 1
+          fi
+          echo "Clean: no source paths in the shipped binaries."
 
       # Versioned releases carry the APK under a human filename
       # (nizkhata_vX.Y.Z.apk) so the downloaded file says what it is.
@@ -347,6 +391,18 @@ jobs:
           # page link releases/latest/download/app-release-32bit.apk statically.
           cp "$OUT/app-armeabi-v7a-release.apk" "$OUT/app-release-32bit.apk"
           ls -lh "$OUT"
+
+      # Kept as a BUILD artifact, never attached to a release: publishing the
+      # symbols alongside the APK would hand back exactly what obfuscating it
+      # removed. They are what makes an obfuscated stack trace readable again,
+      # so a crash from a given version needs the symbols from its own build.
+      - name: Upload de-obfuscation symbols (private to the repo)
+        uses: actions/upload-artifact@v4
+        with:
+          name: nizkhata-symbols-${{ github.sha }}
+          path: mobile/build/symbols
+          retention-days: 90
+          if-no-files-found: error
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
