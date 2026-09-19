@@ -74,6 +74,12 @@ service cloud.firestore {
       return can(ws, perm)
         && (!isScopeOwn(ws) || ownContactOk(ws, recordContactId));
     }
+    // The same gate for WRITES. Without it the scope was advisory: a role with
+    // scope.own and a module's .manage permission could read only its own
+    // records but edit and delete anybody's.
+    function scopedWrite(ws, perm, recordContactId) {
+      return scopedRead(ws, perm, recordContactId);
+    }
 
     function workspaceDoc(ws) {
       return get(/databases/$(database)/documents/workspaces/$(ws));
@@ -91,8 +97,14 @@ service cloud.firestore {
       return request.resource.data.workspaceId == resource.data.workspaceId;
     }
 
+    // An UNVERIFIED email is no claim to an identity. This gates invite
+    // claiming (workspace and shared-ledger), so without the check anyone who
+    // can register an address — on any provider the project ever enables —
+    // could answer an invite addressed to someone else. The client only offers
+    // Google today, but the client is not the boundary; this is.
     function authEmail() {
       return request.auth.token.email != null
+        && request.auth.token.get('email_verified', false) == true
         ? request.auth.token.email.lower()
         : '';
     }
@@ -168,11 +180,19 @@ service cloud.firestore {
       // cannot hand the Owner role to anyone but the owner.
       // Additionally, any member may set/clear ONLY the linkedContactId on
       // their own membership (email auto-link to "their" contact).
+      // `members.invite` is the right to admit OTHERS, not to promote
+      // yourself: without the last clause its holder could set their own
+      // roleId to any non-Owner role, so a custom "can invite people" role
+      // would quietly be a route to Admin.
       allow update: if (
           can(exWs(), 'members.invite')
           && wsImmutable()
           && resource.data.uid != workspaceDoc(exWs()).data.ownerId
           && ownerRoleOnlyForOwner(exWs(), request.resource.data.uid, request.resource.data.roleId)
+          && (
+            resource.data.uid != request.auth.uid ||
+            request.resource.data.roleId == resource.data.roleId
+          )
         ) || (
           isSignedIn()
           && resource.data.uid == request.auth.uid
@@ -199,9 +219,23 @@ service cloud.firestore {
     match /roles/{id} {
       allow read:   if isMember(exWs());
       // [FIX 2] owner bypass for first-login seeding.
+      // Only the owner (seeding) may mint a system role; otherwise anyone with
+      // roles.manage could leave undeletable junk behind, since delete needs
+      // isSystem == false.
       allow create: if (can(inWs(), 'roles.manage') || isOwner(inWs()))
-        && request.resource.data.id == id;
-      allow update: if can(exWs(), 'roles.manage') && wsImmutable();
+        && request.resource.data.id == id
+        && (request.resource.data.get('isSystem', false) == false || isOwner(inWs()));
+      // Permissions on a system role stay editable, but its NAME and system
+      // flag do not: `isOwnerRole()` identifies the Owner role by exactly those
+      // two fields, and renaming it would disarm the guard that keeps the Owner
+      // role on the workspace owner.
+      allow update: if can(exWs(), 'roles.manage') && wsImmutable()
+        && (
+          resource.data.get('isSystem', false) != true || (
+            request.resource.data.name == resource.data.name &&
+            request.resource.data.get('isSystem', false) == resource.data.get('isSystem', false)
+          )
+        );
       allow delete: if can(exWs(), 'roles.manage') && resource.data.isSystem == false;
     }
 
@@ -244,8 +278,8 @@ service cloud.firestore {
       allow read:           if can(exWs(), 'contacts.view')
         && (!isScopeOwn(exWs()) || ownContactOk(exWs(), resource.data.id));
       allow create:         if can(inWs(), 'contacts.manage');
-      allow update:         if can(exWs(), 'contacts.manage') && wsImmutable();
-      allow delete:         if can(exWs(), 'contacts.manage');
+      allow update:         if scopedWrite(exWs(), 'contacts.manage', resource.data.id) && wsImmutable();
+      allow delete:         if scopedWrite(exWs(), 'contacts.manage', resource.data.id);
     }
 
     // Budgets: gated by category permissions (no new permission key in v2).
@@ -335,16 +369,18 @@ service cloud.firestore {
 
     match /debts/{id} {
       allow read:           if scopedRead(exWs(), 'debts.view', resource.data.get('contactId', null));
-      allow create:         if can(inWs(), 'debts.manage');
-      allow update:         if can(exWs(), 'debts.manage') && wsImmutable();
-      allow delete:         if can(exWs(), 'debts.manage');
+      allow create:         if scopedWrite(inWs(), 'debts.manage', request.resource.data.get('contactId', null));
+      allow update:         if scopedWrite(exWs(), 'debts.manage', resource.data.get('contactId', null))
+                              && wsImmutable();
+      allow delete:         if scopedWrite(exWs(), 'debts.manage', resource.data.get('contactId', null));
     }
 
     match /dues/{id} {
       allow read:           if scopedRead(exWs(), 'dues.view', resource.data.get('contactId', null));
-      allow create:         if can(inWs(), 'dues.manage');
-      allow update:         if can(exWs(), 'dues.manage') && wsImmutable();
-      allow delete:         if can(exWs(), 'dues.manage');
+      allow create:         if scopedWrite(inWs(), 'dues.manage', request.resource.data.get('contactId', null));
+      allow update:         if scopedWrite(exWs(), 'dues.manage', resource.data.get('contactId', null))
+                              && wsImmutable();
+      allow delete:         if scopedWrite(exWs(), 'dues.manage', resource.data.get('contactId', null));
     }
 
     // ---- transactions ------------------------------------------------------
@@ -355,12 +391,12 @@ service cloud.firestore {
     }
     match /transactions/{id} {
       allow read:   if scopedRead(exWs(), 'transactions.view', resource.data.get('contactId', null));
-      allow create: if can(inWs(), 'transactions.create')
+      allow create: if scopedWrite(inWs(), 'transactions.create', request.resource.data.get('contactId', null))
         && createdUid(request.resource.data) == request.auth.uid;
-      allow update: if can(exWs(), 'transactions.edit')
+      allow update: if scopedWrite(exWs(), 'transactions.edit', resource.data.get('contactId', null))
         && wsImmutable()
         && createdUid(request.resource.data) == createdUid(resource.data);
-      allow delete: if can(exWs(), 'transactions.delete');
+      allow delete: if scopedWrite(exWs(), 'transactions.delete', resource.data.get('contactId', null));
     }
 
     // ---- revisions (append-only audit log) ---------------------------------

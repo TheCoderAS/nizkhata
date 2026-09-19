@@ -74,6 +74,14 @@ jobs:
               print('INTERNET permission added')
           else:
               print('INTERNET permission already present')
+          # A finance app's local store is not for backing up. Firestore keeps
+          # the whole ledger in an unencrypted offline cache, and Android
+          # defaults allowBackup to TRUE, which is how that database leaves the
+          # device — adb backup, or the cloud. dataExtractionRules covers the
+          # Android 12+ transfer paths the old flag does not.
+          if 'allowBackup' not in s:
+              s = re.sub(r'(<application\b)', r'\1\n        android:allowBackup="false"\n        android:dataExtractionRules="@xml/data_extraction_rules"', s, count=1)
+              print('allowBackup=false + dataExtractionRules added')
           # Launcher name must be the branded, correctly-cased "NizKhata"
           # (flutter create emits the lowercase project name by default).
           s2 = re.sub(r'android:label="[^"]*"', 'android:label="NizKhata"', s, count=1)
@@ -132,6 +140,19 @@ jobs:
               print('notification + widget receivers added')
           open(p, 'w').write(s)
           PY
+          # Belt to that braces: deny both backup transports outright.
+          mkdir -p android/app/src/main/res/xml
+          cat > android/app/src/main/res/xml/data_extraction_rules.xml <<'XML'
+          <?xml version="1.0" encoding="utf-8"?>
+          <!-- The ledger is not backed up. Both transports are denied so an
+               adb backup or a device-to-device transfer carries nothing. -->
+          <data-extraction-rules>
+              <cloud-backup><exclude domain="root" /></cloud-backup>
+              <device-transfer><exclude domain="root" /></device-transfer>
+          </data-extraction-rules>
+          XML
+          sed -i 's/^          //' android/app/src/main/res/xml/data_extraction_rules.xml
+
           # flutter_local_notifications requires core library desugaring.
           python3 - <<'PY2'
           import re
