@@ -4,16 +4,48 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import 'currency.dart';
+
+/// Which locale dates are written in. Set once at startup from the phone
+/// (see main.dart); it defaults to en_IN so tests, and anything that runs
+/// before startup finishes, read exactly as the app always has.
+class AppLocale {
+  AppLocale._();
+  static String date = 'en_IN';
+}
+
+/// The English date locale closest to the phone's. English because every
+/// other word in the app is: a date in Devanagari between two English words
+/// reads worse than either. So an English phone keeps its own variant
+/// (en_US, en_GB, en_AU), any other phone gets English for its country when
+/// intl has one, and failing both, en_IN — the app's long-standing format.
+String resolveDateLocale(Locale device, {bool Function(String)? exists}) {
+  final has = exists ?? DateFormat.localeExists;
+  final country = device.countryCode;
+  final candidates = [
+    if (device.languageCode == 'en' && country != null) 'en_$country',
+    if (country != null) 'en_$country',
+  ];
+  for (final c in candidates) {
+    if (has(c)) return c;
+  }
+  return 'en_IN';
+}
+
 /// Format as workspace currency (defaults INR / en-IN). Accounting sign: a
 /// negative renders in parentheses, e.g. -1000 -> "(₹1,000.00)". A true zero
 /// (|amount| < 0.005) renders as an em dash — matching the web.
-String formatMoney(num amount, [String currency = 'INR', String locale = 'en_IN']) {
-  if (amount.abs() < 0.005) return '—';
-  final symbol = _currencySymbol(currency);
+///
+/// The currency decides everything about how the figure is written: symbol,
+/// decimal places, and whether digits group in lakhs or in thousands. [locale]
+/// overrides only the grouping, and nothing in the app needs to pass it.
+String formatMoney(num amount, [String currency = 'INR', String? locale]) {
+  final spec = currencySpec(currency);
+  if (amount.abs() < _zeroBelow(spec)) return '—';
   final fmt = NumberFormat.currency(
-    locale: locale,
-    symbol: symbol,
-    decimalDigits: 2,
+    locale: locale ?? spec.numberLocale,
+    symbol: spec.symbol,
+    decimalDigits: spec.decimals,
   );
   if (amount < 0) {
     return '(${fmt.format(amount.abs())})';
@@ -21,28 +53,55 @@ String formatMoney(num amount, [String currency = 'INR', String locale = 'en_IN'
   return fmt.format(amount);
 }
 
-/// Compact currency for tight spaces (stat cards): Indian short scale —
-/// ₹43.5K, ₹2.5L, ₹1.2Cr. Keeps the accounting sign (negatives parenthesised)
-/// and em-dash zero. Values under 1,000 render in full so small numbers stay
-/// exact. Two significant-ish digits keep everything on one line up to crores.
+/// Compact currency for tight spaces (stat cards). South Asian currencies use
+/// their own short scale — ₹43.5K, ₹2.5L, ₹1.2Cr — and everyone else the
+/// international one — \$43.5K, \$2.5M, \$1.2B. Keeps the accounting sign
+/// (negatives parenthesised) and em-dash zero. Values under 1,000 render in
+/// full so small numbers stay exact.
 String formatMoneyCompact(num amount, [String currency = 'INR']) {
-  if (amount.abs() < 0.005) return '—';
-  final symbol = _currencySymbol(currency);
+  final spec = currencySpec(currency);
+  if (amount.abs() < _zeroBelow(spec)) return '—';
   final neg = amount < 0;
   final v = amount.abs();
   String body;
   if (v < 1000) {
-    // Whole rupees when exact, else two decimals.
-    body = v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(2);
-  } else if (v < 100000) {
-    body = '${_trim(v / 1000)}K';
-  } else if (v < 10000000) {
-    body = '${_trim(v / 100000)}L';
+    // Whole units when exact, else the currency's own decimal places.
+    body = v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(spec.decimals);
+  } else if (spec.grouping == DigitGrouping.southAsian) {
+    if (v < 100000) {
+      body = '${_trim(v / 1000)}K';
+    } else if (v < 10000000) {
+      body = '${_trim(v / 100000)}L';
+    } else {
+      body = '${_trim(v / 10000000)}Cr';
+    }
   } else {
-    body = '${_trim(v / 10000000)}Cr';
+    if (v < 1000000) {
+      body = '${_trim(v / 1000)}K';
+    } else if (v < 1000000000) {
+      body = '${_trim(v / 1000000)}M';
+    } else {
+      body = '${_trim(v / 1000000000)}B';
+    }
   }
-  final s = '$symbol$body';
+  final s = '${spec.symbol}$body';
   return neg ? '($s)' : s;
+}
+
+/// The symbol to put in front of an amount field, e.g. `₹`, `\$`, `AED`.
+/// Trailing space trimmed: an input's prefix already sits apart from the text.
+String currencySymbol(String currency) => currencySpec(currency).symbol.trimRight();
+
+/// Below half a minor unit a figure is nothing. For a two-decimal currency
+/// that is the long-standing 0.005; for the yen it is half a yen.
+double _zeroBelow(CurrencySpec spec) => 0.5 / _pow10(spec.decimals);
+
+double _pow10(int n) {
+  var v = 1.0;
+  for (var i = 0; i < n; i++) {
+    v *= 10;
+  }
+  return v;
 }
 
 /// One decimal, but drop a trailing ".0" so "90.0" -> "90".
@@ -51,28 +110,6 @@ String _trim(double v) {
   return s.endsWith('.0') ? s.substring(0, s.length - 2) : s;
 }
 
-String _currencySymbol(String code) {
-  switch (code) {
-    case 'INR':
-      return '₹';
-    case 'USD':
-      return '\$';
-    case 'EUR':
-      return '€';
-    case 'GBP':
-      return '£';
-    case 'AED':
-      return 'AED ';
-    case 'SGD':
-      return 'S\$';
-    case 'AUD':
-      return 'A\$';
-    case 'CAD':
-      return 'C\$';
-    default:
-      return '$code ';
-  }
-}
 
 /// Balance label for an account row.
 ///
@@ -86,9 +123,12 @@ String _currencySymbol(String code) {
 String accountBalanceLabel(String accountType, num balance, [String currency = 'INR']) =>
     formatMoney(balance, currency);
 
-/// Short readable date, e.g. "9 Aug 2026".
-String formatDate(DateTime date, [String locale = 'en_IN']) {
-  return DateFormat('d MMM yyyy', locale).format(date);
+/// Short readable date in the reader's own convention: "9 Aug 2026" in India
+/// and Britain, "Aug 9, 2026" in the US. Follows the phone, not the workspace:
+/// how a date is written is a personal preference, not something the books
+/// have to agree on.
+String formatDate(DateTime date, [String? locale]) {
+  return DateFormat.yMMMd(locale ?? AppLocale.date).format(date);
 }
 
 /// Up-to-2-letter initials from a name or email.

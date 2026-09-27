@@ -5,8 +5,20 @@
 import 'dart:math' as math;
 import 'package:intl/intl.dart';
 import 'models.dart';
+import '../core/currency.dart';
 
-double roundMoney(num n) => ((n + 1e-9) * 100).round() / 100;
+/// Round to the active currency's minor units: cents for most, whole yen,
+/// thousandths of a dinar. Every calculation funnels through this, so it reads
+/// the currency from [MoneyContext] rather than taking it as an argument at
+/// dozens of call sites. INR, and so every existing workspace, is unchanged.
+double roundMoney(num n) {
+  final d = MoneyContext.decimals;
+  var f = 1.0;
+  for (var i = 0; i < d; i++) {
+    f *= 10;
+  }
+  return ((n + 1e-9) * f).round() / f;
+}
 
 // ---- transaction engine (txn.ts) ------------------------------------------
 

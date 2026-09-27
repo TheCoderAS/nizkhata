@@ -8,6 +8,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../core/currency.dart';
 import '../data/models.dart';
 import 'data_controller.dart';
 
@@ -36,6 +37,20 @@ class WorkspaceController extends ChangeNotifier {
       if (w.id == activeWorkspaceId) return w;
     }
     return null;
+  }
+
+  /// The active workspace's currency, fixed when the workspace was created.
+  /// The one place screens should ask; nothing else needs an 'INR' fallback.
+  String get currency => activeWorkspace?.baseCurrency ?? 'INR';
+  CurrencySpec get currencySpec => MoneyContext.spec;
+
+  /// Every state change passes through here, so this is where the rounding
+  /// context follows the active workspace — before any listener rebuilds and
+  /// before any calculation runs against the new books.
+  @override
+  void notifyListeners() {
+    MoneyContext.currency = currency;
+    super.notifyListeners();
   }
 
   Membership? get _activeMembership {

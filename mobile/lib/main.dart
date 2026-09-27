@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' show PlatformDispatcher;
 
 
 import 'package:firebase_core/firebase_core.dart';
@@ -9,6 +10,7 @@ import 'package:provider/provider.dart';
 import 'package:quick_actions/quick_actions.dart';
 
 
+import 'core/format.dart';
 import 'core/theme.dart';
 import 'firebase_options.dart';
 import 'data/models.dart';
@@ -27,8 +29,12 @@ import 'state/workspace_controller.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  Intl.defaultLocale = 'en_IN';
-  await initializeDateFormatting('en_IN', null);
+  // Dates follow the phone. All locales' date symbols ship with the app, so
+  // this needs no network; resolveDateLocale keeps it to an English variant,
+  // since the rest of the app is written in English.
+  await initializeDateFormatting();
+  AppLocale.date = resolveDateLocale(PlatformDispatcher.instance.locale);
+  Intl.defaultLocale = AppLocale.date;
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   runApp(const NizkhataApp());
 }
