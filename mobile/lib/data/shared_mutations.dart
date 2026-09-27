@@ -23,9 +23,17 @@
 // No revision log is written for the cross-user docs themselves (they are not
 // workspace entities); the workspace-local reflections are fully audited (they
 // reuse the same audit + revision shapes as mutations.dart, duplicated here).
+//
+// Currency. Each workspace keeps its books in one currency, and the two parties
+// may keep theirs in different ones. So every entry carries the currency of the
+// books it was created from, and is always shown in that currency. Nothing is
+// ever converted: an entry is only written into books kept in its own currency
+// (see [SharedCurrencyMismatch]). Entries from before the field existed were
+// all created from INR books, which is how a missing field is read.
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../core/currency.dart';
 import 'derive.dart';
 import 'models.dart';
 import 'mutations.dart' show Actor, externalAccount;
@@ -130,6 +138,10 @@ class SharedEntry {
   final String status; // pending | accepted | rejected
   final List<String> pendingForUids;
   final bool resolved;
+
+  /// ISO code of the books the creator recorded this from. [amount] is a
+  /// figure in this currency, whatever the reader's own books are kept in.
+  final String currency;
   SharedEntry({
     required this.id,
     required this.connectionId,
@@ -145,11 +157,14 @@ class SharedEntry {
     required this.status,
     required this.pendingForUids,
     required this.resolved,
+    this.currency = 'INR',
   });
-  factory SharedEntry.fromDoc(DocumentSnapshot d) {
-    final m = d.data() as Map<String, dynamic>;
+  factory SharedEntry.fromDoc(DocumentSnapshot d) =>
+      SharedEntry.fromMap(d.id, d.data() as Map<String, dynamic>);
+
+  factory SharedEntry.fromMap(String id, Map<String, dynamic> m) {
     return SharedEntry(
-      id: d.id,
+      id: id,
       connectionId: m['connectionId'] ?? '',
       kind: m['kind'] ?? 'expense',
       uids: _strList(m['uids']),
@@ -163,8 +178,57 @@ class SharedEntry {
       status: m['status'] ?? 'pending',
       pendingForUids: _strList(m['pendingForUids']),
       resolved: m['resolved'] == true,
+      currency: sharedEntryCurrency(m['currency']),
     );
   }
+}
+
+/// The currency a stored entry is in. Entries written before the field existed
+/// came from INR books, the only kind there were, so a missing (or unreadable)
+/// value is INR rather than the reader's own currency.
+String sharedEntryCurrency(dynamic stored) {
+  if (stored is String && RegExp(r'^[A-Za-z]{3}$').hasMatch(stored)) return stored.toUpperCase();
+  return 'INR';
+}
+
+/// Raised instead of writing a shared item into books kept in another currency.
+///
+/// The two figures are in different units, so there is no honest way to record
+/// one in the other's books without an exchange rate, and the app keeps none.
+/// Posting the bare number would turn \$50 into ₹50. The person can still see
+/// and reject the item from anywhere; recording it takes a workspace kept in
+/// the item's own currency.
+class SharedCurrencyMismatch implements Exception {
+  final String entryCurrency;
+  final String bookCurrency;
+  SharedCurrencyMismatch(this.entryCurrency, this.bookCurrency);
+
+  String get message => sharedCurrencyNote(entryCurrency, bookCurrency)!;
+
+  @override
+  String toString() => message;
+}
+
+/// Why an item in [entryCurrency] cannot be recorded in books kept in
+/// [bookCurrency], in words for the screen; null when it can.
+String? sharedCurrencyNote(String entryCurrency, String bookCurrency) {
+  if (entryCurrency == bookCurrency) return null;
+  final spec = currencySpec(entryCurrency);
+  return 'This is in ${spec.code} (${spec.name}), and this workspace keeps its books in '
+      '$bookCurrency. Amounts are never converted, so to record it, open a workspace kept in '
+      '${spec.code}.';
+}
+
+void _ensureSameCurrency(String entryCurrency, String bookCurrency) {
+  if (entryCurrency != bookCurrency) throw SharedCurrencyMismatch(entryCurrency, bookCurrency);
+}
+
+/// [roundMoney] rounds to the ACTIVE workspace's currency, but a shared
+/// balance is in its entries' currency, which may be another one (whole yen
+/// against two-decimal rupees).
+double _roundIn(num n, String currency) {
+  final f = _pow10(currencySpec(currency).decimals);
+  return ((n + 1e-9) * f).round() / f;
 }
 
 // ---- shared balances (port of derive.ts sharedBalances) --------------------
@@ -176,12 +240,17 @@ class SharedBalance {
   final String uid; // the counterparty (from my perspective)
   final String name;
   final double net; // > 0 they owe me; < 0 I owe them
-  SharedBalance(this.uid, this.name, this.net);
+  final String currency; // what [net] is counted in
+  SharedBalance(this.uid, this.name, this.net, [this.currency = 'INR']);
 }
 
-/// Net shared balance per counterparty, from `myUid`'s perspective.
+/// Net shared balance per counterparty AND currency, from `myUid`'s
+/// perspective. The same two people can share from books in different
+/// currencies (one of them keeps a rupee workspace and a dollar one), and a
+/// rupee and a dollar do not net against each other, so each currency is its
+/// own balance.
 List<SharedBalance> sharedBalances(String myUid, List<SharedEntry> entries) {
-  final net = <String, double>{};
+  final net = <(String, String), double>{};
   final name = <String, String>{};
 
   for (final e in entries) {
@@ -196,14 +265,28 @@ List<SharedBalance> sharedBalances(String myUid, List<SharedEntry> entries) {
     // + if I paid, - if I received: the payer always moves the balance in
     // their own favour, for both expenses and settlements.
     final delta = e.payerUid == myUid ? e.amount : -e.amount;
-    net[other] = (net[other] ?? 0) + delta;
+    final key = (other, e.currency);
+    net[key] = (net[key] ?? 0) + delta;
   }
 
   final out = <SharedBalance>[];
-  net.forEach((uid, n) => out.add(SharedBalance(uid, name[uid] ?? uid, roundMoney(n))));
-  out.removeWhere((b) => b.net.abs() <= 0.005);
+  net.forEach((key, n) {
+    final (uid, currency) = key;
+    final rounded = _roundIn(n, currency);
+    // Below half a minor unit a balance is nothing (half a yen, not 0.005).
+    if (rounded.abs() < 0.5 / _pow10(currencySpec(currency).decimals)) return;
+    out.add(SharedBalance(uid, name[uid] ?? uid, rounded, currency));
+  });
   out.sort((a, b) => b.net.compareTo(a.net));
   return out;
+}
+
+double _pow10(int n) {
+  var v = 1.0;
+  for (var i = 0; i < n; i++) {
+    v *= 10;
+  }
+  return v;
 }
 
 // ---- inputs ----------------------------------------------------------------
@@ -267,7 +350,9 @@ class SharedMutations {
   final String email; // the current user's email
   final Actor by; // Actor.fromUser(user); by.name == actorName(me)
 
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
+  // Late, so the currency guards below run (and can be tested) before anything
+  // reaches for Firestore.
+  late final FirebaseFirestore _db = FirebaseFirestore.instance;
 
   String newId(String col) => _db.collection(col).doc().id;
 
@@ -506,8 +591,13 @@ class SharedMutations {
   /// In a single batch: one bilateral `sharedEntry` per counterparty (pending),
   /// the creator's own-share expense (if myShare > 0), and a `lend` reflection
   /// transaction per counterparty (real account; they owe the creator).
+  ///
+  /// [currency] is the workspace's own: the amounts were entered in it and the
+  /// creator's side is recorded in it, so each entry carries it for the
+  /// counterparty to read.
   Future<void> createSharedExpense({
     required String workspaceId,
+    required String currency,
     required int fyStartMonth,
     required String accountId,
     required String description,
@@ -566,6 +656,7 @@ class SharedMutations {
         'payerUid': uid,
         'description': description,
         'amount': p.share,
+        'currency': currency,
         'date': Timestamp.fromDate(date),
         'status': 'pending',
         'pendingForUids': [p.counterpartyUid],
@@ -601,13 +692,18 @@ class SharedMutations {
 
   /// Accept a shared expense: flip my consent and record a BALANCE-ONLY debt
   /// (external borrow — I owe the creator) that doesn't touch my accounts.
+  ///
+  /// [bookCurrency] is the currency of the workspace it would be recorded in;
+  /// an entry in any other currency is refused, not recorded as a bare number.
   Future<void> acceptSharedExpense({
     required SharedEntry entry,
     required String workspaceId,
+    required String bookCurrency,
     required int fyStartMonth,
     required List<Contact> contacts,
     required List<Debt> debts,
   }) async {
+    _ensureSameCurrency(entry.currency, bookCurrency);
     final batch = _db.batch();
     batch.update(_db.collection('sharedEntries').doc(entry.id), {
       'status': 'accepted',
@@ -655,6 +751,7 @@ class SharedMutations {
   /// Propose a settlement: I (the payer) assert I paid the counterparty `amount`.
   /// Records my real outflow now (a `repayment` reducing my "owe" shared debt)
   /// and creates a pending settlement entry the counterparty must accept.
+  /// [currency] is the workspace's own, as for [createSharedExpense].
   Future<void> proposeSettlement({
     required String counterpartyUid,
     required String counterpartyName,
@@ -663,6 +760,7 @@ class SharedMutations {
     required String description,
     required DateTime date,
     required String workspaceId,
+    required String currency,
     required int fyStartMonth,
     required String accountId,
     required List<Contact> contacts,
@@ -683,6 +781,7 @@ class SharedMutations {
       'payerUid': uid,
       'description': description,
       'amount': amount,
+      'currency': currency,
       'date': Timestamp.fromDate(date),
       'status': 'pending',
       'pendingForUids': [counterpartyUid],
@@ -717,14 +816,19 @@ class SharedMutations {
 
   /// Accept a settlement the counterparty proposed: flip my consent and record
   /// the matching inflow (a `repayment` of my "owed" shared debt).
+  ///
+  /// Refused, like [acceptSharedExpense], when the settlement is in another
+  /// currency than [bookCurrency]: the inflow would land in a real account.
   Future<void> acceptSettlement({
     required SharedEntry entry,
     required String workspaceId,
+    required String bookCurrency,
     required int fyStartMonth,
     required List<Contact> contacts,
     required List<Debt> debts,
     String? accountId,
   }) async {
+    _ensureSameCurrency(entry.currency, bookCurrency);
     final batch = _db.batch();
     batch.update(_db.collection('sharedEntries').doc(entry.id), {
       'status': 'accepted',
@@ -767,6 +871,10 @@ class SharedMutations {
   ///     own expense instead of a receivable, and clear the conflict.
   ///   - "remove": delete the reflection transaction, and clear the conflict.
   /// The shared entry is marked resolved either way so the banner clears.
+  ///
+  /// Both modes rewrite the books the expense was recorded in, so both are
+  /// refused from a workspace kept in another currency than the entry's: the
+  /// reflection is not in those books, and an absorbed expense would be.
   Future<void> resolveConflict({
     required SharedEntry entry,
     required String mode, // absorb | remove
@@ -776,7 +884,9 @@ class SharedMutations {
     required DateTime date,
     required String accountId,
     required String workspaceId,
+    required String bookCurrency,
   }) async {
+    _ensureSameCurrency(entry.currency, bookCurrency);
     final batch = _db.batch();
 
     if (mode == 'absorb') {
@@ -850,6 +960,9 @@ class SharedMutations {
       'payerUid': entry.payerUid,
       'description': entry.description,
       'amount': entry.amount,
+      // The same claim, so the same currency. Written out even for an old
+      // entry that had none, where it was INR all along.
+      'currency': entry.currency,
       'date': Timestamp.fromDate(entry.date),
       'status': 'pending',
       'pendingForUids': [entry.counterpartyUid],

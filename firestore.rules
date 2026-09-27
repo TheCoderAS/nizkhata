@@ -141,13 +141,31 @@ service cloud.firestore {
     }
 
     // ---- workspaces --------------------------------------------------------
+    // A workspace keeps its books in exactly one currency, chosen when it is
+    // created and never changed: every amount already stored is a figure in
+    // that currency, so relabelling it would silently turn ₹500 into $500.
+    //
+    // Workspaces made before the currency was stored have no field, and every
+    // client reads that as INR. So the comparison is between EFFECTIVE
+    // currencies, with a missing field counting as INR: such a workspace can
+    // still be edited, and may even have 'INR' written in, but can never
+    // become anything else. Checking the raw field instead would either lock
+    // those workspaces out of every edit or let their first edit pick any
+    // currency at all.
+    function isCurrencyCode(v) { return v is string && v.matches('^[A-Z]{3}$'); }
+    function wsCurrency(data) { return data.get('baseCurrency', 'INR'); }
+
     match /workspaces/{ws} {
       allow read:   if isMember(ws);
       allow create: if isSignedIn()
         && request.resource.data.ownerId == request.auth.uid
-        && request.resource.data.id == ws;
+        && request.resource.data.id == ws
+        && isCurrencyCode(request.resource.data.get('baseCurrency', null));
+      // The currency lock binds the owner too: `workspace.edit` covers the
+      // name and the FY start month, not the unit every figure is kept in.
       allow update: if can(ws, 'workspace.edit')
-        && request.resource.data.ownerId == resource.data.ownerId;
+        && request.resource.data.ownerId == resource.data.ownerId
+        && wsCurrency(request.resource.data) == wsCurrency(resource.data);
       allow delete: if isOwner(ws) && can(ws, 'workspace.delete');
     }
 
@@ -339,6 +357,14 @@ service cloud.firestore {
 
     // A single bilateral shared item (expense or settlement). The creator owns
     // the immutable facts; the counterparty owns only their consent.
+    //
+    // `currency` is the creator's workspace currency, stamped so the other
+    // side reads ₹500 as ₹500 even when their own books are in dollars. It is
+    // validated when present but not required: app versions released before
+    // it existed still create entries without it, and those could only ever
+    // have come from INR books, which is how a missing field is read. Once
+    // written it is as immutable as the amount (neither update branch below
+    // lists it).
     match /sharedEntries/{id} {
       allow read: if isParty();
       allow create: if willBeParty()
@@ -346,7 +372,9 @@ service cloud.firestore {
         && request.resource.data.creatorUid == request.auth.uid
         && request.resource.data.uids.size() == 2
         && request.resource.data.counterpartyUid in request.resource.data.uids
-        && createdUid(request.resource.data) == request.auth.uid;
+        && createdUid(request.resource.data) == request.auth.uid
+        && (!('currency' in request.resource.data)
+            || isCurrencyCode(request.resource.data.currency));
       // Update is tightly scoped by WHO you are:
       //   - the counterparty may change ONLY their consent (status + the
       //     mirrored pendingForUids), never amount/shares/parties;

@@ -1,10 +1,12 @@
-// Settings › Workspace — ports src/pages/WorkspaceSettings.tsx. Name, currency,
-// FY start month; delete (owner only).
+// Settings › Workspace — ports src/pages/WorkspaceSettings.tsx. Name and FY
+// start month; delete (owner only). The currency is shown but not editable: it
+// was chosen when the workspace was created and every figure is kept in it.
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../core/currency.dart';
 import '../core/theme.dart';
 import '../data/models.dart';
 import '../data/mutations.dart';
@@ -12,7 +14,6 @@ import '../state/auth_controller.dart';
 import '../state/workspace_controller.dart';
 import '../widgets/common.dart';
 
-const _kCurrencies = ['INR', 'USD', 'EUR', 'GBP', 'AED', 'SGD', 'AUD', 'CAD'];
 const _kMonths = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December',
@@ -27,7 +28,6 @@ class WorkspaceSettingsScreen extends StatefulWidget {
 
 class _WorkspaceSettingsScreenState extends State<WorkspaceSettingsScreen> {
   final _name = TextEditingController();
-  String _currency = 'INR';
   int _fyStartMonth = 4;
   bool _busy = false;
   bool _seeded = false;
@@ -42,7 +42,6 @@ class _WorkspaceSettingsScreenState extends State<WorkspaceSettingsScreen> {
     final w = ws.activeWorkspace;
     if (w == null || _seeded) return;
     _name.text = w.name;
-    _currency = _kCurrencies.contains(w.baseCurrency) ? w.baseCurrency : 'INR';
     _fyStartMonth = (w.fyStartMonth >= 1 && w.fyStartMonth <= 12) ? w.fyStartMonth : 4;
     _seeded = true;
   }
@@ -57,7 +56,6 @@ class _WorkspaceSettingsScreenState extends State<WorkspaceSettingsScreen> {
       await Mutations(Actor.fromUser(user)).updateWorkspace(
         w.id,
         name: _name.text.trim(),
-        baseCurrency: _currency,
         fyStartMonth: _fyStartMonth,
       );
       if (mounted) {
@@ -158,14 +156,7 @@ class _WorkspaceSettingsScreenState extends State<WorkspaceSettingsScreen> {
                   onChanged: (_) => setState(() {}),
                 ),
                 const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  value: _currency,
-                  decoration: const InputDecoration(labelText: 'Base currency'),
-                  items: [
-                    for (final c in _kCurrencies) DropdownMenuItem(value: c, child: Text(c)),
-                  ],
-                  onChanged: canEdit ? (v) => setState(() => _currency = v ?? 'INR') : null,
-                ),
+                FixedCurrencyField(currency: ws.currency),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<int>(
                   value: _fyStartMonth,
@@ -208,6 +199,37 @@ class _WorkspaceSettingsScreenState extends State<WorkspaceSettingsScreen> {
               ),
             ),
           ],
+        ],
+      ),
+    );
+  }
+}
+
+/// The workspace currency, shown rather than offered.
+///
+/// It reads as a field so it sits naturally among the ones that can be edited,
+/// but it is plain text: a workspace's books are kept in the currency chosen
+/// when it was made, and switching it would relabel every figure already in
+/// them without converting any of them.
+class FixedCurrencyField extends StatelessWidget {
+  final String currency;
+  const FixedCurrencyField({super.key, required this.currency});
+
+  @override
+  Widget build(BuildContext context) {
+    final spec = currencySpec(currency);
+    return InputDecorator(
+      decoration: const InputDecoration(
+        labelText: 'Currency',
+        helperText: 'Set when this workspace was created. It cannot be changed.',
+        helperMaxLines: 2,
+        suffixIcon: Icon(Icons.lock_outline, size: 18),
+      ),
+      child: Row(
+        children: [
+          Text(spec.symbol.trimRight(), style: const TextStyle(fontWeight: FontWeight.w700)),
+          const SizedBox(width: 10),
+          Flexible(child: Text('${spec.code} · ${spec.name}', overflow: TextOverflow.ellipsis)),
         ],
       ),
     );
