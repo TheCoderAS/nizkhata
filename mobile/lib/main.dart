@@ -266,7 +266,10 @@ class _RootState extends State<_Root> with WidgetsBindingObserver {
     final m = Mutations(Actor.fromUser(user));
     for (final plan in plans) {
       try {
-        if (plan.isUpdate) {
+        if (plan.isCancel) {
+          // The statement it was raised from owes nothing any more.
+          await m.updateDue(wsId, plan.dueId, {'status': 'cancelled'});
+        } else if (plan.isUpdate) {
           await m.updateDue(wsId, plan.dueId, {
             'amount': plan.doc['amount'],
             'lines': plan.doc['lines'],

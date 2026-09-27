@@ -173,7 +173,11 @@ class StatementDuePlan {
 
   /// True when the due already exists and only its amount needs correcting.
   final bool isUpdate;
-  const StatementDuePlan(this.dueId, this.doc, {this.isUpdate = false});
+
+  /// True when the bill should be withdrawn: the statement it was raised from
+  /// no longer owes anything.
+  final bool isCancel;
+  const StatementDuePlan(this.dueId, this.doc, {this.isUpdate = false, this.isCancel = false});
 }
 
 /// The bill dues that ought to exist right now, and the ones whose amount has
@@ -203,11 +207,24 @@ List<StatementDuePlan> statementDuePlans({
     if (cycle == null) continue;
 
     final owed = statementOutstanding(card, txns, debtsById, cycle.statementDate);
-    if (owed <= 0.005) continue; // nothing billed, or the card is in credit
-
     final id = statementDueId(card.id, cycle.statementDate);
-    final doc = statementDueDoc(card, cycle, owed);
     final existing = byId[id];
+
+    // Nothing billed, or the card is in credit. If a bill was already raised
+    // from this statement, the ledger has since moved under it — a credit
+    // dated inside the cycle, entered after the fact — and it is now asking
+    // for money that was never owed. Withdraw it rather than leave the dues
+    // list contradicting the card's own "Nothing to pay".
+    if (owed <= 0.005) {
+      if (existing != null &&
+          existing.status != 'cancelled' &&
+          settledOf(id) <= 0.005) {
+        out.add(StatementDuePlan(id, const {'status': 'cancelled'}, isCancel: true));
+      }
+      continue;
+    }
+
+    final doc = statementDueDoc(card, cycle, owed);
 
     if (existing == null) {
       // The live statement can be one that has already been paid: the first
