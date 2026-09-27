@@ -218,7 +218,7 @@ class _DueFormState extends State<_DueForm> {
   Widget _buildContent(BuildContext context) {
     final data = context.watch<DataController>();
     final ws = context.watch<WorkspaceController>();
-    final currency = ws.activeWorkspace?.baseCurrency ?? 'INR';
+    final currency = ws.currency;
     final contacts = data.contacts.where((c) => c.connectionUid == null).toList();
     final accounts = data.accounts;
 
