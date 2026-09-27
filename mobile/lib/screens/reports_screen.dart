@@ -47,7 +47,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
     final ws = context.watch<WorkspaceController>();
     final data = context.watch<DataController>();
     final currency = ws.currency;
-    final fyStart = ws.activeWorkspace?.fyStartMonth ?? 4;
+    final fyStart = ws.fyStartMonth;
     final canExport = ws.can('reports.export');
     final canViewTxns = ws.can('transactions.view');
 

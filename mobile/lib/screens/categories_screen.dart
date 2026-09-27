@@ -67,7 +67,7 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
     final canManage = ws.can('categories.manage');
     final canViewTxns = ws.can('transactions.view');
     final currency = ws.currency;
-    final fyStartMonth = ws.activeWorkspace?.fyStartMonth ?? 4;
+    final fyStartMonth = ws.fyStartMonth;
 
     final now = DateTime.now();
     final ({DateTime start, DateTime end}) range;

@@ -140,7 +140,7 @@ class _DueFormState extends State<_DueForm> {
 
     setState(() => _busy = true);
     final m = Mutations(Actor.fromUser(user));
-    final fyStart = wsC.activeWorkspace?.fyStartMonth ?? 4;
+    final fyStart = wsC.fyStartMonth;
     final occurrence = widget.existing?.occurrence ?? 1;
     final titlePattern = _title.text.trim();
     final notePattern = _note.text.trim();
@@ -241,7 +241,7 @@ class _DueFormState extends State<_DueForm> {
                 repeats: _recurrence.isNotEmpty,
                 date: _dueDate,
                 occurrence: widget.existing?.occurrence ?? 1,
-                fyStartMonth: ws.activeWorkspace?.fyStartMonth ?? 4,
+                fyStartMonth: ws.fyStartMonth,
                 validator: (v) => (v == null || v.trim().isEmpty) ? 'Title is required' : null,
               ),
               const SizedBox(height: 14),
@@ -267,7 +267,7 @@ class _DueFormState extends State<_DueForm> {
                 repeats: _recurrence.isNotEmpty,
                 date: _dueDate,
                 occurrence: widget.existing?.occurrence ?? 1,
-                fyStartMonth: ws.activeWorkspace?.fyStartMonth ?? 4,
+                fyStartMonth: ws.fyStartMonth,
               ),
               const SizedBox(height: 16),
               // Same line editor as the transaction form — types, categories,

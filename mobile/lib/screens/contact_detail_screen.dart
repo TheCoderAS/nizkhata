@@ -273,7 +273,7 @@ class ContactDetailScreen extends StatelessWidget {
     final data = context.read<DataController>();
     final wsC = context.read<WorkspaceController>();
     final wsId = wsC.activeWorkspaceId;
-    final fyStart = wsC.activeWorkspace?.fyStartMonth ?? 4;
+    final fyStart = wsC.fyStartMonth;
     final currency = wsC.currency;
     final user = context.read<AuthController>().user;
     if (wsId == null || user == null) return;

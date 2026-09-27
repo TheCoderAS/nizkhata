@@ -537,7 +537,7 @@ class _InboxCardState extends State<_InboxCard> {
   Future<void> _accept() async {
     final wsC = context.read<WorkspaceController>();
     final ws = wsC.activeWorkspaceId;
-    final fy = wsC.activeWorkspace?.fyStartMonth ?? 4;
+    final fy = wsC.fyStartMonth;
     final data = context.read<DataController>();
     if (ws == null) return;
     final sm = _mutations(context);
@@ -788,7 +788,7 @@ class _AddExpenseSheetState extends State<_AddExpenseSheet> {
     if (!_valid) return;
     final wsC = context.read<WorkspaceController>();
     final ws = wsC.activeWorkspaceId;
-    final fy = wsC.activeWorkspace?.fyStartMonth ?? 4;
+    final fy = wsC.fyStartMonth;
     final data = context.read<DataController>();
     if (ws == null) return;
 
@@ -994,7 +994,7 @@ class _SettleSheetState extends State<_SettleSheet> {
     if (!_valid) return;
     final wsC = context.read<WorkspaceController>();
     final ws = wsC.activeWorkspaceId;
-    final fy = wsC.activeWorkspace?.fyStartMonth ?? 4;
+    final fy = wsC.fyStartMonth;
     final data = context.read<DataController>();
     if (ws == null) return;
     final amount = roundMoney(double.tryParse(_amount.text.trim()) ?? 0);
@@ -1126,7 +1126,7 @@ class _ConflictSheetState extends State<_ConflictSheet> {
   Future<void> _resolve(String mode) async {
     final wsC = context.read<WorkspaceController>();
     final ws = wsC.activeWorkspaceId;
-    final fy = wsC.activeWorkspace?.fyStartMonth ?? 4;
+    final fy = wsC.fyStartMonth;
     final data = context.read<DataController>();
     if (ws == null) return;
     final refl = await _findReflection(ws, widget.entry.id);

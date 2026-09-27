@@ -44,6 +44,10 @@ class WorkspaceController extends ChangeNotifier {
   String get currency => activeWorkspace?.baseCurrency ?? 'INR';
   CurrencySpec get currencySpec => MoneyContext.spec;
 
+  /// The month the active workspace's financial year starts in. With no
+  /// workspace loaded, the usual month for its (default) currency.
+  int get fyStartMonth => activeWorkspace?.fyStartMonth ?? currencySpec.defaultFyStartMonth;
+
   /// Every state change passes through here, so this is where the rounding
   /// context follows the active workspace — before any listener rebuilds and
   /// before any calculation runs against the new books.
@@ -79,8 +83,12 @@ class WorkspaceController extends ChangeNotifier {
         contactId: myLinkedContactId,
         views: {
           for (final p in const [
-            'transactions.view', 'dues.view', 'debts.view',
-            'contacts.view', 'accounts.view', 'categories.view',
+            'transactions.view',
+            'dues.view',
+            'debts.view',
+            'contacts.view',
+            'accounts.view',
+            'categories.view',
           ])
             if (can(p)) p,
         },
@@ -154,11 +162,8 @@ class WorkspaceController extends ChangeNotifier {
   void _subscribeRoles() {
     if (activeWorkspaceId == null) return;
     _rolesSub?.cancel();
-    _rolesSub = _db
-        .collection('roles')
-        .where('workspaceId', isEqualTo: activeWorkspaceId)
-        .snapshots()
-        .listen((snap) {
+    _rolesSub =
+        _db.collection('roles').where('workspaceId', isEqualTo: activeWorkspaceId).snapshots().listen((snap) {
       rolesById = {for (final d in snap.docs) d.id: Role.fromDoc(d)};
       notifyListeners();
     });

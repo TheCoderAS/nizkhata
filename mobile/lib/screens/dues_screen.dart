@@ -544,7 +544,7 @@ class _DuePaymentSheetState extends State<_DuePaymentSheet> {
     if (_accountId == null) return;
     final wsC = context.read<WorkspaceController>();
     final ws = wsC.activeWorkspaceId;
-    final fyStart = wsC.activeWorkspace?.fyStartMonth ?? 4;
+    final fyStart = wsC.fyStartMonth;
     final user = context.read<AuthController>().user;
     final data = context.read<DataController>();
     if (ws == null || user == null) return;

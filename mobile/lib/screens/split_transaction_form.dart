@@ -114,7 +114,7 @@ class _TransactionFormState extends State<_TransactionForm> {
   Future<void> _save() async {
     final wsC = context.read<WorkspaceController>();
     final ws = wsC.activeWorkspaceId;
-    final fyStart = wsC.activeWorkspace?.fyStartMonth ?? 4;
+    final fyStart = wsC.fyStartMonth;
     final user = context.read<AuthController>().user;
     final data = context.read<DataController>();
     if (ws == null || user == null || _accountId == null) return;
@@ -201,7 +201,7 @@ class _TransactionFormState extends State<_TransactionForm> {
     final data = context.watch<DataController>();
     final ws = context.watch<WorkspaceController>();
     final currency = ws.currency;
-    final fyStart = ws.activeWorkspace?.fyStartMonth ?? 4;
+    final fyStart = ws.fyStartMonth;
     final accounts = data.accounts;
     final contacts = data.contacts.where((c) => c.connectionUid == null).toList();
 

@@ -59,7 +59,7 @@ class MoreScreen extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _kv('Name', ws.activeWorkspace?.name ?? '—'),
-              _kv('Base currency', currency),
+              _kv('Currency', currency),
               _kv('Accounts', '${data.accounts.length}'),
               _kv('In bank accounts', formatMoney(inBank, currency)),
               _kv('Contacts', '${data.contacts.where((c) => c.connectionUid == null).length}'),

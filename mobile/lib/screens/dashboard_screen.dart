@@ -33,7 +33,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final ws = context.watch<WorkspaceController>();
     final data = context.watch<DataController>();
     final currency = ws.currency;
-    final fyStart = ws.activeWorkspace?.fyStartMonth ?? 4;
+    final fyStart = ws.fyStartMonth;
     final canViewTxns = ws.can('transactions.view');
     final now = DateTime.now();
     final range = period == PeriodKind.custom
@@ -549,7 +549,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         items.add(_attentionTile(
           icon: Icons.repeat,
           color: AppColors.accent2,
-          title: 'Add "${_recurringNote(s, ws.activeWorkspace?.fyStartMonth ?? 4) ?? 'Transaction'}"'
+          title: 'Add "${_recurringNote(s, ws.fyStartMonth) ?? 'Transaction'}"'
               ' for ${formatDate(s.nextDate)}',
           subtitle: 'Recurring ${s.template.recurrence} · ${formatMoney(s.template.totalAmount, currency)}',
           onTap: () => _addRecurringTxn(context, s),
@@ -604,7 +604,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Future<void> _addRecurringTxn(BuildContext context, TxnSuggestion s) async {
     final wsC = context.read<WorkspaceController>();
     final wsId = wsC.activeWorkspaceId;
-    final fyStart = wsC.activeWorkspace?.fyStartMonth ?? 4;
+    final fyStart = wsC.fyStartMonth;
     final note = _recurringNote(s, fyStart);
     final user = context.read<AuthController>().user;
     final currency = wsC.currency;

@@ -234,7 +234,7 @@ class _RootState extends State<_Root> with WidgetsBindingObserver {
     final missing = missingDueInstances(data.dues, DateTime.now());
     if (missing.isEmpty) return;
     final m = Mutations(Actor.fromUser(user));
-    final fyStart = ws.activeWorkspace?.fyStartMonth ?? 4;
+    final fyStart = ws.fyStartMonth;
     for (final inst in missing) {
       try {
         await m.createDue(

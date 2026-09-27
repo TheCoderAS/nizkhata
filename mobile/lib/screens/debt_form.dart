@@ -97,7 +97,7 @@ class _DebtFormState extends State<_DebtForm> {
     if (_contactId == null) return;
     final wsC = context.read<WorkspaceController>();
     final ws = wsC.activeWorkspaceId;
-    final fyStart = wsC.activeWorkspace?.fyStartMonth ?? 4;
+    final fyStart = wsC.fyStartMonth;
     final user = context.read<AuthController>().user;
     if (ws == null || user == null) return;
     setState(() => _busy = true);

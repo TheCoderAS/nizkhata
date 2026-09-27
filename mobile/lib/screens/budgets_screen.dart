@@ -23,7 +23,7 @@ class BudgetsScreen extends StatelessWidget {
     final data = context.watch<DataController>();
     final ws = context.watch<WorkspaceController>();
     final currency = ws.currency;
-    final fyStart = ws.activeWorkspace?.fyStartMonth ?? 4;
+    final fyStart = ws.fyStartMonth;
     final canManage = ws.can('categories.manage');
     final canViewTxns = ws.can('transactions.view');
 
@@ -70,12 +70,8 @@ class BudgetsScreen extends StatelessWidget {
   static String _resolvedPeriodLabel(String period, int fyStart) {
     final now = DateTime.now();
     if (period == 'yearly') {
-      final fy = financialYearRange(now, fyStart);
       // A year that starts in January is a calendar year and has one number.
-      // Written as a span it would name a year it never reaches.
-      if (fyStart == 1) return 'FY ${fy.start.year}';
-      final endYY = ((fy.start.year + 1) % 100).toString().padLeft(2, '0');
-      return 'FY ${fy.start.year}-$endYY';
+      return 'FY ${financialYearOf(now, fyStart)}';
     }
     return DateFormat('MMM yyyy').format(now);
   }

@@ -60,7 +60,11 @@ const kSelectableLineTypes = <String, String>{
   'tax': 'Tax / GST',
 };
 
-String lineTypeLabel(String type) => kSelectableLineTypes[type] ?? kLineTypes[type] ?? type;
+// GST is India's; a tax line in any other workspace is simply tax. The
+// active workspace's currency is the one MoneyContext holds.
+String lineTypeLabel(String type) => type == 'tax' && !MoneyContext.spec.isIndian
+    ? 'Tax'
+    : kSelectableLineTypes[type] ?? kLineTypes[type] ?? type;
 
 bool needsCategory(String type) =>
     type == 'income' ||
@@ -645,8 +649,8 @@ class LineFields extends StatelessWidget {
     // A type that is no longer offered (a legacy transfer_in) still has to
     // show as the current value, so it joins the list for this line only.
     final typeItems = {
-      ...kSelectableLineTypes,
-      if (!kSelectableLineTypes.containsKey(r.type)) r.type: kLineTypes[r.type] ?? r.type,
+      for (final t in kSelectableLineTypes.keys) t: lineTypeLabel(t),
+      if (!kSelectableLineTypes.containsKey(r.type)) r.type: lineTypeLabel(r.type),
     };
 
     return Column(

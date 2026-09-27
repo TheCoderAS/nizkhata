@@ -17,6 +17,7 @@ class FakeWorkspaceController extends ChangeNotifier implements WorkspaceControl
 
   @override
   final String currency;
+  @override
   final int fyStartMonth;
 
   @override

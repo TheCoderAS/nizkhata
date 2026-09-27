@@ -89,7 +89,8 @@ String formatMoneyCompact(num amount, [String currency = 'INR']) {
 }
 
 /// The symbol to put in front of an amount field, e.g. `₹`, `\$`, `AED`.
-/// Trailing space trimmed: an input's prefix already sits apart from the text.
+/// Trailing space trimmed, so every caller adds the same single space after
+/// it (`'\${currencySymbol(c)} '`) whatever the currency.
 String currencySymbol(String currency) => currencySpec(currency).symbol.trimRight();
 
 /// Below half a minor unit a figure is nothing. For a two-decimal currency
@@ -109,7 +110,6 @@ String _trim(double v) {
   final s = v.toStringAsFixed(1);
   return s.endsWith('.0') ? s.substring(0, s.length - 2) : s;
 }
-
 
 /// Balance label for an account row.
 ///
