@@ -37,8 +37,8 @@ class _CategorizeScreenState extends State<CategorizeScreen> {
   // every data change, so choices must live outside them.
   final Map<String, String?> _chosen = {};
 
-  bool _isUncategorized(Txn t) => t.lines
-      .any((l) => (l.type == 'expense' || l.type == 'income') && l.categoryId == null);
+  bool _isUncategorized(Txn t) =>
+      t.lines.any((l) => (l.type == 'expense' || l.type == 'income') && l.categoryId == null);
 
   List<_Group> _buildGroups(DataController data) {
     final uncategorized = data.transactions.where(_isUncategorized).toList()
@@ -48,12 +48,9 @@ class _CategorizeScreenState extends State<CategorizeScreen> {
       final note = t.note ?? '';
       final tokens = narrationTokens(note).toList()..sort();
       final key = tokens.isEmpty ? '(no description)' : tokens.join(' ');
-      (byKey[key] ??= _Group(key, note.isEmpty ? '(no description)' : note, []))
-          .txns
-          .add(t);
+      (byKey[key] ??= _Group(key, note.isEmpty ? '(no description)' : note, [])).txns.add(t);
     }
-    final groups = byKey.values.toList()
-      ..sort((a, b) => b.txns.length.compareTo(a.txns.length));
+    final groups = byKey.values.toList()..sort((a, b) => b.txns.length.compareTo(a.txns.length));
     // Prefill from the learning engine when it has a confident match.
     final memory = CategoryMemory.fromTransactions(data.transactions);
     final catsById = {for (final c in data.categories) c.id: c};
@@ -103,7 +100,7 @@ class _CategorizeScreenState extends State<CategorizeScreen> {
   Widget build(BuildContext context) {
     final data = context.watch<DataController>();
     final ws = context.watch<WorkspaceController>();
-    final currency = ws.activeWorkspace?.baseCurrency ?? 'INR';
+    final currency = ws.currency;
     final canEdit = ws.can('transactions.edit');
     final groups = _buildGroups(data);
     final cs = Theme.of(context).colorScheme;
@@ -114,9 +111,7 @@ class _CategorizeScreenState extends State<CategorizeScreen> {
           ? const Center(child: Text("Your role doesn't allow editing transactions."))
           : groups.isEmpty
               ? const EmptyView(
-                  icon: Icons.task_alt,
-                  title: 'All caught up',
-                  hint: 'Every transaction has a category.')
+                  icon: Icons.task_alt, title: 'All caught up', hint: 'Every transaction has a category.')
               : ListView.separated(
                   padding: const EdgeInsets.symmetric(vertical: 8),
                   itemCount: groups.length,
@@ -124,8 +119,8 @@ class _CategorizeScreenState extends State<CategorizeScreen> {
                   itemBuilder: (ctx, i) {
                     final g = groups[i];
                     final cats = (g.total < 0
-                        ? data.categories.where((c) => c.kind == 'expense')
-                        : data.categories.where((c) => c.kind == 'income'))
+                            ? data.categories.where((c) => c.kind == 'expense')
+                            : data.categories.where((c) => c.kind == 'income'))
                         .toList()
                       ..sort((a, b) => a.name.compareTo(b.name));
                     final valid = cats.any((c) => c.id == g.categoryId) ? g.categoryId : null;
@@ -162,13 +157,11 @@ class _CategorizeScreenState extends State<CategorizeScreen> {
                                   value: valid,
                                   isExpanded: true,
                                   isDense: true,
-                                  decoration:
-                                      const InputDecoration(labelText: 'Category', isDense: true),
+                                  decoration: const InputDecoration(labelText: 'Category', isDense: true),
                                   items: [
                                     for (final c in cats)
                                       DropdownMenuItem(
-                                          value: c.id,
-                                          child: Text(c.name, overflow: TextOverflow.ellipsis)),
+                                          value: c.id, child: Text(c.name, overflow: TextOverflow.ellipsis)),
                                   ],
                                   onChanged: (v) => setState(() {
                                     _chosen[g.key] = v;

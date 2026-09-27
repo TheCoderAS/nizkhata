@@ -32,7 +32,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget build(BuildContext context) {
     final ws = context.watch<WorkspaceController>();
     final data = context.watch<DataController>();
-    final currency = ws.activeWorkspace?.baseCurrency ?? 'INR';
+    final currency = ws.currency;
     final fyStart = ws.activeWorkspace?.fyStartMonth ?? 4;
     final canViewTxns = ws.can('transactions.view');
     final now = DateTime.now();
@@ -607,7 +607,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final fyStart = wsC.activeWorkspace?.fyStartMonth ?? 4;
     final note = _recurringNote(s, fyStart);
     final user = context.read<AuthController>().user;
-    final currency = wsC.activeWorkspace?.baseCurrency ?? 'INR';
+    final currency = wsC.currency;
     if (wsId == null || user == null) return;
     final ok = await showDialog<bool>(
       context: context,

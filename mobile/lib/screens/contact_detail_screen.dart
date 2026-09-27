@@ -38,7 +38,7 @@ class ContactDetailScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final data = context.watch<DataController>();
     final ws = context.watch<WorkspaceController>();
-    final currency = ws.activeWorkspace?.baseCurrency ?? 'INR';
+    final currency = ws.currency;
 
     final contact = data.contactsById[contactId];
     if (contact == null) {
@@ -246,7 +246,7 @@ class ContactDetailScreen extends StatelessWidget {
               if (plan.isEmpty || plan.signedTotal.abs() <= 0.005) {
                 return const SizedBox.shrink();
               }
-              final currency = ws.activeWorkspace?.baseCurrency ?? 'INR';
+              final currency = ws.currency;
               return Padding(
                 padding: const EdgeInsets.only(top: 10),
                 child: SizedBox(
@@ -274,7 +274,7 @@ class ContactDetailScreen extends StatelessWidget {
     final wsC = context.read<WorkspaceController>();
     final wsId = wsC.activeWorkspaceId;
     final fyStart = wsC.activeWorkspace?.fyStartMonth ?? 4;
-    final currency = wsC.activeWorkspace?.baseCurrency ?? 'INR';
+    final currency = wsC.currency;
     final user = context.read<AuthController>().user;
     if (wsId == null || user == null) return;
     // Rebuild fresh (data may have moved since the button rendered).
@@ -616,7 +616,7 @@ class ContactDetailScreen extends StatelessWidget {
       net: position.net,
       entries: entries,
       openDues: openDues,
-      currency: ws.activeWorkspace?.baseCurrency ?? 'INR',
+      currency: ws.currency,
       workspaceName: ws.activeWorkspace?.name ?? 'NizKhata',
     );
   }

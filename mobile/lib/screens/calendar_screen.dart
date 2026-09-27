@@ -57,8 +57,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
     super.dispose();
   }
 
-  DateTime _monthForPage(int page) =>
-      calendarMonthForPage(_baseMonth, page, _initialPage);
+  DateTime _monthForPage(int page) => calendarMonthForPage(_baseMonth, page, _initialPage);
 
   void _step(int delta) {
     final page = (_pager.page ?? _initialPage.toDouble()).round() + delta;
@@ -96,7 +95,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
   Widget build(BuildContext context) {
     final data = context.watch<DataController>();
     final ws = context.watch<WorkspaceController>();
-    final currency = ws.activeWorkspace?.baseCurrency ?? 'INR';
+    final currency = ws.currency;
     final cs = Theme.of(context).colorScheme;
     final today = DateTime.now();
 
@@ -157,9 +156,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                     child: Center(
                       child: Text(d,
                           style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: cs.onSurfaceVariant)),
+                              fontSize: 11, fontWeight: FontWeight.w600, color: cs.onSurfaceVariant)),
                     ),
                   ),
               ],
@@ -260,8 +257,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
   ) {
     if (day < 1 || day > daysInMonth) return const SizedBox.shrink();
     final cs = Theme.of(context).colorScheme;
-    final isToday =
-        today.year == month.year && today.month == month.month && today.day == day;
+    final isToday = today.year == month.year && today.month == month.month && today.day == day;
     final r = dues.receivable[day];
     final p = dues.payable[day];
     final hasSettled = dues.settled.contains(day);
@@ -274,7 +270,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
       if (p != null) 'to pay ${formatMoney(p, currency)}',
       if (r == null && p == null && hasSettled) 'settled dues',
     ];
-    final label = '${DateFormat('d MMMM').format(date)}'
+    // The phone's own order: "20 September" in India, "September 20" in the US.
+    final label = '${DateFormat.MMMMd().format(date)}'
         '${parts.isEmpty ? '' : ', ${parts.join(', ')}'}';
 
     return Semantics(
@@ -300,9 +297,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                     width: 22,
                     height: 22,
                     alignment: Alignment.center,
-                    decoration: isToday
-                        ? BoxDecoration(color: cs.primary, shape: BoxShape.circle)
-                        : null,
+                    decoration: isToday ? BoxDecoration(color: cs.primary, shape: BoxShape.circle) : null,
                     child: Text(
                       '$day',
                       style: TextStyle(
@@ -334,8 +329,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
         '${date.month.toString().padLeft(2, '0')}-'
         '${date.day.toString().padLeft(2, '0')}';
 
-    bool sameDay(DateTime d) =>
-        d.year == date.year && d.month == date.month && d.day == date.day;
+    bool sameDay(DateTime d) => d.year == date.year && d.month == date.month && d.day == date.day;
     // Count what the day view will actually list, or the sheet promises six
     // dues and the screen shows one.
     final dueCount = duesOnDay(data.dues, date, data.settledOf).length;
@@ -352,7 +346,10 @@ class _CalendarScreenState extends State<CalendarScreen> {
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-              child: Text(DateFormat('EEEE, d MMMM yyyy').format(date),
+              // Weekday, then the date in the phone's order. Built from two
+              // parts because intl's own full-date pattern for India differs
+              // from the one this sheet has always shown.
+              child: Text('${DateFormat.EEEE().format(date)}, ${DateFormat.yMMMMd().format(date)}',
                   style: Theme.of(sheetCtx).textTheme.titleMedium),
             ),
             if (ws.can('transactions.create'))
@@ -378,9 +375,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 enabled: txnCount > 0,
                 leading: const Icon(Icons.list_alt_outlined),
                 title: const Text('View transactions'),
-                subtitle: Text(txnCount == 0
-                    ? 'Nothing recorded on this day'
-                    : '$txnCount on this day'),
+                subtitle: Text(txnCount == 0 ? 'Nothing recorded on this day' : '$txnCount on this day'),
                 onTap: txnCount == 0
                     ? null
                     : () {
@@ -393,8 +388,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 enabled: dueCount > 0,
                 leading: const Icon(Icons.event_note_outlined),
                 title: const Text('View dues'),
-                subtitle: Text(
-                    dueCount == 0 ? 'Nothing due on this day' : '$dueCount on this day'),
+                subtitle: Text(dueCount == 0 ? 'Nothing due on this day' : '$dueCount on this day'),
                 onTap: dueCount == 0
                     ? null
                     : () {

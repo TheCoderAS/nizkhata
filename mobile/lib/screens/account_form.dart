@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import '../core/currency.dart';
+import '../core/format.dart';
 import '../data/models.dart';
 import '../data/mutations.dart';
 import '../state/auth_controller.dart';
@@ -36,6 +38,40 @@ class _AccountForm extends StatefulWidget {
 
 /// Hides the "0/2" character counter under a two-digit day field, which is
 /// noise beside a helper line that already says what to type.
+/// What the bank-code field is called outside India, on the form and on the
+/// account's detail sheet alike.
+///
+/// An IFSC is India's name for the code that routes a payment to one branch,
+/// and CIF is an Indian bank's customer number; neither means anything to a
+/// bank elsewhere. Other countries have their own code for the same job (a
+/// routing number, a sort code, a BSB, a SWIFT code), so a workspace in any
+/// other currency gets one plain field for it instead. It is kept in the
+/// account's `ifsc` field: a workspace's currency never changes, so in any one
+/// workspace that field only ever means one thing.
+const kRoutingCodeLabel = 'Routing code';
+
+/// The bank-details fields of a saved account, empty ones as null (which on an
+/// update clears them).
+///
+/// Only an Indian workspace has a CIF field to fill in. Elsewhere the key is
+/// left out altogether rather than written empty, so nothing already stored
+/// under it is cleared by a form that never showed it. `ifsc` holds the IFSC in
+/// India and the routing code anywhere else (see [kRoutingCodeLabel]).
+@visibleForTesting
+Map<String, String?> bankDetailsData({
+  required bool indian,
+  String? accountNumber,
+  String? cif,
+  String? ifsc,
+  String? branchName,
+}) =>
+    {
+      'accountNumber': accountNumber,
+      if (indian) 'cif': cif,
+      'ifsc': ifsc,
+      'branchName': branchName,
+    };
+
 Widget? _noCounter(BuildContext _,
         {required int currentLength, required bool isFocused, required int? maxLength}) =>
     null;
@@ -136,6 +172,7 @@ class _AccountFormState extends State<_AccountForm> {
     final ws = context.read<WorkspaceController>().activeWorkspaceId;
     final user = context.read<AuthController>().user;
     if (ws == null || user == null) return;
+    final indian = currencySpec(context.read<WorkspaceController>().currency).isIndian;
     setState(() => _busy = true);
     final m = Mutations(Actor.fromUser(user));
     final data = <String, dynamic>{
@@ -144,12 +181,14 @@ class _AccountFormState extends State<_AccountForm> {
       'openingBalance': double.tryParse(_opening.text.trim()) ?? 0,
       'code': _t(_code),
       'description': _t(_description),
-      if (_type == 'bank') ...{
-        'accountNumber': _t(_accountNumber),
-        'cif': _t(_cif),
-        'ifsc': _t(_ifsc),
-        'branchName': _t(_branchName),
-      },
+      if (_type == 'bank')
+        ...bankDetailsData(
+          indian: indian,
+          accountNumber: _t(_accountNumber),
+          cif: _t(_cif),
+          ifsc: _t(_ifsc),
+          branchName: _t(_branchName),
+        ),
       if (_type == 'credit_card') ...{
         'nameOnCard': _t(_nameOnCard),
         'cardLast4': _t(_cardLast4),
@@ -189,6 +228,8 @@ class _AccountFormState extends State<_AccountForm> {
   }
 
   Widget _buildContent(BuildContext context) {
+    final currency = context.watch<WorkspaceController>().currency;
+    final indian = currencySpec(currency).isIndian;
     return Padding(
       padding: EdgeInsets.fromLTRB(20, 0, 20, 20 + MediaQuery.of(context).padding.bottom),
       child: SingleChildScrollView(
@@ -233,15 +274,28 @@ class _AccountFormState extends State<_AccountForm> {
                 TextFormField(
                     controller: _accountNumber,
                     decoration: const InputDecoration(labelText: 'Account number')),
-                const SizedBox(height: 14),
-                TextFormField(controller: _cif, decoration: const InputDecoration(labelText: 'CIF')),
-                const SizedBox(height: 14),
-                TextFormField(
-                  controller: _ifsc,
-                  decoration: const InputDecoration(labelText: 'IFSC'),
-                  textCapitalization: TextCapitalization.characters,
-                  inputFormatters: [UpperCaseTextFormatter()],
-                ),
+                if (indian) ...[
+                  const SizedBox(height: 14),
+                  TextFormField(controller: _cif, decoration: const InputDecoration(labelText: 'CIF')),
+                  const SizedBox(height: 14),
+                  TextFormField(
+                    controller: _ifsc,
+                    decoration: const InputDecoration(labelText: 'IFSC'),
+                    textCapitalization: TextCapitalization.characters,
+                    inputFormatters: [UpperCaseTextFormatter()],
+                  ),
+                ] else ...[
+                  const SizedBox(height: 14),
+                  TextFormField(
+                    controller: _ifsc,
+                    decoration: const InputDecoration(
+                      labelText: '$kRoutingCodeLabel (optional)',
+                      helperText: 'Sort code, BSB or SWIFT, whichever your bank uses',
+                    ),
+                    textCapitalization: TextCapitalization.characters,
+                    inputFormatters: [UpperCaseTextFormatter()],
+                  ),
+                ],
                 const SizedBox(height: 14),
                 TextFormField(
                     controller: _branchName, decoration: const InputDecoration(labelText: 'Branch')),
@@ -312,9 +366,9 @@ class _AccountFormState extends State<_AccountForm> {
                 const SizedBox(height: 14),
                 TextFormField(
                   controller: _creditLimit,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: 'Credit limit (optional)',
-                    prefixText: '₹ ',
+                    prefixText: '${currencySymbol(currency)} ',
                     helperText: 'Shows how much of the card you have used',
                   ),
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),

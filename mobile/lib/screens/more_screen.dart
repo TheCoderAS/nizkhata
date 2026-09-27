@@ -17,7 +17,7 @@ class MoreScreen extends StatelessWidget {
     final auth = context.watch<AuthController>();
     final ws = context.watch<WorkspaceController>();
     final data = context.watch<DataController>();
-    final currency = ws.activeWorkspace?.baseCurrency ?? 'INR';
+    final currency = ws.currency;
     final user = auth.user;
 
     // The same figure the dashboard shows, from the same helper. Two lines

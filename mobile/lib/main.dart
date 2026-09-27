@@ -201,7 +201,7 @@ class _RootState extends State<_Root> with WidgetsBindingObserver {
     _syncDebounce?.cancel();
     final data = _data;
     if (data == null) return;
-    final currency = _ws?.activeWorkspace?.baseCurrency ?? 'INR';
+    final currency = _ws?.currency ?? 'INR';
     DueReminders.sync(data.dues, data.settledOf);
     WidgetSync.sync(data.dues, data.settledOf, currency);
     _updateShortcuts();

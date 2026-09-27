@@ -22,7 +22,7 @@ class BudgetsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final data = context.watch<DataController>();
     final ws = context.watch<WorkspaceController>();
-    final currency = ws.activeWorkspace?.baseCurrency ?? 'INR';
+    final currency = ws.currency;
     final fyStart = ws.activeWorkspace?.fyStartMonth ?? 4;
     final canManage = ws.can('categories.manage');
     final canViewTxns = ws.can('transactions.view');
@@ -71,6 +71,9 @@ class BudgetsScreen extends StatelessWidget {
     final now = DateTime.now();
     if (period == 'yearly') {
       final fy = financialYearRange(now, fyStart);
+      // A year that starts in January is a calendar year and has one number.
+      // Written as a span it would name a year it never reaches.
+      if (fyStart == 1) return 'FY ${fy.start.year}';
       final endYY = ((fy.start.year + 1) % 100).toString().padLeft(2, '0');
       return 'FY ${fy.start.year}-$endYY';
     }
@@ -159,63 +162,60 @@ class _BudgetCard extends StatelessWidget {
     final card = Card(
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        onTap: canViewTxns
-            ? () => context.push('/txns?category=${p.budget.categoryId}')
-            : null,
+        onTap: canViewTxns ? () => context.push('/txns?category=${p.budget.categoryId}') : null,
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Flexible(
-                            child: Text(p.categoryName,
-                                style: const TextStyle(fontWeight: FontWeight.w600)),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(periodLabel,
-                              style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
-                        ],
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        '${formatMoney(p.spent, currency)} / ${formatMoney(p.limit, currency)}',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: over ? AppColors.danger : cs.onSurfaceVariant,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Flexible(
+                              child:
+                                  Text(p.categoryName, style: const TextStyle(fontWeight: FontWeight.w600)),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(periodLabel, style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
+                          ],
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 2),
+                        Text(
+                          '${formatMoney(p.spent, currency)} / ${formatMoney(p.limit, currency)}',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: over ? AppColors.danger : cs.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: LinearProgressIndicator(
-                value: p.ratio.clamp(0.0, 1.0).toDouble(),
-                minHeight: 8,
-                backgroundColor: cs.surfaceContainerHigh,
-                valueColor: AlwaysStoppedAnimation<Color>(barColor),
+                ],
               ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              over
-                  ? 'Over by ${formatMoney(-remaining, currency)}'
-                  : '${formatMoney(remaining, currency)} left',
-              style: TextStyle(fontSize: 12, color: over ? AppColors.danger : cs.onSurfaceVariant),
-            ),
-          ],
+              const SizedBox(height: 10),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: LinearProgressIndicator(
+                  value: p.ratio.clamp(0.0, 1.0).toDouble(),
+                  minHeight: 8,
+                  backgroundColor: cs.surfaceContainerHigh,
+                  valueColor: AlwaysStoppedAnimation<Color>(barColor),
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                over
+                    ? 'Over by ${formatMoney(-remaining, currency)}'
+                    : '${formatMoney(remaining, currency)} left',
+                style: TextStyle(fontSize: 12, color: over ? AppColors.danger : cs.onSurfaceVariant),
+              ),
+            ],
           ),
         ),
       ),

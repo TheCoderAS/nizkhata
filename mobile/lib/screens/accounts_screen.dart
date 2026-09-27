@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../core/currency.dart';
 import '../core/format.dart';
 import '../core/theme.dart';
 import '../data/models.dart';
@@ -23,7 +24,7 @@ class AccountsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final data = context.watch<DataController>();
     final ws = context.watch<WorkspaceController>();
-    final currency = ws.activeWorkspace?.baseCurrency ?? 'INR';
+    final currency = ws.currency;
     final canManage = ws.can('accounts.manage');
     final canViewTxns = ws.can('transactions.view');
     final canImport = ws.can('transactions.create');
@@ -207,76 +208,12 @@ class AccountsScreen extends StatelessWidget {
 void showAccountDetail(BuildContext context, Account a) {
   final data = context.read<DataController>();
   final ws = context.read<WorkspaceController>();
-  final currency = ws.activeWorkspace?.baseCurrency ?? 'INR';
+  final currency = ws.currency;
   final canManage = ws.can('accounts.manage');
   final canViewTxns = ws.can('transactions.view');
   final canImport = ws.can('transactions.create');
   final balance = data.balanceOf(a.id);
-
-  // Populated metadata fields, in the same display order the web uses per type.
-  const orderByType = <String, List<String>>{
-    'cash': ['code', 'description'],
-    'bank': ['accountNumber', 'ifsc', 'cif', 'branchName', 'code', 'description'],
-    'credit_card': [
-      'nameOnCard',
-      'cardLast4',
-      'cardExpiry',
-      'billingCycle',
-      'creditLimit',
-      'code',
-      'description'
-    ],
-  };
-  const labels = <String, String>{
-    'accountNumber': 'Account number',
-    'ifsc': 'IFSC code',
-    'cif': 'CIF number',
-    'branchName': 'Branch name',
-    'nameOnCard': 'Name on card',
-    'cardLast4': 'Card (last 4)',
-    'cardExpiry': 'Expiry',
-    'billingCycle': 'Billing cycle',
-    'creditLimit': 'Credit limit',
-    'code': 'Code',
-    'description': 'Description',
-  };
-  String? valueOf(String key) {
-    switch (key) {
-      case 'accountNumber':
-        return a.accountNumber;
-      case 'ifsc':
-        return a.ifsc;
-      case 'cif':
-        return a.cif;
-      case 'branchName':
-        return a.branchName;
-      case 'nameOnCard':
-        return a.nameOnCard;
-      case 'cardLast4':
-        return a.cardLast4;
-      case 'cardExpiry':
-        return a.cardExpiry;
-      case 'billingCycle':
-        // Said the way the statement says it, so it can be checked at a glance.
-        return a.hasBillingCycle
-            ? 'Bills on the ${ordinalDay(a.statementDay!)}, due on the ${ordinalDay(a.paymentDueDay!)}'
-            : null;
-      case 'creditLimit':
-        return a.creditLimit == null || a.creditLimit == 0 ? null : formatMoney(a.creditLimit!, currency);
-      case 'code':
-        return a.code;
-      case 'description':
-        return a.description;
-      default:
-        return null;
-    }
-  }
-
-  final meta = <MapEntry<String, String>>[];
-  for (final key in orderByType[a.type] ?? const <String>[]) {
-    final v = valueOf(key);
-    if (v != null && v.trim().isNotEmpty) meta.add(MapEntry(labels[key]!, v.trim()));
-  }
+  final meta = accountDetailRows(a, currency);
   final masked = AccountsScreen._masked(a);
 
   showModalBottomSheet<void>(
@@ -379,6 +316,82 @@ void showAccountDetail(BuildContext context, Account a) {
       );
     },
   );
+}
+
+/// The account's populated details as label/value rows, for its detail sheet.
+/// Apart from the sheet so the rows can be checked without Firestore behind
+/// them (the sheet also carries the account's revision history).
+@visibleForTesting
+List<MapEntry<String, String>> accountDetailRows(Account a, String currency) {
+  // IFSC and CIF are Indian banking terms; elsewhere the same slot holds the
+  // routing code, labelled the way the account form labels it.
+  final indian = currencySpec(currency).isIndian;
+
+  // Populated metadata fields, in the same display order the web uses per type.
+  const orderByType = <String, List<String>>{
+    'cash': ['code', 'description'],
+    'bank': ['accountNumber', 'ifsc', 'cif', 'branchName', 'code', 'description'],
+    'credit_card': [
+      'nameOnCard',
+      'cardLast4',
+      'cardExpiry',
+      'billingCycle',
+      'creditLimit',
+      'code',
+      'description'
+    ],
+  };
+  final labels = <String, String>{
+    'accountNumber': 'Account number',
+    'ifsc': indian ? 'IFSC code' : kRoutingCodeLabel,
+    'cif': 'CIF number',
+    'branchName': 'Branch name',
+    'nameOnCard': 'Name on card',
+    'cardLast4': 'Card (last 4)',
+    'cardExpiry': 'Expiry',
+    'billingCycle': 'Billing cycle',
+    'creditLimit': 'Credit limit',
+    'code': 'Code',
+    'description': 'Description',
+  };
+  String? valueOf(String key) {
+    switch (key) {
+      case 'accountNumber':
+        return a.accountNumber;
+      case 'ifsc':
+        return a.ifsc;
+      case 'cif':
+        return indian ? a.cif : null;
+      case 'branchName':
+        return a.branchName;
+      case 'nameOnCard':
+        return a.nameOnCard;
+      case 'cardLast4':
+        return a.cardLast4;
+      case 'cardExpiry':
+        return a.cardExpiry;
+      case 'billingCycle':
+        // Said the way the statement says it, so it can be checked at a glance.
+        return a.hasBillingCycle
+            ? 'Bills on the ${ordinalDay(a.statementDay!)}, due on the ${ordinalDay(a.paymentDueDay!)}'
+            : null;
+      case 'creditLimit':
+        return a.creditLimit == null || a.creditLimit == 0 ? null : formatMoney(a.creditLimit!, currency);
+      case 'code':
+        return a.code;
+      case 'description':
+        return a.description;
+      default:
+        return null;
+    }
+  }
+
+  final meta = <MapEntry<String, String>>[];
+  for (final key in orderByType[a.type] ?? const <String>[]) {
+    final v = valueOf(key);
+    if (v != null && v.trim().isNotEmpty) meta.add(MapEntry(labels[key]!, v.trim()));
+  }
+  return meta;
 }
 
 class _DetailRow extends StatelessWidget {
