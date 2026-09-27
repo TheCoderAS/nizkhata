@@ -36,13 +36,10 @@ const _red = Color(0xFFEF4444);
 
 PdfColor _c(Color c) => pdfColorOf(c);
 
-String _money(double v, String currency) {
-  final f = NumberFormat.currency(
-      locale: 'en_IN', symbol: currency == 'INR' ? 'Rs ' : '$currency ', decimalDigits: 2);
-  return f.format(v);
-}
-
-String _pdfSafe(String s) => pdfSafe(s);
+/// An amount in a message to a person: the workspace currency's own symbol,
+/// decimals and grouping, so a dollar ledger reads \$1,234.50, a yen one
+/// ¥1,235 and a rupee one ₹1,23,450.00.
+String _money(double v, String currency) => moneyFigure(v, currency);
 
 /// Build the ledger PDF. [net] > 0 means the contact owes the workspace owner;
 /// [entries] newest-first; [openDues] outstanding items to highlight.
@@ -62,23 +59,30 @@ Uint8List buildKhataPdf({
   final g = page.graphics;
   final w = page.getClientSize().width;
 
-  final h2 = PdfStandardFont(PdfFontFamily.helvetica, 12, style: PdfFontStyle.bold);
-  final body = PdfStandardFont(PdfFontFamily.helvetica, 9.5);
-  final bodyBold = PdfStandardFont(PdfFontFamily.helvetica, 9.5, style: PdfFontStyle.bold);
-  final small = PdfStandardFont(PdfFontFamily.helvetica, 8);
+  final fonts = PdfFonts();
+  final h2 = fonts.bold(12);
+  final body = fonts.regular(9.5);
+  final bodyBold = fonts.bold(9.5);
+  final small = fonts.regular(8);
   final dateFmt = DateFormat('dd MMM yyyy');
+  final fmt = fonts.format();
+  String money(double v) => fonts.money(v, currency);
 
   var y = drawPdfBrandHeader(
     g,
+    fonts: fonts,
     width: w,
     subtitle: 'Ledger statement from $workspaceName',
     generatedOn: 'Generated ${dateFmt.format(DateTime.now())}',
     logoPng: logoPng,
   );
 
-  g.drawString(_pdfSafe(contactName), PdfStandardFont(PdfFontFamily.helvetica, 16, style: PdfFontStyle.bold),
-      bounds: Rect.fromLTWH(0, y, w, 22));
-  y += 22;
+  // Text bounds have no height (0 = as tall as the text needs): Syncfusion
+  // silently drops a line taller than its bounds, and Noto's lines are taller
+  // than Helvetica's were.
+  g.drawString(fonts.text(contactName), fonts.bold(16), bounds: Rect.fromLTWH(0, y, w, 0), format: fmt);
+  // Noto's descenders and marks sit lower than Helvetica's.
+  y += fonts.embedded ? 25 : 22;
   if (entries.isNotEmpty) {
     var oldest = entries.first.date;
     var newest = entries.first.date;
@@ -87,7 +91,7 @@ Uint8List buildKhataPdf({
       if (e.date.isAfter(newest)) newest = e.date;
     }
     g.drawString('Statement period: ${dateFmt.format(oldest)} to ${dateFmt.format(newest)}', small,
-        brush: PdfSolidBrush(PdfColor(120, 128, 148)), bounds: Rect.fromLTWH(0, y, w, 12));
+        brush: PdfSolidBrush(PdfColor(120, 128, 148)), bounds: Rect.fromLTWH(0, y, w, 0), format: fmt);
     y += 16;
   } else {
     y += 4;
@@ -102,11 +106,12 @@ Uint8List buildKhataPdf({
   final bannerText = settled
       ? 'All settled. Nothing pending.'
       : owed
-          ? 'To receive from $contactName: ${_money(net.abs(), currency)}'
-          : 'To pay to $contactName: ${_money(net.abs(), currency)}';
-  g.drawString(_pdfSafe(bannerText), h2,
+          ? 'To receive from $contactName: ${money(net.abs())}'
+          : 'To pay to $contactName: ${money(net.abs())}';
+  g.drawString(fonts.text(bannerText), h2,
       brush: settled ? PdfSolidBrush(_c(_navy)) : PdfBrushes.white,
-      bounds: Rect.fromLTWH(10, y + 8, w - 20, 16));
+      bounds: Rect.fromLTWH(10, y + 15 - h2.height / 2, w - 20, 0),
+      format: fmt);
   y += 42;
 
   // Sections flow across pages; track where the last layout ended.
@@ -114,7 +119,7 @@ Uint8List buildKhataPdf({
 
   // Open dues section.
   if (openDues.isNotEmpty) {
-    currentPage.graphics.drawString('Outstanding dues', h2, bounds: Rect.fromLTWH(0, y, w, 16));
+    currentPage.graphics.drawString('Outstanding dues', h2, bounds: Rect.fromLTWH(0, y, w, 0), format: fmt);
     y += 20;
     final dueGrid = PdfGrid();
     dueGrid.columns.add(count: 3);
@@ -125,12 +130,11 @@ Uint8List buildKhataPdf({
     dh.cells[2].value = 'Amount';
     for (final d in openDues) {
       final r = dueGrid.rows.add();
-      r.cells[0].value = _pdfSafe(d.title);
+      r.cells[0].value = fonts.text(d.title);
       r.cells[1].value = dateFmt.format(d.dueDate);
-      r.cells[2].value =
-          '${_money(d.remaining, currency)} ${d.direction == 'receivable' ? '(to receive)' : '(to pay)'}';
+      r.cells[2].value = '${money(d.remaining)} ${d.direction == 'receivable' ? '(to receive)' : '(to pay)'}';
     }
-    styleStatementGrid(dueGrid, body: body, bold: bodyBold, rightCols: {2});
+    styleStatementGrid(dueGrid, fonts: fonts, body: body, bold: bodyBold, rightCols: {2});
     final res = dueGrid.draw(page: currentPage, bounds: Rect.fromLTWH(0, y, w, 0));
     if (res != null) {
       currentPage = res.page;
@@ -168,15 +172,16 @@ Uint8List buildKhataPdf({
     final bal = balanceAfter[display.length - 1 - i];
     final r = grid.rows.add();
     r.cells[0].value = dateFmt.format(e.date);
-    r.cells[1].value = _pdfSafe(e.description);
-    r.cells[2].value = '${e.amount >= 0 ? '+' : '-'}${_money(e.amount.abs(), currency)}';
-    r.cells[3].value = '${bal >= 0.005 ? '' : (bal <= -0.005 ? '-' : '')}${_money(bal.abs(), currency)}';
+    r.cells[1].value = fonts.text(e.description);
+    r.cells[2].value = '${e.amount >= 0 ? '+' : '-'}${money(e.amount.abs())}';
+    r.cells[3].value = '${bal >= 0.005 ? '' : (bal <= -0.005 ? '-' : '')}${money(bal.abs())}';
   }
-  styleStatementGrid(grid, body: body, bold: bodyBold, rightCols: {2, 3});
-  currentPage.graphics.drawString('Transactions (${entries.length})', h2, bounds: Rect.fromLTWH(0, y, w, 16));
+  styleStatementGrid(grid, fonts: fonts, body: body, bold: bodyBold, rightCols: {2, 3});
+  currentPage.graphics
+      .drawString('Transactions (${entries.length})', h2, bounds: Rect.fromLTWH(0, y, w, 0), format: fmt);
   grid.draw(page: currentPage, bounds: Rect.fromLTWH(0, y + 20, w, 0));
 
-  drawPdfPageFooters(doc, 'Made with NizKhata | https://nizkhata.web.app');
+  drawPdfPageFooters(doc, fonts, 'Made with NizKhata | https://nizkhata.web.app');
 
   final bytes = Uint8List.fromList(doc.saveSync());
   doc.dispose();
