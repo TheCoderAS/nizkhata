@@ -36,8 +36,6 @@ class _AccountForm extends StatefulWidget {
   State<_AccountForm> createState() => _AccountFormState();
 }
 
-/// Hides the "0/2" character counter under a two-digit day field, which is
-/// noise beside a helper line that already says what to type.
 /// What the bank-code field is called outside India, on the form and on the
 /// account's detail sheet alike.
 ///
@@ -72,6 +70,8 @@ Map<String, String?> bankDetailsData({
       'branchName': branchName,
     };
 
+/// Hides the "0/2" character counter under a two-digit day field, which is
+/// noise beside a helper line that already says what to type.
 Widget? _noCounter(BuildContext _,
         {required int currentLength, required bool isFocused, required int? maxLength}) =>
     null;
