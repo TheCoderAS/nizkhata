@@ -15,6 +15,7 @@ import '../data/models.dart';
 import '../data/mutations.dart';
 import '../data/settle_up.dart';
 import '../services/khata_pdf.dart';
+import '../services/pdf_brand.dart';
 import '../state/auth_controller.dart';
 import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
@@ -647,6 +648,7 @@ class ContactDetailScreen extends StatelessWidget {
               onTap: () async {
                 Navigator.pop(sheetCtx);
                 final k = _khataData(context, contact);
+                await PdfTypeface.load();
                 final logo = await _appLogoBytes();
                 final bytes = buildKhataPdf(
                   workspaceName: k.workspaceName,

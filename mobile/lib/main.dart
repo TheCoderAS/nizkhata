@@ -1,14 +1,12 @@
 import 'dart:async';
 import 'dart:ui' show PlatformDispatcher;
 
-
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:quick_actions/quick_actions.dart';
-
 
 import 'core/format.dart';
 import 'core/theme.dart';
@@ -18,6 +16,7 @@ import 'data/mutations.dart';
 import 'router.dart';
 import 'services/app_lock.dart';
 import 'services/due_reminders.dart';
+import 'services/pdf_brand.dart';
 import 'services/recurrence.dart';
 import 'services/statement_cycle.dart';
 import 'services/widget_sync.dart';
@@ -36,6 +35,9 @@ Future<void> main() async {
   AppLocale.date = resolveDateLocale(PlatformDispatcher.instance.locale);
   Intl.defaultLocale = AppLocale.date;
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  // The PDF font, read ahead so the first shared PDF already has it. The
+  // screens that build PDFs await it too; this only saves them the wait.
+  unawaited(PdfTypeface.load());
   runApp(const NizkhataApp());
 }
 
@@ -60,7 +62,8 @@ class NizkhataApp extends StatelessWidget {
           create: (_) => DataController(),
           update: (_, ws, data) {
             final c = data ?? DataController();
-            WidgetsBinding.instance.addPostFrameCallback((_) => c.setWorkspace(ws.activeWorkspaceId, scope: ws.dataScope));
+            WidgetsBinding.instance
+                .addPostFrameCallback((_) => c.setWorkspace(ws.activeWorkspaceId, scope: ws.dataScope));
             return c;
           },
         ),
@@ -142,7 +145,8 @@ class _RootState extends State<_Root> with WidgetsBindingObserver {
     if (ws == null || ws.activeWorkspaceId == null) return;
     final items = <ShortcutItem>[
       if (ws.can('transactions.create'))
-        const ShortcutItem(type: 'new_transaction', localizedTitle: 'New transaction', icon: 'ic_shortcut_add'),
+        const ShortcutItem(
+            type: 'new_transaction', localizedTitle: 'New transaction', icon: 'ic_shortcut_add'),
       if (ws.can('dues.manage'))
         const ShortcutItem(type: 'new_due', localizedTitle: 'New due', icon: 'ic_shortcut_due'),
       if (ws.can('dues.view'))

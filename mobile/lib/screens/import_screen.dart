@@ -461,7 +461,7 @@ class _ImportScreenState extends State<ImportScreen> {
     final accountId = _accountId;
     final wsC = context.read<WorkspaceController>();
     final ws = wsC.activeWorkspaceId;
-    final fyStart = wsC.activeWorkspace?.fyStartMonth ?? 4;
+    final fyStart = wsC.fyStartMonth;
     final user = context.read<AuthController>().user;
     if (accountId == null || ws == null || user == null) return;
 

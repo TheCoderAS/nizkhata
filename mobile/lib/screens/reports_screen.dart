@@ -18,6 +18,7 @@ import '../core/theme.dart';
 import '../data/derive.dart';
 import '../data/models.dart';
 import '../services/tax_pack_pdf.dart';
+import '../services/pdf_brand.dart';
 import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
 import '../widgets/common.dart';
@@ -1026,6 +1027,7 @@ class _TaxTab extends StatelessWidget {
     try {
       logo = (await rootBundle.load('assets/icon.png')).buffer.asUint8List();
     } catch (_) {}
+    await PdfTypeface.load();
     final bytes = buildTaxPackPdf(
       workspaceName: ws.activeWorkspace?.name ?? 'NizKhata',
       fy: fy,
