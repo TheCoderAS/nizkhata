@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../core/currency.dart';
 import '../core/format.dart';
 import '../core/theme.dart';
 import '../data/models.dart';
@@ -15,6 +16,7 @@ import '../state/auth_controller.dart';
 import '../state/theme_controller.dart';
 import '../state/workspace_controller.dart';
 import '../widgets/common.dart';
+import '../widgets/currency_picker.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -135,31 +137,17 @@ class ProfileScreen extends StatelessWidget {
   Future<void> _createWorkspace(BuildContext context, AuthController auth, WorkspaceController ws) async {
     final user = auth.user;
     if (user == null) return;
-    final controller = TextEditingController();
-    final name = await showDialog<String>(
+    final request = await showDialog<NewWorkspaceRequest>(
       context: context,
       useRootNavigator: true,
-      builder: (ctx) => AlertDialog(
-        title: const Text('New workspace'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          textCapitalization: TextCapitalization.words,
-          decoration: const InputDecoration(labelText: 'Name', hintText: 'e.g. Household'),
-          onSubmitted: (v) => Navigator.pop(ctx, v.trim()),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
-            child: const Text('Create'),
-          ),
-        ],
-      ),
+      // A second workspace is usually kept in the same country as the first,
+      // so start from the currency in use now. Still only a preselection.
+      builder: (_) => NewWorkspaceDialog(initialCurrency: ws.currency),
     );
-    if (name == null || name.isEmpty) return;
+    if (request == null) return;
+    final name = request.name;
     try {
-      final id = await auth.createPersonalWorkspace(user, name: name);
+      final id = await auth.createPersonalWorkspace(user, name: name, currency: request.currency);
       await ws.switchWorkspace(id);
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Created "$name"')));
@@ -258,6 +246,75 @@ class ProfileScreen extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// What the new-workspace dialog hands back: a name and the chosen currency.
+typedef NewWorkspaceRequest = ({String name, String currency});
+
+/// Name the new workspace and choose its currency. The currency is permanent,
+/// so it is asked here in full rather than copied silently from the workspace
+/// in use.
+class NewWorkspaceDialog extends StatefulWidget {
+  final String initialCurrency;
+  const NewWorkspaceDialog({super.key, required this.initialCurrency});
+
+  @override
+  State<NewWorkspaceDialog> createState() => _NewWorkspaceDialogState();
+}
+
+class _NewWorkspaceDialogState extends State<NewWorkspaceDialog> {
+  final _name = TextEditingController();
+  // A workspace made before the catalogue settled could carry a code the app
+  // no longer offers; it cannot seed a new one, so start from the rupee.
+  late String _currency =
+      kCurrencies.any((c) => c.code == widget.initialCurrency) ? widget.initialCurrency : 'INR';
+
+  @override
+  void dispose() {
+    _name.dispose();
+    super.dispose();
+  }
+
+  bool get _valid => _name.text.trim().isNotEmpty;
+
+  void _submit() {
+    if (!_valid) return;
+    Navigator.pop<NewWorkspaceRequest>(context, (name: _name.text.trim(), currency: _currency));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('New workspace'),
+      // Scrolls so the keyboard on a short phone cannot push the fields into
+      // an overflow.
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TextField(
+              controller: _name,
+              autofocus: true,
+              textCapitalization: TextCapitalization.words,
+              decoration: const InputDecoration(labelText: 'Name', hintText: 'e.g. Household'),
+              onChanged: (_) => setState(() {}),
+              onSubmitted: (_) => _submit(),
+            ),
+            const SizedBox(height: 16),
+            const SectionLabel('Currency'),
+            CurrencyField(value: _currency, onChanged: (c) => setState(() => _currency = c)),
+            const SizedBox(height: 10),
+            const CurrencyLockNote(),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+        FilledButton(onPressed: _valid ? _submit : null, child: const Text('Create')),
+      ],
     );
   }
 }
