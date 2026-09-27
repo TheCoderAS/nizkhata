@@ -91,11 +91,12 @@ String? _render(String name, int offset, DateTime date, int occurrence, int fySt
 
   switch (name.toUpperCase()) {
     // Same locale as formatDate(), so "{MMM}" and "{DATE}" never disagree
-    // about how a month is spelt.
+    // about how a month is spelt: "Sept" on an Indian phone, "Sep" on an
+    // American one. Both read AppLocale.date, which follows the phone.
     case 'MMM':
-      return DateFormat('MMM', 'en_IN').format(byMonth);
+      return DateFormat('MMM', AppLocale.date).format(byMonth);
     case 'MMMM':
-      return DateFormat('MMMM', 'en_IN').format(byMonth);
+      return DateFormat('MMMM', AppLocale.date).format(byMonth);
     case 'MM':
       return byMonth.month.toString().padLeft(2, '0');
     case 'YYYY':

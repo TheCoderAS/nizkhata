@@ -200,7 +200,7 @@ class _TransactionFormState extends State<_TransactionForm> {
   Widget _buildContent(BuildContext context) {
     final data = context.watch<DataController>();
     final ws = context.watch<WorkspaceController>();
-    final currency = ws.activeWorkspace?.baseCurrency ?? 'INR';
+    final currency = ws.currency;
     final fyStart = ws.activeWorkspace?.fyStartMonth ?? 4;
     final accounts = data.accounts;
     final contacts = data.contacts.where((c) => c.connectionUid == null).toList();

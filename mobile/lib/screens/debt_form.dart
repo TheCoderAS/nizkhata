@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart' show Timestamp;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../core/format.dart';
 import '../core/theme.dart';
 import '../data/derive.dart';
 import '../data/models.dart';
@@ -156,6 +157,7 @@ class _DebtFormState extends State<_DebtForm> {
 
   Widget _buildContent(BuildContext context) {
     final data = context.watch<DataController>();
+    final currency = context.watch<WorkspaceController>().currency;
     final contacts = data.contacts.where((c) => c.connectionUid == null).toList();
     final accounts = data.accounts;
 
@@ -204,6 +206,9 @@ class _DebtFormState extends State<_DebtForm> {
               const SizedBox(height: 14),
               DropdownButtonFormField<String>(
                 value: _purpose,
+                // Keeps "Custodial savings" inside the field with a large
+                // system font on a narrow phone.
+                isExpanded: true,
                 decoration: const InputDecoration(labelText: 'Purpose'),
                 items: [
                   for (final e in _kPurposeLabels.entries)
@@ -220,7 +225,9 @@ class _DebtFormState extends State<_DebtForm> {
               const SizedBox(height: 14),
               TextFormField(
                 controller: _opening,
-                decoration: const InputDecoration(labelText: 'Opening amount', prefixText: '₹ '),
+                // Flutter puts no gap after a prefix, hence the space.
+                decoration:
+                    InputDecoration(labelText: 'Opening amount', prefixText: '${currencySymbol(currency)} '),
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
               ),
               if (_isEdit) ...[
