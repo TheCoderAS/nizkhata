@@ -35,12 +35,6 @@ class TaxRegisterRow {
   TaxRegisterRow(this.date, this.description, this.headLabel, this.taxable, this.tds);
 }
 
-String _money(double v, String currency) => NumberFormat.currency(
-        locale: 'en_IN', symbol: currency == 'INR' ? 'Rs ' : '$currency ', decimalDigits: 2)
-    .format(v);
-
-String _pdfSafe(String s) => pdfSafe(s);
-
 Uint8List buildTaxPackPdf({
   required String workspaceName,
   required String fy,
@@ -58,30 +52,36 @@ Uint8List buildTaxPackPdf({
   final g = page.graphics;
   final w = page.getClientSize().width;
 
-  final h2 = PdfStandardFont(PdfFontFamily.helvetica, 12, style: PdfFontStyle.bold);
-  final body = PdfStandardFont(PdfFontFamily.helvetica, 9);
-  final bodyBold = PdfStandardFont(PdfFontFamily.helvetica, 9, style: PdfFontStyle.bold);
-  final small = PdfStandardFont(PdfFontFamily.helvetica, 8);
+  final fonts = PdfFonts();
+  final h2 = fonts.bold(12);
+  final body = fonts.regular(9);
+  final bodyBold = fonts.bold(9);
+  final small = fonts.regular(8);
   final dateFmt = DateFormat('dd MMM yyyy');
+  final fmt = fonts.format();
+  // The workspace currency's own symbol, decimals and grouping.
+  String money(double v) => fonts.money(v, currency);
+  String safe(String s) => fonts.text(s);
 
   var y = drawPdfBrandHeader(
     g,
+    fonts: fonts,
     width: w,
     subtitle: 'Tax pack for FY $fy ($workspaceName)',
     generatedOn: 'Generated ${dateFmt.format(DateTime.now())}',
     logoPng: logoPng,
   );
-  g.drawString(
-      _pdfSafe('Total taxable: ${_money(totalTaxable, currency)}    '
-          'Total TDS: ${_money(totalTds, currency)}'),
-      h2,
-      bounds: Rect.fromLTWH(0, y, w, 18));
+  // Text bounds have no height (0 = as tall as the text needs): Syncfusion
+  // silently drops a line taller than its bounds, and Noto's lines are taller
+  // than Helvetica's were.
+  g.drawString(safe('Total taxable: ${money(totalTaxable)}    Total TDS: ${money(totalTds)}'), h2,
+      bounds: Rect.fromLTWH(0, y, w, 0), format: fmt);
   y += 30;
 
   var currentPage = page;
 
   PdfPage section(String title, PdfGrid grid, PdfPage onPage, double atY) {
-    onPage.graphics.drawString(title, h2, bounds: Rect.fromLTWH(0, atY, w, 16));
+    onPage.graphics.drawString(title, h2, bounds: Rect.fromLTWH(0, atY, w, 0), format: fmt);
     final res = grid.draw(page: onPage, bounds: Rect.fromLTWH(0, atY + 20, w, 0));
     if (res != null) {
       y = res.bounds.bottom + 20;
@@ -102,17 +102,17 @@ Uint8List buildTaxPackPdf({
     h.cells[3].value = 'Lines';
     for (final e in heads) {
       final r = grid.rows.add();
-      r.cells[0].value = _pdfSafe(e.label);
-      r.cells[1].value = _money(e.taxable, currency);
-      r.cells[2].value = _money(e.tds, currency);
+      r.cells[0].value = safe(e.label);
+      r.cells[1].value = money(e.taxable);
+      r.cells[2].value = money(e.tds);
       r.cells[3].value = '${e.lines}';
     }
     final totals = grid.rows.add();
     totals.cells[0].value = 'Total';
-    totals.cells[1].value = _money(totalTaxable, currency);
-    totals.cells[2].value = _money(totalTds, currency);
+    totals.cells[1].value = money(totalTaxable);
+    totals.cells[2].value = money(totalTds);
     totals.cells[3].value = '';
-    styleStatementGrid(grid, body: body, bold: bodyBold, rightCols: {1, 2, 3});
+    styleStatementGrid(grid, fonts: fonts, body: body, bold: bodyBold, rightCols: {1, 2, 3});
     emphasizeGridRow(totals, bodyBold);
     currentPage = section('Taxable by head', grid, currentPage, y);
   }
@@ -127,11 +127,11 @@ Uint8List buildTaxPackPdf({
     h.cells[2].value = 'TDS';
     for (final e in contacts) {
       final r = grid.rows.add();
-      r.cells[0].value = _pdfSafe(e.contactName);
-      r.cells[1].value = _money(e.taxable, currency);
-      r.cells[2].value = _money(e.tds, currency);
+      r.cells[0].value = safe(e.contactName);
+      r.cells[1].value = money(e.taxable);
+      r.cells[2].value = money(e.tds);
     }
-    styleStatementGrid(grid, body: body, bold: bodyBold, rightCols: {1, 2});
+    styleStatementGrid(grid, fonts: fonts, body: body, bold: bodyBold, rightCols: {1, 2});
     currentPage = section('By contact (cross-check against Form 26AS)', grid, currentPage, y);
   }
 
@@ -151,12 +151,12 @@ Uint8List buildTaxPackPdf({
     for (final e in register) {
       final r = grid.rows.add();
       r.cells[0].value = dateFmt.format(e.date);
-      r.cells[1].value = _pdfSafe(e.description);
-      r.cells[2].value = _pdfSafe(e.headLabel);
-      r.cells[3].value = _money(e.taxable, currency);
-      r.cells[4].value = _money(e.tds, currency);
+      r.cells[1].value = safe(e.description);
+      r.cells[2].value = safe(e.headLabel);
+      r.cells[3].value = money(e.taxable);
+      r.cells[4].value = money(e.tds);
     }
-    styleStatementGrid(grid, body: body, bold: bodyBold, rightCols: {3, 4});
+    styleStatementGrid(grid, fonts: fonts, body: body, bold: bodyBold, rightCols: {3, 4});
     currentPage = section('Taxable-line register (${register.length})', grid, currentPage, y);
   }
 
@@ -170,10 +170,11 @@ Uint8List buildTaxPackPdf({
       'accountant before filing.',
       small,
       brush: PdfSolidBrush(PdfColor(120, 128, 148)),
-      bounds: Rect.fromLTWH(0, y + 6, w, 24));
+      bounds: Rect.fromLTWH(0, y + 6, w, 0),
+      format: fmt);
 
   drawPdfPageFooters(
-      doc, 'Computer-generated statement, no signature required | https://nizkhata.web.app');
+      doc, fonts, 'Computer-generated statement, no signature required | https://nizkhata.web.app');
 
   final bytes = Uint8List.fromList(doc.saveSync());
   doc.dispose();
