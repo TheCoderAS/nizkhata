@@ -6,6 +6,7 @@ import 'screens/accounts_screen.dart';
 import 'screens/activity_screen.dart';
 import 'screens/budgets_screen.dart';
 import 'screens/categories_screen.dart';
+import 'screens/choose_currency_screen.dart';
 import 'screens/contact_detail_screen.dart';
 import 'screens/contacts_screen.dart';
 import 'screens/dashboard_screen.dart';
@@ -46,25 +47,44 @@ String? mapDeepLinkPath(String loc) {
   return prefixMap[loc];
 }
 
+/// Where [loc] should go instead, given the sign-in state, or null to stay.
+/// Pure so the first-run gate can be tested without Firebase.
+String? authRedirect(
+  String loc, {
+  required bool loading,
+  required bool signedIn,
+  required bool needsWorkspace,
+}) {
+  // Remap web-app deep-link paths (/settings/*, /) to native routes first.
+  final mapped = mapDeepLinkPath(loc);
+  if (mapped != null) return mapped;
+  final loggingIn = loc == '/login';
+  if (loading) return null;
+  if (!signedIn) return loggingIn ? null : '/login';
+  // A first sign-in has no workspace yet and must choose its currency before
+  // one exists. Every other route assumes a workspace, so all of them (deep
+  // links and notification taps included) wait behind that screen.
+  final choosing = loc == '/welcome';
+  if (needsWorkspace) return choosing ? null : '/welcome';
+  if (loggingIn || choosing) return '/dashboard';
+  return null;
+}
+
 GoRouter buildRouter(AuthController auth) {
   return GoRouter(
     initialLocation: '/dashboard',
     refreshListenable: auth,
     // Any deep link that matches no route falls back to the dashboard.
     onException: (_, __, router) => router.go('/dashboard'),
-    redirect: (context, state) {
-      // Remap web-app deep-link paths (/settings/*, /) to native routes first.
-      final mapped = mapDeepLinkPath(state.matchedLocation);
-      if (mapped != null) return mapped;
-      final signedIn = auth.user != null;
-      final loggingIn = state.matchedLocation == '/login';
-      if (auth.loading) return null;
-      if (!signedIn) return loggingIn ? null : '/login';
-      if (loggingIn) return '/dashboard';
-      return null;
-    },
+    redirect: (context, state) => authRedirect(
+      state.matchedLocation,
+      loading: auth.loading,
+      signedIn: auth.user != null,
+      needsWorkspace: auth.needsWorkspace,
+    ),
     routes: [
       GoRoute(path: '/login', builder: (_, __) => const LoginScreen()),
+      GoRoute(path: '/welcome', builder: (_, __) => const ChooseCurrencyScreen()),
       GoRoute(path: '/accounts', builder: (_, __) => const AccountsScreen()),
       GoRoute(path: '/categories', builder: (_, __) => const CategoriesScreen()),
       GoRoute(path: '/budgets', builder: (_, __) => const BudgetsScreen()),

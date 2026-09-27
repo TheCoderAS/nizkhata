@@ -7,8 +7,41 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
+import '../core/currency.dart';
 import '../firebase_options.dart';
 import '../data/permissions.dart';
+
+/// The fields a new workspace document starts with, less the server
+/// timestamp. Kept apart from the Firestore write so the one thing that can
+/// never be undone, the currency, can be checked without Firebase.
+///
+/// The currency is permanent once written, so an unknown code is refused here
+/// rather than stored. The financial year only starts from the currency's
+/// usual month; unlike the currency, the workspace can change it later.
+Map<String, dynamic> newWorkspaceFields({
+  required String id,
+  required String name,
+  required String ownerId,
+  required String currency,
+}) {
+  final code = currency.trim().toUpperCase();
+  if (!kCurrencies.any((c) => c.code == code)) {
+    throw ArgumentError.value(currency, 'currency', 'not a currency the app offers');
+  }
+  return {
+    'id': id,
+    'name': name,
+    'ownerId': ownerId,
+    'baseCurrency': code,
+    'fyStartMonth': currencySpec(code).defaultFyStartMonth,
+  };
+}
+
+/// What a workspace is called when the person has not named it.
+String defaultWorkspaceName(String? displayName) {
+  final first = (displayName ?? '').trim().split(' ').first;
+  return first.isEmpty ? 'My Workspace' : "$first's Workspace";
+}
 
 class AuthController extends ChangeNotifier {
   AuthController() {
@@ -29,8 +62,15 @@ class AuthController extends ChangeNotifier {
   String? error;
   String? _ensuredUid;
 
+  /// Signed in, but a member of no workspace at all: a first sign-in. The
+  /// workspace is not made for them, because its currency is permanent and
+  /// only they can say which one they keep their money in. The router sends
+  /// them to the choose-currency screen until [createFirstWorkspace] runs.
+  bool needsWorkspace = false;
+
   void _onAuthChanged(User? u) {
     error = null;
+    if (u?.uid != user?.uid) needsWorkspace = false;
     user = u;
     loading = false;
     notifyListeners();
@@ -82,17 +122,39 @@ class AuthController extends ChangeNotifier {
     try {
       await _claimShareInvites(u);
     } catch (_) {/* non-critical — never block sign-in */}
-    var workspaceIds = await _listMembershipWorkspaceIds(u.uid);
+    final workspaceIds = await _listMembershipWorkspaceIds(u.uid);
     if (workspaceIds.isEmpty) {
-      final id = await createPersonalWorkspace(u);
-      workspaceIds = [id];
+      // Wait for the person to choose the currency. The screen that asks
+      // calls createFirstWorkspace, which records lastWorkspaceId itself.
+      if (user?.uid == u.uid) {
+        needsWorkspace = true;
+        notifyListeners();
+      }
+      return;
     }
     final userRef = _db.collection('users').doc(u.uid);
     final snap = await userRef.get();
     final last = snap.data()?['lastWorkspaceId'];
-    if ((last == null || last == '') && workspaceIds.isNotEmpty) {
+    if (last == null || last == '') {
       await userRef.set({'lastWorkspaceId': workspaceIds.first}, SetOptions(merge: true));
     }
+  }
+
+  /// Make the first workspace of someone who has none, in the currency they
+  /// chose, and let the router carry them on into the app.
+  Future<void> createFirstWorkspace(String currency) async {
+    final u = user;
+    if (u == null) return;
+    final id = await createPersonalWorkspace(u, currency: currency);
+    // The workspace exists now, so nothing after this may send them back to
+    // make another. The app picks its active workspace without lastWorkspaceId,
+    // so losing that write costs nothing; a retried creation would cost a
+    // duplicate workspace.
+    needsWorkspace = false;
+    notifyListeners();
+    try {
+      await _db.collection('users').doc(u.uid).set({'lastWorkspaceId': id}, SetOptions(merge: true));
+    } catch (_) {}
   }
 
   Future<void> _upsertUser(User u) async {
@@ -148,33 +210,38 @@ class AuthController extends ChangeNotifier {
         'status': 'active',
         'createdAt': FieldValue.serverTimestamp(),
       });
-      batch.set(_db.collection('shareInvites').doc(doc.id), {'status': 'accepted'},
-          SetOptions(merge: true));
+      batch.set(_db.collection('shareInvites').doc(doc.id), {'status': 'accepted'}, SetOptions(merge: true));
       await batch.commit();
     }
   }
 
   Future<List<String>> _listMembershipWorkspaceIds(String uid) async {
     final snap = await _db.collection('memberships').where('uid', isEqualTo: uid).get();
-    return snap.docs.map((d) => (d.data()['workspaceId'] as String?) ?? '').where((s) => s.isNotEmpty).toList();
+    // Offline on a fresh install, the query answers from an empty cache. That
+    // is no proof of having no workspace, and taking it as proof would ask an
+    // existing member to start a new one. Fail instead; the next sign-in or
+    // launch checks again.
+    if (snap.docs.isEmpty && snap.metadata.isFromCache) {
+      throw StateError("Couldn't reach NizKhata to load your workspaces. Check your connection.");
+    }
+    return snap.docs
+        .map((d) => (d.data()['workspaceId'] as String?) ?? '')
+        .where((s) => s.isNotEmpty)
+        .toList();
   }
 
-  Future<String> createPersonalWorkspace(User u, {String? name}) async {
+  /// Create a workspace owned by [u] that keeps its books in [currency].
+  ///
+  /// The currency is required, with no default, because it can never be
+  /// changed afterwards: every caller must have asked the person.
+  Future<String> createPersonalWorkspace(User u, {String? name, required String currency}) async {
     final wsRef = _db.collection('workspaces').doc();
     final workspaceId = wsRef.id;
-    final wsName = (name != null && name.trim().isNotEmpty)
-        ? name.trim()
-        : (u.displayName != null && u.displayName!.isNotEmpty
-            ? "${u.displayName!.split(' ').first}'s Workspace"
-            : 'My Workspace');
-    await wsRef.set({
-      'id': workspaceId,
-      'name': wsName,
-      'ownerId': u.uid,
-      'baseCurrency': 'INR',
-      'fyStartMonth': 4,
-      'createdAt': FieldValue.serverTimestamp(),
-    });
+    final wsName =
+        (name != null && name.trim().isNotEmpty) ? name.trim() : defaultWorkspaceName(u.displayName);
+    // Built before any write, so a bad code fails with nothing half made.
+    final fields = newWorkspaceFields(id: workspaceId, name: wsName, ownerId: u.uid, currency: currency);
+    await wsRef.set({...fields, 'createdAt': FieldValue.serverTimestamp()});
 
     final batch = _db.batch();
     var ownerRoleId = '';
