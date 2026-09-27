@@ -17,6 +17,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../core/currency.dart';
 import '../core/format.dart';
 import '../core/theme.dart';
 import '../data/derive.dart';
@@ -59,7 +60,11 @@ const kSelectableLineTypes = <String, String>{
   'tax': 'Tax / GST',
 };
 
-String lineTypeLabel(String type) => kSelectableLineTypes[type] ?? kLineTypes[type] ?? type;
+// GST is India's; a tax line in any other workspace is simply tax. The
+// active workspace's currency is the one MoneyContext holds.
+String lineTypeLabel(String type) => type == 'tax' && !MoneyContext.spec.isIndian
+    ? 'Tax'
+    : kSelectableLineTypes[type] ?? kLineTypes[type] ?? type;
 
 bool needsCategory(String type) =>
     type == 'income' ||
@@ -106,6 +111,23 @@ const kTaxHeads = <String, String>{
   'other': 'Other',
   'exempt': 'Exempt',
 };
+
+/// Heads that only mean something under Indian income tax. A perquisite is a
+/// head of its own there; elsewhere a benefit in kind is simply part of pay, so
+/// offering it would invite a distinction the person's tax system does not make.
+/// Salary, dividends, capital gains and the rest are universal and stay.
+const kIndiaOnlyTaxHeads = <String>{'perquisite'};
+
+/// The heads a line may choose from in a workspace keeping books in
+/// [currency]. [current] is the head the line already carries: it is always
+/// offered, so opening an old line never blanks a head that is still stored.
+Map<String, String> taxHeadsFor(String currency, {String? current}) {
+  if (currencySpec(currency).isIndian) return kTaxHeads;
+  return {
+    for (final e in kTaxHeads.entries)
+      if (!kIndiaOnlyTaxHeads.contains(e.key) || e.key == current) e.key: e.value,
+  };
+}
 
 /// Mutable draft of one transaction line while it's being edited.
 class LineDraft {
@@ -430,6 +452,7 @@ class TxnLinesEditor extends StatelessWidget {
 
   Future<void> _addLine(BuildContext context) async {
     final draft = LineDraft(type: 'expense');
+    var kept = false;
     final action = await showLineEditorSheet(
       context,
       draft: draft,
@@ -437,12 +460,14 @@ class TxnLinesEditor extends StatelessWidget {
       accountId: accountId,
       contactId: contactId,
       canDelete: false,
+      onGone: () {
+        if (!kept) draft.dispose();
+      },
     );
     if (action == LineEditorAction.save) {
+      kept = true;
       lines.add(draft); // ownership passes to the parent form
       onChanged();
-    } else {
-      draft.dispose();
     }
   }
 
@@ -455,6 +480,7 @@ class TxnLinesEditor extends StatelessWidget {
       accountId: accountId,
       contactId: contactId,
       canDelete: lines.length > 1,
+      onGone: copy.dispose,
     );
     if (action == LineEditorAction.save) {
       lines[i].applyFrom(copy);
@@ -463,7 +489,6 @@ class TxnLinesEditor extends StatelessWidget {
       lines.removeAt(i).dispose();
       onChanged();
     }
-    copy.dispose();
   }
 
   @override
@@ -517,7 +542,7 @@ class TxnLinesEditor extends StatelessWidget {
   Widget _summaryRow(BuildContext context, DataController data, int i) {
     final d = lines[i];
     final cs = Theme.of(context).colorScheme;
-    final currency = context.watch<WorkspaceController>().activeWorkspace?.baseCurrency ?? 'INR';
+    final currency = context.watch<WorkspaceController>().currency;
     final signed = draftSignedAmount(d, data.debtsById);
     final target = lineTargetLabel(d, data);
     final problems =
@@ -615,6 +640,7 @@ class LineFields extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final data = context.watch<DataController>();
+    final currency = context.watch<WorkspaceController>().currency;
     final r = draft;
     final cats =
         data.categories.where((c) => c.kind == (isIncomeCategory(r.type) ? 'income' : 'expense')).toList();
@@ -623,8 +649,8 @@ class LineFields extends StatelessWidget {
     // A type that is no longer offered (a legacy transfer_in) still has to
     // show as the current value, so it joins the list for this line only.
     final typeItems = {
-      ...kSelectableLineTypes,
-      if (!kSelectableLineTypes.containsKey(r.type)) r.type: kLineTypes[r.type] ?? r.type,
+      for (final t in kSelectableLineTypes.keys) t: lineTypeLabel(t),
+      if (!kSelectableLineTypes.containsKey(r.type)) r.type: lineTypeLabel(r.type),
     };
 
     return Column(
@@ -632,6 +658,9 @@ class LineFields extends StatelessWidget {
       children: [
         DropdownButtonFormField<String>(
           value: typeItems.containsKey(r.type) ? r.type : null,
+          // The field already spans the line; expanding keeps a long label (or
+          // a large system font on a narrow phone) inside it, not past its edge.
+          isExpanded: true,
           decoration: const InputDecoration(labelText: 'Type'),
           items: [
             for (final e in typeItems.entries) DropdownMenuItem(value: e.key, child: Text(e.value)),
@@ -647,7 +676,8 @@ class LineFields extends StatelessWidget {
         const SizedBox(height: 10),
         TextFormField(
           controller: r.amount,
-          decoration: const InputDecoration(labelText: 'Amount', prefixText: '₹ '),
+          // Flutter puts no gap after a prefix, hence the space.
+          decoration: InputDecoration(labelText: 'Amount', prefixText: '${currencySymbol(currency)} '),
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
           onChanged: (_) => onChanged(),
         ),
@@ -723,7 +753,7 @@ class LineFields extends StatelessWidget {
         ],
         if (canTax(r.type)) ...[
           const SizedBox(height: 10),
-          _taxBlock(context, r),
+          _taxBlock(context, r, currency),
         ],
       ],
     );
@@ -731,8 +761,14 @@ class LineFields extends StatelessWidget {
 
   /// Compact per-line tax entry for income / interest_income lines. Mirrors the
   /// web TaxBlock: a "Tax info" toggle that reveals head / TDS / tax-inclusive.
-  Widget _taxBlock(BuildContext context, LineDraft r) {
+  ///
+  /// TDS is India's tax deducted at source, so only an INR workspace is asked
+  /// for it. Elsewhere the field is hidden, never cleared: the draft still
+  /// holds whatever was stored and [LineDraft.taxMap] writes it back unchanged.
+  Widget _taxBlock(BuildContext context, LineDraft r, String currency) {
     final cs = Theme.of(context).colorScheme;
+    final heads = taxHeadsFor(currency, current: r.taxHead);
+    final askTds = currencySpec(currency).isIndian;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
@@ -759,24 +795,27 @@ class LineFields extends StatelessWidget {
           if (r.taxable) ...[
             const SizedBox(height: 4),
             DropdownButtonFormField<String>(
-              value: kTaxHeads.containsKey(r.taxHead) ? r.taxHead : null,
+              value: heads.containsKey(r.taxHead) ? r.taxHead : null,
               isDense: true,
+              isExpanded: true,
               decoration: const InputDecoration(labelText: 'Head'),
               items: [
-                for (final e in kTaxHeads.entries) DropdownMenuItem(value: e.key, child: Text(e.value)),
+                for (final e in heads.entries) DropdownMenuItem(value: e.key, child: Text(e.value)),
               ],
               onChanged: (v) {
                 r.taxHead = v ?? 'other';
                 onChanged();
               },
             ),
-            const SizedBox(height: 8),
-            TextFormField(
-              controller: r.tds,
-              decoration: const InputDecoration(labelText: 'TDS', prefixText: '₹ '),
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              onChanged: (_) => onChanged(),
-            ),
+            if (askTds) ...[
+              const SizedBox(height: 8),
+              TextFormField(
+                controller: r.tds,
+                decoration: InputDecoration(labelText: 'TDS', prefixText: '${currencySymbol(currency)} '),
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                onChanged: (_) => onChanged(),
+              ),
+            ],
             const SizedBox(height: 4),
             Row(
               children: [
@@ -806,6 +845,11 @@ enum LineEditorAction { save, delete }
 
 /// The line sheet, stacked on the form. Edits [draft] (already a copy) and
 /// reports what the user chose; the caller writes back or throws it away.
+///
+/// [onGone] runs once the sheet has fully left the screen, which is the
+/// earliest a draft it shows may be disposed. The returned future completes
+/// sooner, as the sheet starts to slide away, and the sheet still rebuilds
+/// its fields (with the draft's controllers) while it does.
 Future<LineEditorAction?> showLineEditorSheet(
   BuildContext context, {
   required LineDraft draft,
@@ -813,6 +857,7 @@ Future<LineEditorAction?> showLineEditorSheet(
   required String? accountId,
   required String? contactId,
   required bool canDelete,
+  VoidCallback? onGone,
 }) {
   return showModalBottomSheet<LineEditorAction>(
     context: context,
@@ -830,6 +875,7 @@ Future<LineEditorAction?> showLineEditorSheet(
         accountId: accountId,
         contactId: contactId,
         canDelete: canDelete,
+        onGone: onGone,
       ),
     ),
   );
@@ -841,12 +887,14 @@ class _LineEditorSheet extends StatefulWidget {
   final String? accountId;
   final String? contactId;
   final bool canDelete;
+  final VoidCallback? onGone;
   const _LineEditorSheet({
     required this.draft,
     required this.isNew,
     required this.accountId,
     required this.contactId,
     required this.canDelete,
+    this.onGone,
   });
 
   @override
@@ -855,6 +903,12 @@ class _LineEditorSheet extends StatefulWidget {
 
 class _LineEditorSheetState extends State<_LineEditorSheet> {
   late final String _fp0 = lineDraftFingerprint(widget.draft);
+
+  @override
+  void dispose() {
+    widget.onGone?.call();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {

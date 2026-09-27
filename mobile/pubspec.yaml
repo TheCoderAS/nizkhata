@@ -1,7 +1,7 @@
 name: nizkhata
 description: NizKhata — native Android app. Every rupee, accounted for.
 publish_to: "none"
-version: 1.11.6+68
+version: 1.12.0+69
 
 environment:
   sdk: ">=3.4.0 <4.0.0"
@@ -77,6 +77,9 @@ flutter:
   uses-material-design: true
   assets:
     - assets/
+    # Noto Sans for on-device PDFs (see lib/services/pdf_brand.dart), with its
+    # licence (OFL.txt) alongside.
+    - assets/fonts/
 
 # App launcher icon — full brand mark (assets/icon.png) on the dark-navy brand
 # field (#141A2A), matching the splash so the icon and splash feel like one set.

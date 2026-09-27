@@ -12,6 +12,7 @@ import 'dart:typed_data';
 import 'package:csv/csv.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 
+import '../core/currency.dart';
 import 'office_crypto.dart';
 import 'xls_decoder.dart';
 import 'xlsx_reader.dart';
@@ -153,21 +154,57 @@ List<List<String>> parseDelimitedText(String text) {
   return rows;
 }
 
+/// The delimiter that splits the most lines into the same number of fields.
+///
+/// Counting raw occurrences is not enough: a European export separates
+/// fields with ';' precisely because ',' is its decimal mark, so a line like
+/// `01.02.2026;Rewe, Berlin;-12,50` holds as many commas as semicolons. What
+/// tells the real delimiter apart is consistency: it appears the same number
+/// of times on every line, header included, while a decimal comma comes and
+/// goes with the data. Ties on consistency go to the busier delimiter, and
+/// then to the order of the list, so a plain comma file reads as it always has.
 String _detectDelimiter(String text) {
   final lines = text.split('\n').where((l) => l.trim().isNotEmpty).take(20).toList();
   var best = ',';
-  var bestCount = -1;
+  var bestLines = -1;
+  var bestFields = -1;
   for (final d in const [',', ';', '\t', '|']) {
-    var count = 0;
+    // How many lines have each count of (unquoted) delimiters.
+    final tally = <int, int>{};
     for (final l in lines) {
-      count += d.allMatches(l).length;
+      final n = _countUnquoted(l, d);
+      if (n > 0) tally[n] = (tally[n] ?? 0) + 1;
     }
-    if (count > bestCount) {
-      bestCount = count;
+    var agreeing = 0, fields = 0;
+    tally.forEach((n, count) {
+      if (count > agreeing || (count == agreeing && n > fields)) {
+        agreeing = count;
+        fields = n;
+      }
+    });
+    if (agreeing > bestLines || (agreeing == bestLines && fields > bestFields)) {
+      bestLines = agreeing;
+      bestFields = fields;
       best = d;
     }
   }
   return best;
+}
+
+/// Occurrences of [d] in [line] outside double-quoted fields, so a quoted
+/// description such as "UPI, Grocery Mart" does not vote for the comma.
+int _countUnquoted(String line, String d) {
+  var n = 0;
+  var quoted = false;
+  for (var i = 0; i < line.length; i++) {
+    final c = line[i];
+    if (c == '"') {
+      quoted = !quoted;
+    } else if (!quoted && c == d) {
+      n++;
+    }
+  }
+  return n;
 }
 
 void _padRows(List<List<String>> rows) {
@@ -322,7 +359,9 @@ bool _looksLikeTableRow(TextLine line) {
   for (final w in words) {
     if (!hasDate && parseFlexibleDate(w, DateOrder.dmy) != null) hasDate = true;
     if (!hasAmount) {
-      final a = parseAmountText(w);
+      // Either decimal mark: the table has to be found before its columns,
+      // and so its decimal mark, are known.
+      final a = parseAmountText(w) ?? parseAmountText(w, decimalSeparator: ',');
       if (a != null && (w.contains('.') || w.contains(','))) hasAmount = true;
     }
   }
@@ -488,6 +527,13 @@ class ColumnMapping {
   int? direction;
   int? reference;
   int? balance; // running balance — used for reconciliation, never imported
+  // The character that marks the decimals in this file's amounts: '.' as in
+  // 1,234.56 (India, the US, Britain) or ',' as in 1.234,56 (most of Europe,
+  // Latin America). It is a property of the file, not of the workspace, so it
+  // is read from the amounts themselves (see [detectDecimalSeparator]). Null
+  // means "not chosen yet": [buildImportRows] then detects it, so no caller
+  // can get European amounts wrong by forgetting to ask.
+  String? decimalSeparator;
   ColumnMapping({
     this.date,
     this.description,
@@ -497,6 +543,7 @@ class ColumnMapping {
     this.direction,
     this.reference,
     this.balance,
+    this.decimalSeparator,
   });
 
   /// Two-column (debit/credit) mode vs single-amount mode.
@@ -522,6 +569,9 @@ bool? isMoneyOutCell(String raw) {
 }
 
 /// Best-guess mapping from header labels. The user can override on-screen.
+///
+/// Headers say nothing about the decimal mark; call
+/// [detectMappingDecimalSeparator] once the amount columns are known.
 ColumnMapping suggestMapping(List<String> header) {
   final m = ColumnMapping();
   final cells = [for (final h in header) h.toLowerCase()];
@@ -686,28 +736,74 @@ DateTime? parseFlexibleDate(String raw, DateOrder order) {
 }
 
 /// Pick the numeric day/month order that parses the most sample cells.
-/// Ties prefer day-first (the Indian/most-banks convention).
-DateOrder detectDateOrder(Iterable<String> samples) {
-  var dmy = 0, mdy = 0, ymd = 0;
+///
+/// A file whose dates all fall on the 12th or earlier fits either order
+/// equally, and then only the reader's own convention can break the tie:
+/// [prefer], which the import screen takes from the phone (see
+/// [dateOrderForLocale]). It defaults to day-first, the Indian and
+/// most-banks convention.
+DateOrder detectDateOrder(Iterable<String> samples, {DateOrder prefer = DateOrder.dmy}) {
+  final score = {for (final o in DateOrder.values) o: 0};
   for (final s in samples) {
-    if (parseFlexibleDate(s, DateOrder.dmy) != null) dmy++;
-    if (parseFlexibleDate(s, DateOrder.mdy) != null) mdy++;
-    if (parseFlexibleDate(s, DateOrder.ymd) != null) ymd++;
+    for (final o in DateOrder.values) {
+      if (parseFlexibleDate(s, o) != null) score[o] = score[o]! + 1;
+    }
   }
-  if (dmy >= mdy && dmy >= ymd) return DateOrder.dmy;
-  if (ymd >= mdy) return DateOrder.ymd;
-  return DateOrder.mdy;
+  var best = prefer;
+  for (final o in const [DateOrder.dmy, DateOrder.ymd, DateOrder.mdy]) {
+    if (score[o]! > score[best]!) best = o;
+  }
+  return best;
+}
+
+/// The numeric date order people in [locale] write by default. Of the
+/// English variants the app formats dates in, only the United States puts the
+/// month first; everywhere else the day comes first. A year-first date needs
+/// no preference, as its four-digit year gives it away.
+DateOrder dateOrderForLocale(String locale) {
+  final parts = locale.split(RegExp('[_-]'));
+  return parts.length > 1 && parts[1].toUpperCase() == 'US' ? DateOrder.mdy : DateOrder.dmy;
 }
 
 // ---- amount parsing --------------------------------------------------------
 
 final _crRe = RegExp(r'(^|\s)cr\.?(\s|$)', caseSensitive: false);
 final _drRe = RegExp(r'(^|\s)dr\.?(\s|$)', caseSensitive: false);
-final _currencyRe = RegExp(r'(?:inr|rs\.?|₹)', caseSensitive: false);
+
+// Everything that can sit beside a figure to say what currency it is in:
+// any currency sign, with the one or two letters some write before it (S$,
+// HK$, CN¥, R$), and every ISO code the app knows plus a few that banks print
+// (Rs., Rp, RM, KSh). Codes match only as whole words, so a cell such as
+// "UPI/509" is still not mistaken for an amount of 509.
+final _currencyRe = RegExp(
+  '(?:[A-Za-z]{0,2}\\p{Sc})|'
+  '(?<![A-Za-z])(?:${{
+    ...kCurrencies.map((c) => c.code),
+    'RS',
+    'RP',
+    'RM',
+    'KSH'
+  }.join('|')})\\.?(?![A-Za-z])',
+  caseSensitive: false,
+  unicode: true,
+);
+
+// A decimal part written with the other mark: "12,50" when the file uses
+// '.', "12.50" when it uses ','. Grouping never leaves one or two digits
+// after the last separator, so this can only be a misread decimal.
+final _strayCommaDecimalRe = RegExp(r',\d{1,2}$');
+final _strayPointDecimalRe = RegExp(r'\.\d{1,2}$');
 
 /// Parse an amount cell to a signed double. "1,234.56 Dr", "(500)", "-500",
-/// "₹ 1,000 CR", "Rs.250" all work; returns null for non-numeric text.
-double? parseAmountText(String raw) {
+/// "500-", "₹ 1,000 CR", "Rs.250", "\$1,234.56", "USD 99" all work; returns
+/// null for non-numeric text.
+///
+/// [decimalSeparator] is the file's decimal mark: with ',' the figure
+/// "1.234,56 €" reads as 1234.56. A figure that plainly carries the other
+/// mark's decimals ("12,50" read with '.') returns null rather than a number
+/// a hundred times too large: an unreadable row is flagged on the review
+/// screen, while a wrong amount would be imported without a word.
+double? parseAmountText(String raw, {String decimalSeparator = '.'}) {
   var t = raw.trim();
   if (t.isEmpty) return null;
   var negative = false;
@@ -716,12 +812,25 @@ double? parseAmountText(String raw) {
   if (_crRe.hasMatch(t)) positive = true;
   if (t.startsWith('(') && t.endsWith(')')) negative = true;
   t = t.replaceAll(_drRe, ' ').replaceAll(_crRe, ' ').replaceAll(_currencyRe, '');
-  t = t.replaceAll(RegExp(r'[,()\s]'), '');
+  // Spaces, non-breaking spaces and apostrophes group digits in French and
+  // Swiss figures (1 234,56 and 1'234.56); none of them ever mark decimals.
+  t = t.replaceAll(RegExp(r"[()\s'’]"), '').replaceAll('−', '-');
+  if (decimalSeparator == ',') {
+    if (_strayPointDecimalRe.hasMatch(t)) return null;
+    t = t.replaceAll('.', '').replaceAll(',', '.');
+  } else {
+    if (_strayCommaDecimalRe.hasMatch(t)) return null;
+    t = t.replaceAll(',', '');
+  }
   if (t.startsWith('-')) {
     negative = true;
     t = t.substring(1);
   } else if (t.startsWith('+')) {
     t = t.substring(1);
+  } else if (t.endsWith('-')) {
+    // German and Dutch statements print a debit as "1.234,56-".
+    negative = true;
+    t = t.substring(0, t.length - 1);
   }
   if (t.isEmpty) return null;
   final v = double.tryParse(t);
@@ -729,6 +838,62 @@ double? parseAmountText(String raw) {
   if (negative && !positive) return -v.abs();
   if (positive) return v.abs();
   return v;
+}
+
+final _numberCoreRe = RegExp(r"\d[\d.,'’\s]*\d|\d");
+
+/// The decimal mark a column of amounts is written with: ',' or '.'.
+///
+/// Each figure votes only when its own shape settles the question:
+///  * both marks present: the one that comes last is the decimal mark
+///    (1.234,56 and 1,234.56, and India's 1,23,456.78);
+///  * one mark, repeated: it is grouping, so the decimal mark is the other
+///    (1.234.567 or 1,234,567);
+///  * one mark, once, followed by one, two, or four or more digits: it is the
+///    decimal mark (12,50 or 12.5).
+/// A lone mark followed by exactly three digits (1,234 or 1.234) could be
+/// either, a thousand or a Kuwaiti dinar and change, so it does not vote.
+/// The column goes to ',' only when commas win outright; with no votes, or a
+/// tie, it stays '.', which is how every Indian, US and British file reads.
+String detectDecimalSeparator(Iterable<String> samples) {
+  var comma = 0, point = 0;
+  for (final raw in samples) {
+    final m = _numberCoreRe.firstMatch(raw.replaceAll(_currencyRe, ''));
+    if (m == null) continue;
+    final core = m.group(0)!.replaceAll(RegExp(r"[\s'’]"), '');
+    final lastComma = core.lastIndexOf(',');
+    final lastPoint = core.lastIndexOf('.');
+    if (lastComma >= 0 && lastPoint >= 0) {
+      lastComma > lastPoint ? comma++ : point++;
+      continue;
+    }
+    final mark = lastComma >= 0 ? ',' : (lastPoint >= 0 ? '.' : null);
+    if (mark == null) continue;
+    final repeated = core.indexOf(mark) != core.lastIndexOf(mark);
+    final decimals = core.length - core.lastIndexOf(mark) - 1;
+    if (!repeated && decimals == 3) continue; // 1,234 or 1.234: could be either
+    // A repeated mark groups digits; a single one marks the decimals.
+    final commaIsDecimal = (mark == ',') != repeated;
+    if (commaIsDecimal) {
+      comma++;
+    } else {
+      point++;
+    }
+  }
+  return comma > point ? ',' : '.';
+}
+
+/// The decimal mark of the figures in [m]'s amount columns (amount, debit,
+/// credit and balance) across [rows]. Description and reference cells are
+/// left out: "Invoice 12,50" in a note says nothing about how the amounts are
+/// written.
+String detectMappingDecimalSeparator(List<List<String>> rows, ColumnMapping m) {
+  final cols = [m.amount, m.debit, m.credit, m.balance].whereType<int>().toList();
+  return detectDecimalSeparator([
+    for (final r in rows.take(200))
+      for (final c in cols)
+        if (c < r.length) r[c],
+  ]);
 }
 
 // ---- row building ----------------------------------------------------------
@@ -770,15 +935,17 @@ final _summaryLineRe = RegExp(
 /// noise never leaks into a transaction.
 List<ImportRowDraft> buildImportRows(StatementGrid grid, ColumnMapping m, DateOrder order) {
   String cell(List<String> row, int? i) => (i == null || i < 0 || i >= row.length) ? '' : row[i];
+  final decimal = m.decimalSeparator ?? detectMappingDecimalSeparator(grid.dataRows, m);
+  double? parse(String raw) => parseAmountText(raw, decimalSeparator: decimal);
   double? amountOf(List<String> row) {
     if (m.splitAmounts) {
-      final debit = parseAmountText(cell(row, m.debit));
-      final credit = parseAmountText(cell(row, m.credit));
+      final debit = parse(cell(row, m.debit));
+      final credit = parse(cell(row, m.credit));
       if (credit != null && credit.abs() > 0.004) return credit.abs();
       if (debit != null && debit.abs() > 0.004) return -debit.abs();
       return null;
     }
-    final v = parseAmountText(cell(row, m.amount));
+    final v = parse(cell(row, m.amount));
     if (v == null || v.abs() <= 0.004) return null;
     // A direction column overrules the figure's own sign, since a statement
     // that prints one carries unsigned amounts.
@@ -796,7 +963,7 @@ List<ImportRowDraft> buildImportRows(StatementGrid grid, ColumnMapping m, DateOr
     final amount = amountOf(row);
     final desc = cell(row, m.description);
     final ref = cell(row, m.reference);
-    final balance = m.balance != null ? parseAmountText(cell(row, m.balance)) : null;
+    final balance = m.balance != null ? parse(cell(row, m.balance)) : null;
 
     if (date != null) {
       current = ImportRowDraft(

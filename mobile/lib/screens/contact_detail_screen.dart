@@ -15,6 +15,7 @@ import '../data/models.dart';
 import '../data/mutations.dart';
 import '../data/settle_up.dart';
 import '../services/khata_pdf.dart';
+import '../services/pdf_brand.dart';
 import '../state/auth_controller.dart';
 import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
@@ -38,7 +39,7 @@ class ContactDetailScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final data = context.watch<DataController>();
     final ws = context.watch<WorkspaceController>();
-    final currency = ws.activeWorkspace?.baseCurrency ?? 'INR';
+    final currency = ws.currency;
 
     final contact = data.contactsById[contactId];
     if (contact == null) {
@@ -246,7 +247,7 @@ class ContactDetailScreen extends StatelessWidget {
               if (plan.isEmpty || plan.signedTotal.abs() <= 0.005) {
                 return const SizedBox.shrink();
               }
-              final currency = ws.activeWorkspace?.baseCurrency ?? 'INR';
+              final currency = ws.currency;
               return Padding(
                 padding: const EdgeInsets.only(top: 10),
                 child: SizedBox(
@@ -273,8 +274,8 @@ class ContactDetailScreen extends StatelessWidget {
     final data = context.read<DataController>();
     final wsC = context.read<WorkspaceController>();
     final wsId = wsC.activeWorkspaceId;
-    final fyStart = wsC.activeWorkspace?.fyStartMonth ?? 4;
-    final currency = wsC.activeWorkspace?.baseCurrency ?? 'INR';
+    final fyStart = wsC.fyStartMonth;
+    final currency = wsC.currency;
     final user = context.read<AuthController>().user;
     if (wsId == null || user == null) return;
     // Rebuild fresh (data may have moved since the button rendered).
@@ -616,7 +617,7 @@ class ContactDetailScreen extends StatelessWidget {
       net: position.net,
       entries: entries,
       openDues: openDues,
-      currency: ws.activeWorkspace?.baseCurrency ?? 'INR',
+      currency: ws.currency,
       workspaceName: ws.activeWorkspace?.name ?? 'NizKhata',
     );
   }
@@ -647,6 +648,7 @@ class ContactDetailScreen extends StatelessWidget {
               onTap: () async {
                 Navigator.pop(sheetCtx);
                 final k = _khataData(context, contact);
+                await PdfTypeface.load();
                 final logo = await _appLogoBytes();
                 final bytes = buildKhataPdf(
                   workspaceName: k.workspaceName,

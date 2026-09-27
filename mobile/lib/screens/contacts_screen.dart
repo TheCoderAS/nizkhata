@@ -36,7 +36,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
   Widget build(BuildContext context) {
     final data = context.watch<DataController>();
     final ws = context.watch<WorkspaceController>();
-    final currency = ws.activeWorkspace?.baseCurrency ?? 'INR';
+    final currency = ws.currency;
     final canManage = ws.can('contacts.manage');
     final canViewTxns = ws.can('transactions.view');
     final query = _search.trim().toLowerCase();
@@ -70,9 +70,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
                 ? EmptyView(
                     icon: query.isNotEmpty ? Icons.search_off : Icons.people_outline,
                     title: query.isNotEmpty ? 'No matches' : 'No contacts',
-                    hint: query.isNotEmpty
-                        ? null
-                        : 'People and businesses you transact with appear here.',
+                    hint: query.isNotEmpty ? null : 'People and businesses you transact with appear here.',
                     action: canManage && query.isEmpty
                         ? FilledButton(
                             onPressed: () => showContactForm(context),

@@ -8,6 +8,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../core/currency.dart';
 import '../data/models.dart';
 import 'data_controller.dart';
 
@@ -38,6 +39,24 @@ class WorkspaceController extends ChangeNotifier {
     return null;
   }
 
+  /// The active workspace's currency, fixed when the workspace was created.
+  /// The one place screens should ask; nothing else needs an 'INR' fallback.
+  String get currency => activeWorkspace?.baseCurrency ?? 'INR';
+  CurrencySpec get currencySpec => MoneyContext.spec;
+
+  /// The month the active workspace's financial year starts in. With no
+  /// workspace loaded, the usual month for its (default) currency.
+  int get fyStartMonth => activeWorkspace?.fyStartMonth ?? currencySpec.defaultFyStartMonth;
+
+  /// Every state change passes through here, so this is where the rounding
+  /// context follows the active workspace — before any listener rebuilds and
+  /// before any calculation runs against the new books.
+  @override
+  void notifyListeners() {
+    MoneyContext.currency = currency;
+    super.notifyListeners();
+  }
+
   Membership? get _activeMembership {
     for (final m in memberships) {
       if (m.workspaceId == activeWorkspaceId) return m;
@@ -64,8 +83,12 @@ class WorkspaceController extends ChangeNotifier {
         contactId: myLinkedContactId,
         views: {
           for (final p in const [
-            'transactions.view', 'dues.view', 'debts.view',
-            'contacts.view', 'accounts.view', 'categories.view',
+            'transactions.view',
+            'dues.view',
+            'debts.view',
+            'contacts.view',
+            'accounts.view',
+            'categories.view',
           ])
             if (can(p)) p,
         },
@@ -139,11 +162,8 @@ class WorkspaceController extends ChangeNotifier {
   void _subscribeRoles() {
     if (activeWorkspaceId == null) return;
     _rolesSub?.cancel();
-    _rolesSub = _db
-        .collection('roles')
-        .where('workspaceId', isEqualTo: activeWorkspaceId)
-        .snapshots()
-        .listen((snap) {
+    _rolesSub =
+        _db.collection('roles').where('workspaceId', isEqualTo: activeWorkspaceId).snapshots().listen((snap) {
       rolesById = {for (final d in snap.docs) d.id: Role.fromDoc(d)};
       notifyListeners();
     });

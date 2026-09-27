@@ -17,7 +17,7 @@ class MoreScreen extends StatelessWidget {
     final auth = context.watch<AuthController>();
     final ws = context.watch<WorkspaceController>();
     final data = context.watch<DataController>();
-    final currency = ws.activeWorkspace?.baseCurrency ?? 'INR';
+    final currency = ws.currency;
     final user = auth.user;
 
     // The same figure the dashboard shows, from the same helper. Two lines
@@ -59,7 +59,7 @@ class MoreScreen extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _kv('Name', ws.activeWorkspace?.name ?? '—'),
-              _kv('Base currency', currency),
+              _kv('Currency', currency),
               _kv('Accounts', '${data.accounts.length}'),
               _kv('In bank accounts', formatMoney(inBank, currency)),
               _kv('Contacts', '${data.contacts.where((c) => c.connectionUid == null).length}'),

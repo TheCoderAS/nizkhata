@@ -37,7 +37,7 @@ class _DueDetail extends StatelessWidget {
   Widget build(BuildContext context) {
     final data = context.watch<DataController>();
     final ws = context.watch<WorkspaceController>();
-    final currency = ws.activeWorkspace?.baseCurrency ?? 'INR';
+    final currency = ws.currency;
     final canManage = ws.can('dues.manage');
     final canTxn = ws.can('transactions.create');
     final settled = data.settledOf(due.id);

@@ -8,6 +8,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../core/currency.dart';
 import '../core/format.dart';
 import '../core/theme.dart';
 import '../data/derive.dart';
@@ -60,6 +61,10 @@ class _ImportScreenState extends State<ImportScreen> {
   StatementGrid? _grid;
   ColumnMapping _mapping = ColumnMapping();
   DateOrder _dateOrder = DateOrder.dmy;
+  // What the amounts in this file looked like, kept so the mapping step can
+  // say whether the decimal mark in use is the detected one or a hand-picked
+  // one.
+  String _detectedDecimal = '.';
   bool _rememberPassword = true;
   bool _profileApplied = false; // saved mapping profile matched this file
 
@@ -114,11 +119,17 @@ class _ImportScreenState extends State<ImportScreen> {
       await Future<void>.delayed(const Duration(milliseconds: 30));
       final grid = parseStatement(bytes, name, password: password);
       var mapping = suggestMapping(grid.header);
-      var order = DateOrder.dmy;
+      // Dates that fit either order (all on the 12th or earlier) are read the
+      // way this phone writes them, so a US file is month-first by default.
+      final preferOrder = dateOrderForLocale(AppLocale.date);
+      var order = preferOrder;
       if (mapping.date != null) {
         order = detectDateOrder(
-            grid.dataRows.take(50).map((r) => mapping.date! < r.length ? r[mapping.date!] : ''));
+            grid.dataRows.take(50).map((r) => mapping.date! < r.length ? r[mapping.date!] : ''),
+            prefer: preferOrder);
       }
+      var detectedDecimal = detectMappingDecimalSeparator(grid.dataRows, mapping);
+      mapping.decimalSeparator = detectedDecimal;
       // A bank's statement format rarely changes: if a saved mapping profile
       // matches this file's header layout, apply it wholesale so month two
       // is one tap. A changed layout falls back to the fresh suggestion.
@@ -136,6 +147,11 @@ class _ImportScreenState extends State<ImportScreen> {
           reference: col('ref'),
           balance: col('balance'),
         );
+        // Profiles saved before decimal marks existed have none; the file's
+        // own amounts decide for those, as they would for a new mapping.
+        detectedDecimal = detectMappingDecimalSeparator(grid.dataRows, mapping);
+        final dec = profile['dec'];
+        mapping.decimalSeparator = dec == ',' || dec == '.' ? dec as String : detectedDecimal;
         final oi = (profile['order'] as num?)?.toInt() ?? 0;
         if (oi >= 0 && oi < DateOrder.values.length) order = DateOrder.values[oi];
         final di = (profile['dup'] as num?)?.toInt() ?? 0;
@@ -158,6 +174,7 @@ class _ImportScreenState extends State<ImportScreen> {
         _grid = grid;
         _mapping = mapping;
         _dateOrder = order;
+        _detectedDecimal = detectedDecimal;
         _step = _Step.mapping;
         _busy = false;
       });
@@ -298,6 +315,7 @@ class _ImportScreenState extends State<ImportScreen> {
             'dir': _mapping.direction,
             'ref': _mapping.reference,
             'balance': _mapping.balance,
+            'dec': _mapping.decimalSeparator,
             'order': _dateOrder.index,
             'dup': _dupMode.index,
             'expCat': _defaultExpenseCat,
@@ -443,7 +461,7 @@ class _ImportScreenState extends State<ImportScreen> {
     final accountId = _accountId;
     final wsC = context.read<WorkspaceController>();
     final ws = wsC.activeWorkspaceId;
-    final fyStart = wsC.activeWorkspace?.fyStartMonth ?? 4;
+    final fyStart = wsC.fyStartMonth;
     final user = context.read<AuthController>().user;
     if (accountId == null || ws == null || user == null) return;
 
@@ -772,7 +790,8 @@ class _ImportScreenState extends State<ImportScreen> {
           onChanged: (v) => setState(() {
             _mapping.date = v;
             if (v != null) {
-              _dateOrder = detectDateOrder(grid.dataRows.take(50).map((r) => v < r.length ? r[v] : ''));
+              _dateOrder = detectDateOrder(grid.dataRows.take(50).map((r) => v < r.length ? r[v] : ''),
+                  prefer: dateOrderForLocale(AppLocale.date));
             }
           }),
         ),
@@ -814,6 +833,7 @@ class _ImportScreenState extends State<ImportScreen> {
               _mapping.amount = suggested.amount ?? 0;
               _mapping.direction = suggested.direction;
             }
+            _redetectDecimal();
           }),
         ),
         const SizedBox(height: 14),
@@ -821,19 +841,28 @@ class _ImportScreenState extends State<ImportScreen> {
           _colDropdown(
             label: 'Debit (money out) column',
             value: _mapping.debit,
-            onChanged: (v) => setState(() => _mapping.debit = v),
+            onChanged: (v) => setState(() {
+              _mapping.debit = v;
+              _redetectDecimal();
+            }),
           ),
           _colDropdown(
             label: 'Credit (money in) column',
             value: _mapping.credit,
-            onChanged: (v) => setState(() => _mapping.credit = v),
+            onChanged: (v) => setState(() {
+              _mapping.credit = v;
+              _redetectDecimal();
+            }),
           ),
         ] else ...[
           _colDropdown(
             label: 'Amount column',
             value: _mapping.amount,
             clearable: false,
-            onChanged: (v) => setState(() => _mapping.amount = v),
+            onChanged: (v) => setState(() {
+              _mapping.amount = v;
+              _redetectDecimal();
+            }),
           ),
           // Statements that print one unsigned Amount column say which way
           // each row runs in a column of their own: "Debit"/"Credit",
@@ -855,7 +884,28 @@ class _ImportScreenState extends State<ImportScreen> {
           value: _mapping.balance,
           onChanged: (v) => setState(() => _mapping.balance = v),
         ),
-        const SizedBox(height: 10),
+        // Read from the amounts, not the phone: a European bank's file uses a
+        // decimal comma whatever language the phone is in. Shown because a
+        // wrong mark misreads money, and overridable because a column of
+        // round figures (1.000, 2.500) cannot say which mark it uses.
+        const SizedBox(height: 4),
+        Text('Amounts are written like', style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant)),
+        const SizedBox(height: 6),
+        SegmentedButton<String>(
+          segments: [
+            for (final sep in const ['.', ',']) ButtonSegment(value: sep, label: Text(_decimalExample(sep))),
+          ],
+          selected: {_mapping.decimalSeparator ?? _detectedDecimal},
+          onSelectionChanged: (sel) => setState(() => _mapping.decimalSeparator = sel.first),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          (_mapping.decimalSeparator ?? _detectedDecimal) == _detectedDecimal
+              ? 'Detected from the amounts in this file.'
+              : 'Changed by you. The amounts in this file looked like ${_decimalExample(_detectedDecimal)}.',
+          style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
+        ),
+        const SizedBox(height: 14),
         Row(
           children: [
             OutlinedButton(
@@ -875,13 +925,24 @@ class _ImportScreenState extends State<ImportScreen> {
     );
   }
 
+  /// Detect the decimal mark again after the amount columns change, since it
+  /// is read from those columns' figures.
+  void _redetectDecimal() {
+    final grid = _grid;
+    if (grid == null) return;
+    _detectedDecimal = detectMappingDecimalSeparator(grid.dataRows, _mapping);
+    _mapping.decimalSeparator = _detectedDecimal;
+  }
+
+  static String _decimalExample(String sep) => sep == ',' ? '1.234,56' : '1,234.56';
+
   // ---- UI: review ----------------------------------------------------------
 
   Widget _buildReviewList() {
     final ws = context.watch<WorkspaceController>();
     final data = context.watch<DataController>();
     final cs = Theme.of(context).colorScheme;
-    final currency = ws.activeWorkspace?.baseCurrency ?? 'INR';
+    final currency = ws.currency;
 
     final selected = _rows.where((r) => r.selected).toList();
     var totalIn = 0.0, totalOut = 0.0;
@@ -1196,7 +1257,7 @@ class _ImportScreenState extends State<ImportScreen> {
     var date = d.date ?? DateTime.now();
     var isCredit = (d.amount ?? -1) >= 0;
     final descCtl = TextEditingController(text: d.description);
-    final amtCtl = TextEditingController(text: d.amount?.abs().toStringAsFixed(2) ?? '');
+    final amtCtl = TextEditingController(text: d.amount?.abs().toStringAsFixed(MoneyContext.decimals) ?? '');
     var categoryId = row.categoryId;
 
     final saved = await showDialog<bool>(
@@ -1280,7 +1341,10 @@ class _ImportScreenState extends State<ImportScreen> {
     );
 
     if (saved == true) {
-      final parsed = double.tryParse(amtCtl.text.replaceAll(',', ''));
+      // A decimal comma is taken as one: "12,50" is 12.50, never 1250, while
+      // "1,250" still reads as a thousand and more.
+      final typed = amtCtl.text;
+      final parsed = parseAmountText(typed) ?? parseAmountText(typed, decimalSeparator: ',');
       setState(() {
         final wasUnreadable = !d.parseable;
         d.date = date;

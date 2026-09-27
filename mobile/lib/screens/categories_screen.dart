@@ -41,9 +41,7 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
 
   Future<void> _pickCustom(bool isFrom) async {
     final now = DateTime.now();
-    final initial = isFrom
-        ? (_customFrom ?? DateTime(now.year, now.month, 1))
-        : (_customTo ?? now);
+    final initial = isFrom ? (_customFrom ?? DateTime(now.year, now.month, 1)) : (_customTo ?? now);
     final picked = await showDatePicker(
       context: context,
       initialDate: initial,
@@ -68,8 +66,8 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
     final ws = context.watch<WorkspaceController>();
     final canManage = ws.can('categories.manage');
     final canViewTxns = ws.can('transactions.view');
-    final currency = ws.activeWorkspace?.baseCurrency ?? 'INR';
-    final fyStartMonth = ws.activeWorkspace?.fyStartMonth ?? 4;
+    final currency = ws.currency;
+    final fyStartMonth = ws.fyStartMonth;
 
     final now = DateTime.now();
     final ({DateTime start, DateTime end}) range;
@@ -90,8 +88,7 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
       if (t.date.isBefore(range.start) || !t.date.isBefore(range.end)) continue;
       for (final l in t.lines) {
         if (l.categoryId == null) continue;
-        amountByCategory[l.categoryId!] =
-            roundMoney((amountByCategory[l.categoryId!] ?? 0) + l.amount);
+        amountByCategory[l.categoryId!] = roundMoney((amountByCategory[l.categoryId!] ?? 0) + l.amount);
       }
     }
 
@@ -109,10 +106,10 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
         ),
         floatingActionButton: canManage
             ? AppFab(
-              onPressed: () => showCategoryForm(context),
-              tooltip: 'Add category',
-              icon: Icons.add,
-            )
+                onPressed: () => showCategoryForm(context),
+                tooltip: 'Add category',
+                icon: Icons.add,
+              )
             : null,
         body: Column(
           children: [

@@ -10,6 +10,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../core/currency.dart';
 import '../core/format.dart';
 import '../core/theme.dart';
 import '../data/derive.dart';
@@ -35,7 +36,9 @@ const lineTypeLabel = <String, String>{
   'tax': 'Tax / GST',
 };
 
-String _labelFor(String type) => lineTypeLabel[type] ?? type;
+// GST is India's; a tax line anywhere else is simply tax.
+String _labelFor(String type, String currency) =>
+    type == 'tax' && !currencySpec(currency).isIndian ? 'Tax' : lineTypeLabel[type] ?? type;
 
 class _LedgerRow {
   final DateTime date;
@@ -90,7 +93,7 @@ class _AccountLedgerScreenState extends State<AccountLedgerScreen> {
   Widget build(BuildContext context) {
     final data = context.watch<DataController>();
     final ws = context.watch<WorkspaceController>();
-    final currency = ws.activeWorkspace?.baseCurrency ?? 'INR';
+    final currency = ws.currency;
     final canExport = ws.can('reports.export');
     final account = data.accountsById[widget.accountId];
 
@@ -118,7 +121,7 @@ class _AccountLedgerScreenState extends State<AccountLedgerScreen> {
     for (final e in mine) {
       running = roundMoney(running + e.key);
       if (!_inRange(e.value.date)) continue;
-      final types = <String>{for (final l in e.value.lines) _labelFor(l.type)}.join(', ');
+      final types = <String>{for (final l in e.value.lines) _labelFor(l.type, currency)}.join(', ');
       filtered.add(_LedgerRow(
         e.value.date,
         e.value.note?.isNotEmpty == true ? e.value.note! : '—',

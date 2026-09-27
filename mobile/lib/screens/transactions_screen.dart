@@ -227,7 +227,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   Widget build(BuildContext context) {
     final data = context.watch<DataController>();
     final ws = context.watch<WorkspaceController>();
-    final currency = ws.activeWorkspace?.baseCurrency ?? 'INR';
+    final currency = ws.currency;
     final canCreate = ws.can('transactions.create');
     final all = [...data.transactions]..sort((a, b) => b.date.compareTo(a.date));
     final query = _search.trim().toLowerCase();

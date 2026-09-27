@@ -12,11 +12,13 @@ import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../core/currency.dart';
 import '../core/format.dart';
 import '../core/theme.dart';
 import '../data/derive.dart';
 import '../data/models.dart';
 import '../services/tax_pack_pdf.dart';
+import '../services/pdf_brand.dart';
 import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
 import '../widgets/common.dart';
@@ -45,8 +47,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
   Widget build(BuildContext context) {
     final ws = context.watch<WorkspaceController>();
     final data = context.watch<DataController>();
-    final currency = ws.activeWorkspace?.baseCurrency ?? 'INR';
-    final fyStart = ws.activeWorkspace?.fyStartMonth ?? 4;
+    final currency = ws.currency;
+    final fyStart = ws.fyStartMonth;
     final canExport = ws.can('reports.export');
     final canViewTxns = ws.can('transactions.view');
 
@@ -886,6 +888,13 @@ class _TaxTab extends StatelessWidget {
     final heads = taxableByHead.keys.toList()
       ..sort((a, b) => (taxableByHead[b] ?? 0).compareTo(taxableByHead[a] ?? 0));
 
+    // TDS and the tax pack are Indian: the pack is built for a CA, with a TDS
+    // column on every table and a Form 26AS cross-check. Relabelled, it would
+    // still be an Indian return's working papers, so elsewhere it is not
+    // offered at all, and neither is TDS. What every tax system shares, the
+    // taxable totals by head, stays, with a CSV to hand to an accountant.
+    final india = currencySpec(currency).isIndian;
+
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -893,8 +902,10 @@ class _TaxTab extends StatelessWidget {
           children: [
             Expanded(
                 child: StatCard(label: 'Total taxable', amount: totalTaxable, currency: currency)),
-            const SizedBox(width: 12),
-            Expanded(child: StatCard(label: 'Total TDS', amount: totalTds, currency: currency)),
+            if (india) ...[
+              const SizedBox(width: 12),
+              Expanded(child: StatCard(label: 'Total TDS', amount: totalTds, currency: currency)),
+            ],
           ],
         ),
         const SizedBox(height: 12),
@@ -904,7 +915,18 @@ class _TaxTab extends StatelessWidget {
             child: EmptyView(title: 'No taxable lines this FY'),
           )
         else ...[
-          if (canExport) ...[
+          if (canExport && !india) ...[
+            _exportButton(() => _exportCsv(
+                  'tax-summary-$fy.csv',
+                  const ['Head', 'Taxable', 'Lines'],
+                  [
+                    for (final h in heads)
+                      [_taxHeadLabel(h), roundMoney(taxableByHead[h] ?? 0), linesByHead[h] ?? 0],
+                  ],
+                )),
+            const SizedBox(height: 12),
+          ],
+          if (canExport && india) ...[
             // The FY is already named by the app-bar picker, so the buttons
             // stay short enough to sit side by side.
             _exportPair(
@@ -943,8 +965,8 @@ class _TaxTab extends StatelessWidget {
                     title:
                         Text(_taxHeadLabel(h), style: const TextStyle(fontWeight: FontWeight.w500)),
                     subtitle: Text(
-                      'TDS ${formatMoney(roundMoney(tdsByHead[h] ?? 0), currency)}'
-                      ' · ${linesByHead[h] ?? 0} line${(linesByHead[h] ?? 0) == 1 ? '' : 's'}',
+                      '${india ? 'TDS ${formatMoney(roundMoney(tdsByHead[h] ?? 0), currency)} · ' : ''}'
+                      '${linesByHead[h] ?? 0} line${(linesByHead[h] ?? 0) == 1 ? '' : 's'}',
                     ),
                     trailing: Text(
                       formatMoney(roundMoney(taxableByHead[h] ?? 0), currency),
@@ -1005,6 +1027,7 @@ class _TaxTab extends StatelessWidget {
     try {
       logo = (await rootBundle.load('assets/icon.png')).buffer.asUint8List();
     } catch (_) {}
+    await PdfTypeface.load();
     final bytes = buildTaxPackPdf(
       workspaceName: ws.activeWorkspace?.name ?? 'NizKhata',
       fy: fy,

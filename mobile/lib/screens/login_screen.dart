@@ -92,7 +92,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                             ),
                             const SizedBox(height: 8),
                             Text(
-                              'Every rupee, accounted for.',
+                              'Every amount, accounted for.',
                               style: TextStyle(fontSize: 15, color: cs.onSurfaceVariant),
                             ),
                           ],

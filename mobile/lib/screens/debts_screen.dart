@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../core/format.dart';
 import '../core/theme.dart';
 import '../data/derive.dart';
 import '../data/models.dart';
@@ -121,7 +122,7 @@ class _DebtsScreenState extends State<DebtsScreen> {
   Widget build(BuildContext context) {
     final data = context.watch<DataController>();
     final ws = context.watch<WorkspaceController>();
-    final currency = ws.activeWorkspace?.baseCurrency ?? 'INR';
+    final currency = ws.currency;
     final canManage = ws.can('debts.manage');
     final canTxn = ws.can('transactions.create');
     final canViewContacts = ws.can('contacts.view');
@@ -444,7 +445,7 @@ class _DebtPaymentSheetState extends State<_DebtPaymentSheet> {
     if (_accountId == null) return;
     final wsC = context.read<WorkspaceController>();
     final ws = wsC.activeWorkspaceId;
-    final fyStart = wsC.activeWorkspace?.fyStartMonth ?? 4;
+    final fyStart = wsC.fyStartMonth;
     final user = context.read<AuthController>().user;
     final data = context.read<DataController>();
     if (ws == null || user == null) return;
@@ -495,6 +496,7 @@ class _DebtPaymentSheetState extends State<_DebtPaymentSheet> {
 
   Widget _buildContent(BuildContext context) {
     final data = context.watch<DataController>();
+    final currency = context.watch<WorkspaceController>().currency;
     final accounts = data.accounts;
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
@@ -508,7 +510,8 @@ class _DebtPaymentSheetState extends State<_DebtPaymentSheet> {
             children: [
               TextFormField(
                 controller: _amount,
-                decoration: const InputDecoration(labelText: 'Amount', prefixText: '₹ '),
+                // Flutter puts no gap after a prefix, hence the space.
+                decoration: InputDecoration(labelText: 'Amount', prefixText: '${currencySymbol(currency)} '),
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 validator: (v) => (double.tryParse(v?.trim() ?? '') ?? 0) <= 0 ? 'Enter an amount' : null,
               ),

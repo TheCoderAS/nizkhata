@@ -2,8 +2,8 @@ name: CI
 
 # Quality gate. Runs on PRs into main so broken changes can't merge. The web
 # app was retired in favour of the native Android app (mobile/, built by
-# android-apk.yml); what remains here is the static landing page and the
-# Firestore Security Rules shared by all clients.
+# android-apk.yml); what runs here is that app's analyzer and tests, the static
+# landing page, and the Firestore Security Rules shared by all clients.
 
 run-name: Build and Test PR
 
@@ -47,6 +47,40 @@ jobs:
             }
             console.log('landing page OK');
           "
+
+  # The app itself. Its unit and widget tests run on a plain VM: none of them
+  # needs the Android scaffold that android-apk.yml generates, so this job
+  # skips it and stays quick. Flutter comes from the same action and channel
+  # as the APK build, so what passes here is what ships.
+  flutter:
+    name: Flutter analyze and test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+
+      # cache: true keeps both the SDK and the pub cache between runs. No
+      # pubspec.lock is tracked, so the pub cache is keyed on pubspec.yaml;
+      # the action's default key hashes the lock file and would never change.
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+          pub-cache-key: "flutter-pub-:os:-:channel:-:version:-:arch:-${{ hashFiles('mobile/pubspec.yaml') }}"
+
+      - name: Pub get
+        run: flutter pub get
+
+      # flutter analyze treats info-level lints as fatal by default, and the
+      # codebase carries a known set of those. Warnings and errors still fail
+      # the job; infos are reported without blocking.
+      - name: Analyze
+        run: flutter analyze --no-fatal-infos
+
+      - name: Test
+        run: flutter test
 
   rules-tests:
     name: Firestore Security Rules
