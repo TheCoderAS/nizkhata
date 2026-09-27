@@ -21,6 +21,11 @@ const PROJECT_ID = "rules-test";
 const WS = "ws1";
 const OTHER_WS = "ws2";
 
+// `firebase emulators:exec` says where it put the emulator; honouring that lets
+// the suite run against one on another port (two checkouts testing at once)
+// while a bare `npm run test:rules` still finds the default one.
+const [EMU_HOST, EMU_PORT] = (process.env.FIRESTORE_EMULATOR_HOST ?? "127.0.0.1:8080").split(":");
+
 let env: RulesTestEnvironment;
 
 beforeAll(async () => {
@@ -28,8 +33,8 @@ beforeAll(async () => {
     projectId: PROJECT_ID,
     firestore: {
       rules: readFileSync("firestore.rules", "utf8"),
-      host: "127.0.0.1",
-      port: 8080,
+      host: EMU_HOST,
+      port: Number(EMU_PORT),
     },
   });
 });
@@ -307,6 +312,53 @@ describe("system roles keep their identity", () => {
   });
 });
 
+describe("a workspace's currency is fixed at creation", () => {
+  function newWorkspace(over: Record<string, unknown> = {}) {
+    return { id: "ws-new", name: "Fresh", ownerId: "owner", fyStartMonth: 1, ...over };
+  }
+
+  it("cannot be changed, even by the owner", async () => {
+    const db = env.authenticatedContext("owner").firestore();
+    await assertFails(updateDoc(doc(db, "workspaces", WS), { baseCurrency: "USD" }));
+  });
+
+  it("cannot be changed alongside an otherwise allowed edit", async () => {
+    const db = env.authenticatedContext("owner").firestore();
+    await assertFails(updateDoc(doc(db, "workspaces", WS), { name: "Renamed", baseCurrency: "USD" }));
+  });
+
+  it("the name and FY start month stay editable", async () => {
+    const db = env.authenticatedContext("owner").firestore();
+    await assertSucceeds(updateDoc(doc(db, "workspaces", WS), { name: "Renamed", fyStartMonth: 1 }));
+  });
+
+  it("a workspace from before the field existed reads as INR: editable, never re-currencied", async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), "workspaces", WS), {
+        id: WS, name: "Old book", ownerId: "owner", fyStartMonth: 4,
+      });
+    });
+    const db = env.authenticatedContext("owner").firestore();
+    await assertSucceeds(updateDoc(doc(db, "workspaces", WS), { name: "Still old" }));
+    await assertFails(updateDoc(doc(db, "workspaces", WS), { baseCurrency: "USD" }));
+    // Writing in what it already effectively is changes nothing.
+    await assertSucceeds(updateDoc(doc(db, "workspaces", WS), { baseCurrency: "INR" }));
+  });
+
+  it("create requires a three-letter upper-case code", async () => {
+    const db = env.authenticatedContext("owner").firestore();
+    for (const bad of [undefined, "usd", "US", "USDX", "₹", 840]) {
+      const data = newWorkspace(bad === undefined ? {} : { baseCurrency: bad });
+      await assertFails(setDoc(doc(db, "workspaces", "ws-new"), data));
+    }
+  });
+
+  it("create with a valid code works", async () => {
+    const db = env.authenticatedContext("owner").firestore();
+    await assertSucceeds(setDoc(doc(db, "workspaces", "ws-new"), newWorkspace({ baseCurrency: "USD" })));
+  });
+});
+
 describe("owner guardrails", () => {
   it("the owner's membership cannot be deleted while the workspace exists", async () => {
     const db = env.authenticatedContext("owner").firestore();
@@ -444,6 +496,37 @@ describe("shared ledger — connections & entries", () => {
       await setDoc(doc(ctx.firestore(), "sharedEntries", "e1"), entryDoc());
     });
     await assertFails(getDoc(doc(env.authenticatedContext(C).firestore(), "sharedEntries", "e1")));
+  });
+
+  it("an entry may carry its creator's currency", async () => {
+    const db = env.authenticatedContext(A).firestore();
+    await assertSucceeds(setDoc(doc(db, "sharedEntries", "e1"), entryDoc({ currency: "USD" })));
+  });
+
+  it("an entry without a currency is still accepted, from older app versions", async () => {
+    const db = env.authenticatedContext(A).firestore();
+    await assertSucceeds(setDoc(doc(db, "sharedEntries", "e1"), entryDoc()));
+  });
+
+  it("an entry with a malformed currency is refused", async () => {
+    const db = env.authenticatedContext(A).firestore();
+    for (const bad of ["usd", "US", "DOLLARS", "", null, 840]) {
+      await assertFails(setDoc(doc(db, "sharedEntries", "e1"), entryDoc({ currency: bad })));
+    }
+  });
+
+  it("neither party can change an entry's currency afterwards", async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), "sharedEntries", "e1"), entryDoc({ currency: "INR" }));
+    });
+    await assertFails(
+      updateDoc(doc(env.authenticatedContext(A).firestore(), "sharedEntries", "e1"), { currency: "USD" }),
+    );
+    await assertFails(
+      updateDoc(doc(env.authenticatedContext(B).firestore(), "sharedEntries", "e1"), {
+        status: "accepted", pendingForUids: [], currency: "USD",
+      }),
+    );
   });
 
   it("only the creator can delete an entry", async () => {

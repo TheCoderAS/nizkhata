@@ -690,10 +690,13 @@ class Mutations {
     await _db.collection('invites').doc(id).update({'status': 'revoked'});
   }
 
-  Future<void> updateWorkspace(String id, {String? name, String? baseCurrency, int? fyStartMonth}) async {
+  /// The currency is deliberately not editable here, or anywhere: it is fixed
+  /// when the workspace is created, because every amount in the books is a
+  /// figure in it. The rules refuse the change too; leaving it out of the
+  /// signature means no screen can even try.
+  Future<void> updateWorkspace(String id, {String? name, int? fyStartMonth}) async {
     final data = <String, dynamic>{};
     if (name != null) data['name'] = name;
-    if (baseCurrency != null) data['baseCurrency'] = baseCurrency;
     if (fyStartMonth != null) data['fyStartMonth'] = fyStartMonth;
     await _db.collection('workspaces').doc(id).update(data);
   }

@@ -5,6 +5,12 @@
 // resolve). Settlements work the same way. Balances are derived from accepted
 // entries + my own pending expense claims. Reading needs `shared.view` (the
 // route gate); creating/responding/settling needs `shared.manage`.
+//
+// Currencies. The two parties' workspaces may keep books in different
+// currencies, so every entry is shown in its OWN currency (stamped by its
+// creator), never the reader's. Anything that would write an entry into the
+// reader's books (accepting, settling, resolving) is only offered from a
+// workspace kept in that entry's currency; elsewhere the screen says why.
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -75,7 +81,7 @@ class SharedScreen extends StatelessWidget {
     final shared = context.watch<SharedController>();
     final ws = context.watch<WorkspaceController>();
     final auth = context.watch<AuthController>();
-    final currency = ws.activeWorkspace?.baseCurrency ?? 'INR';
+    final currency = ws.currency;
     final canManage = ws.can('shared.manage');
     final myUid = auth.user?.uid ?? '';
 
@@ -108,9 +114,17 @@ class SharedScreen extends StatelessWidget {
         shared.entries.where((e) => e.creatorUid == myUid && e.status == 'rejected' && !e.resolved).toList();
     final pendingInvites = shared.sentInvites.where((i) => i.status == 'pending').toList();
 
+    // The totals are sums, and only figures in one currency can be summed:
+    // they count the balances kept in this workspace's currency. Any others
+    // are still listed, in their own currency, against each partner.
     var owedToMe = 0.0;
     var iOwe = 0.0;
+    final otherCurrencies = <String>{};
     for (final b in balances) {
+      if (b.currency != currency) {
+        otherCurrencies.add(b.currency);
+        continue;
+      }
       if (b.net > 0) {
         owedToMe += b.net;
       } else {
@@ -185,6 +199,14 @@ class SharedScreen extends StatelessWidget {
                     : StatTone.neutral,
             icon: Icons.balance,
           ),
+          if (otherCurrencies.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(
+              'These totals are in $currency. Balances in '
+              '${(otherCurrencies.toList()..sort()).join(', ')} are shown against each partner below.',
+              style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
+            ),
+          ],
 
           // Inbox — awaiting my response.
           if (canManage && inbox.isNotEmpty) ...[
@@ -197,7 +219,7 @@ class SharedScreen extends StatelessWidget {
                   for (final e in inbox)
                     _InboxCard(
                       entry: e,
-                      currency: currency,
+                      bookCurrency: currency,
                       payerName: partnerName(e.payerUid),
                     ),
                 ],
@@ -209,14 +231,14 @@ class SharedScreen extends StatelessWidget {
           if (canManage && conflicts.isNotEmpty) ...[
             const SizedBox(height: 12),
             SectionCard(
-              title: 'Rejected — needs resolution',
+              title: 'Rejected, needs resolution',
               child: Column(
                 children: [
                   for (final e in conflicts)
                     ListTile(
                       contentPadding: EdgeInsets.zero,
                       title: Text('${partnerName(e.counterpartyUid)} rejected ${e.description}'),
-                      subtitle: Text(formatMoney(e.amount, currency)),
+                      subtitle: Text(formatMoney(e.amount, e.currency)),
                       trailing: OutlinedButton(
                         onPressed: () => _showConflict(context, e),
                         child: const Text('Resolve'),
@@ -257,10 +279,10 @@ class SharedScreen extends StatelessWidget {
                       for (final p in partners)
                         _PartnerTile(
                           partner: p,
-                          net: _netFor(balances, p.uid),
-                          currency: currency,
-                          canSettle: canManage && _netFor(balances, p.uid) < -0.005,
-                          onSettle: () => _showSettle(context, p, _netFor(balances, p.uid).abs()),
+                          balances: balances.where((b) => b.uid == p.uid).toList(),
+                          bookCurrency: currency,
+                          canManage: canManage,
+                          onSettle: (payable) => _showSettle(context, p, payable),
                         ),
                     ],
                   ),
@@ -280,7 +302,6 @@ class SharedScreen extends StatelessWidget {
                       for (final e in shared.entries)
                         _HistoryRow(
                           entry: e,
-                          currency: currency,
                           myUid: myUid,
                           otherName: partnerName(e.creatorUid == myUid ? e.counterpartyUid : e.creatorUid),
                         ),
@@ -290,13 +311,6 @@ class SharedScreen extends StatelessWidget {
         ],
       ),
     );
-  }
-
-  double _netFor(List<SharedBalance> balances, String uid) {
-    for (final b in balances) {
-      if (b.uid == uid) return b.net;
-    }
-    return 0;
   }
 }
 
@@ -352,41 +366,60 @@ class _StatusBadge extends StatelessWidget {
 
 // ---- partner tile ----------------------------------------------------------
 
+/// One partner, with a balance per currency the two of you share in.
+///
+/// Settling pays from one of this workspace's accounts, so it is offered only
+/// for a payable in this workspace's currency. A payable in any other currency
+/// is shown with a word on where it can be settled from.
 class _PartnerTile extends StatelessWidget {
   final _Partner partner;
-  final double net;
-  final String currency;
-  final bool canSettle;
-  final VoidCallback onSettle;
+  final List<SharedBalance> balances; // this partner's, already non-zero
+  final String bookCurrency;
+  final bool canManage;
+  final void Function(double payable) onSettle;
   const _PartnerTile({
     required this.partner,
-    required this.net,
-    required this.currency,
-    required this.canSettle,
+    required this.balances,
+    required this.bookCurrency,
+    required this.canManage,
     required this.onSettle,
   });
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final settled = net.abs() < 0.005;
-    final owesMe = net > 0;
+    double? settleable;
+    final elsewhere = <String>{};
+    for (final b in balances) {
+      if (b.net >= 0) continue;
+      if (b.currency == bookCurrency) {
+        settleable = b.net.abs();
+      } else {
+        elsewhere.add(b.currency);
+      }
+    }
+    final hint = cs.onSurfaceVariant;
+    final payable = settleable;
     return ListTile(
       contentPadding: EdgeInsets.zero,
       leading: EntityAvatar(name: partner.name),
       title: Text(partner.name),
-      subtitle: settled
-          ? Text('Settled up', style: TextStyle(color: cs.onSurfaceVariant))
-          : Align(
-              alignment: Alignment.centerLeft,
-              child: SignedAmount(
-                amount: net,
-                inbound: owesMe,
-                currency: currency,
-                fontSize: 13,
-              ),
+      subtitle: balances.isEmpty
+          ? Text('Settled up', style: TextStyle(color: hint))
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (final b in balances)
+                  SignedAmount(amount: b.net, inbound: b.net > 0, currency: b.currency, fontSize: 13),
+                if (canManage)
+                  for (final c in elsewhere)
+                    Text('Settle the $c balance from a workspace kept in $c.',
+                        style: TextStyle(fontSize: 12, color: hint)),
+              ],
             ),
-      trailing: canSettle ? OutlinedButton(onPressed: onSettle, child: const Text('Settle')) : null,
+      trailing: canManage && payable != null
+          ? OutlinedButton(onPressed: () => onSettle(payable), child: const Text('Settle'))
+          : null,
     );
   }
 }
@@ -395,12 +428,10 @@ class _PartnerTile extends StatelessWidget {
 
 class _HistoryRow extends StatelessWidget {
   final SharedEntry entry;
-  final String currency;
   final String myUid;
   final String otherName;
   const _HistoryRow({
     required this.entry,
-    required this.currency,
     required this.myUid,
     required this.otherName,
   });
@@ -444,7 +475,7 @@ class _HistoryRow extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
-                '${iPaid ? '+' : '−'}${formatMoney(entry.amount, currency)}',
+                '${iPaid ? '+' : '−'}${formatMoney(entry.amount, entry.currency)}',
                 style: TextStyle(
                   fontWeight: FontWeight.w700,
                   color: iPaid ? AppColors.accent2 : AppColors.danger,
@@ -464,9 +495,12 @@ class _HistoryRow extends StatelessWidget {
 
 class _InboxCard extends StatefulWidget {
   final SharedEntry entry;
-  final String currency;
+
+  /// This workspace's currency. The entry is shown in its own; accepting
+  /// writes it into these books, so it needs the two to match.
+  final String bookCurrency;
   final String payerName;
-  const _InboxCard({required this.entry, required this.currency, required this.payerName});
+  const _InboxCard({required this.entry, required this.bookCurrency, required this.payerName});
 
   @override
   State<_InboxCard> createState() => _InboxCardState();
@@ -512,6 +546,7 @@ class _InboxCardState extends State<_InboxCard> {
       await sm.acceptSettlement(
         entry: entry,
         workspaceId: ws,
+        bookCurrency: wsC.currency,
         fyStartMonth: fy,
         contacts: data.contacts,
         debts: data.debts,
@@ -521,6 +556,7 @@ class _InboxCardState extends State<_InboxCard> {
       await sm.acceptSharedExpense(
         entry: entry,
         workspaceId: ws,
+        bookCurrency: wsC.currency,
         fyStartMonth: fy,
         contacts: data.contacts,
         debts: data.debts,
@@ -533,6 +569,9 @@ class _InboxCardState extends State<_InboxCard> {
     final cs = Theme.of(context).colorScheme;
     final accounts = context.watch<DataController>().accounts;
     final e = widget.entry;
+    // Rejecting only answers the other person, so it is always open; accepting
+    // records the item here, so it waits for books in the item's currency.
+    final mismatch = sharedCurrencyNote(e.currency, widget.bookCurrency);
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
@@ -546,11 +585,15 @@ class _InboxCardState extends State<_InboxCard> {
           Text(e.description, style: const TextStyle(fontWeight: FontWeight.w600)),
           const SizedBox(height: 2),
           Text(
-            '${_isSettlement ? '${widget.payerName} paid you' : '${widget.payerName} paid'} · ${formatMoney(e.amount, widget.currency)}',
+            '${_isSettlement ? '${widget.payerName} paid you' : '${widget.payerName} paid'} · ${formatMoney(e.amount, e.currency)}',
             style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
           ),
           const SizedBox(height: 10),
-          if (_isSettlement) ...[
+          if (mismatch != null) ...[
+            Text(mismatch, style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
+            const SizedBox(height: 10),
+          ],
+          if (_isSettlement && mismatch == null) ...[
             DropdownButtonFormField<String>(
               value: _accountId,
               decoration: const InputDecoration(labelText: 'Into account', isDense: true),
@@ -563,8 +606,9 @@ class _InboxCardState extends State<_InboxCard> {
             children: [
               Expanded(
                 child: FilledButton.icon(
-                  onPressed:
-                      _busy || (_isSettlement && _accountId == null) ? null : () => _run(_accept, 'Accepted'),
+                  onPressed: _busy || mismatch != null || (_isSettlement && _accountId == null)
+                      ? null
+                      : () => _run(_accept, 'Accepted'),
                   icon: const Icon(Icons.check, size: 18),
                   label: const Text('Accept'),
                 ),
@@ -766,6 +810,7 @@ class _AddExpenseSheetState extends State<_AddExpenseSheet> {
     try {
       await _mutations(context).createSharedExpense(
         workspaceId: ws,
+        currency: wsC.currency,
         fyStartMonth: fy,
         accountId: _accountId!,
         description: _description.text.trim(),
@@ -792,7 +837,7 @@ class _AddExpenseSheetState extends State<_AddExpenseSheet> {
   Widget build(BuildContext context) {
     final data = context.watch<DataController>();
     final cs = Theme.of(context).colorScheme;
-    final currency = context.read<WorkspaceController>().activeWorkspace?.baseCurrency ?? 'INR';
+    final currency = context.read<WorkspaceController>().currency;
     final accounts = data.accounts;
     final expenseCats = data.categories.where((c) => c.kind == 'expense').toList();
 
@@ -817,7 +862,8 @@ class _AddExpenseSheetState extends State<_AddExpenseSheet> {
                   child: TextField(
                     controller: _amount,
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(labelText: 'Total amount', prefixText: '₹ '),
+                    decoration: InputDecoration(
+                        labelText: 'Total amount', prefixText: '${currencySymbol(currency)} '),
                     onChanged: (_) => setState(() {}),
                   ),
                 ),
@@ -962,6 +1008,7 @@ class _SettleSheetState extends State<_SettleSheet> {
         description: 'Settlement to ${widget.partner.name}',
         date: DateTime.now(),
         workspaceId: ws,
+        currency: wsC.currency,
         fyStartMonth: fy,
         accountId: _accountId!,
         contacts: data.contacts,
@@ -982,7 +1029,7 @@ class _SettleSheetState extends State<_SettleSheet> {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final currency = context.read<WorkspaceController>().activeWorkspace?.baseCurrency ?? 'INR';
+    final currency = context.read<WorkspaceController>().currency;
     final accounts = context.watch<DataController>().accounts;
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
@@ -1000,7 +1047,8 @@ class _SettleSheetState extends State<_SettleSheet> {
           TextField(
             controller: _amount,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: InputDecoration(labelText: 'Amount ($currency)', prefixText: '₹ '),
+            decoration:
+                InputDecoration(labelText: 'Amount ($currency)', prefixText: '${currencySymbol(currency)} '),
             onChanged: (_) => setState(() {}),
           ),
           const SizedBox(height: 12),
@@ -1095,6 +1143,7 @@ class _ConflictSheetState extends State<_ConflictSheet> {
       date: widget.entry.date,
       accountId: acct,
       workspaceId: ws,
+      bookCurrency: wsC.currency,
     );
   }
 
@@ -1118,6 +1167,15 @@ class _ConflictSheetState extends State<_ConflictSheet> {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final expenseCats = context.watch<DataController>().categories.where((c) => c.kind == 'expense').toList();
+    // Every way out of a conflict touches the books the expense was recorded
+    // in: its reflection is found, rewritten, re-pointed or deleted there. From
+    // books in another currency that transaction is not there to find, so the
+    // choices wait until the person is in a workspace kept in the entry's.
+    final mismatch = sharedCurrencyNote(
+      widget.entry.currency,
+      context.watch<WorkspaceController>().currency,
+    );
+    final busy = _busy || mismatch != null;
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
       child: SingleChildScrollView(
@@ -1128,9 +1186,14 @@ class _ConflictSheetState extends State<_ConflictSheet> {
             Text('Resolve rejected share', style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 8),
             Text(
-              '${widget.entry.description} was rejected. Choose how to reconcile your books — you already paid this amount.',
+              '${widget.entry.description} (${formatMoney(widget.entry.amount, widget.entry.currency)}) '
+              'was rejected. Choose how to reconcile your books. You already paid this amount.',
               style: TextStyle(color: cs.onSurfaceVariant),
             ),
+            if (mismatch != null) ...[
+              const SizedBox(height: 8),
+              Text(mismatch, style: TextStyle(color: cs.onSurfaceVariant)),
+            ],
             const SizedBox(height: 16),
             DropdownButtonFormField<String>(
               value: _categoryId,
@@ -1142,7 +1205,7 @@ class _ConflictSheetState extends State<_ConflictSheet> {
             SizedBox(
               width: double.infinity,
               child: FilledButton(
-                onPressed: _busy ? null : () => _run(_rebill, 'Re-sent for approval'),
+                onPressed: busy ? null : () => _run(_rebill, 'Re-sent for approval'),
                 child: const Text('Re-send for approval'),
               ),
             ),
@@ -1150,7 +1213,7 @@ class _ConflictSheetState extends State<_ConflictSheet> {
             SizedBox(
               width: double.infinity,
               child: OutlinedButton(
-                onPressed: _busy ? null : () => _run(() => _resolve('absorb'), 'Conflict resolved'),
+                onPressed: busy ? null : () => _run(() => _resolve('absorb'), 'Conflict resolved'),
                 child: const Text('Absorb as my expense'),
               ),
             ),
@@ -1158,7 +1221,7 @@ class _ConflictSheetState extends State<_ConflictSheet> {
             SizedBox(
               width: double.infinity,
               child: OutlinedButton(
-                onPressed: _busy ? null : () => _run(() => _resolve('remove'), 'Conflict resolved'),
+                onPressed: busy ? null : () => _run(() => _resolve('remove'), 'Conflict resolved'),
                 child: const Text("Remove the claim (it wasn't my cost)"),
               ),
             ),
@@ -1166,7 +1229,7 @@ class _ConflictSheetState extends State<_ConflictSheet> {
             SizedBox(
               width: double.infinity,
               child: TextButton(
-                onPressed: _busy ? null : () => _run(_withdraw, 'Withdrawn'),
+                onPressed: busy ? null : () => _run(_withdraw, 'Withdrawn'),
                 style: TextButton.styleFrom(foregroundColor: AppColors.danger),
                 child: const Text('Withdraw entry entirely'),
               ),
