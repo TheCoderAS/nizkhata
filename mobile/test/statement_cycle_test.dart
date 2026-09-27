@@ -49,6 +49,19 @@ Txn _payment(String id, DateTime date, double amount) => Txn(
       ],
     );
 
+/// A credit landing ON the card itself: a refund or cashback, which the app
+/// records as income against the card account.
+Txn _cardCredit(String id, DateTime date, double amount) => Txn(
+      id: id,
+      workspaceId: 'ws',
+      date: date,
+      accountId: 'cc1',
+      totalAmount: amount,
+      hasSplit: false,
+      financialYear: '2026-27',
+      lines: [TxnLine(lineId: '${id}l', type: 'income', amount: amount)],
+    );
+
 void main() {
   setUpAll(() async {
     await initializeDateFormatting('en_IN', null);
@@ -384,6 +397,94 @@ void main() {
       expect(both.last.doc['amount'], 800);
       // Amex bills on the 18th and is due on the 8th, so next month.
       expect((both.last.doc['dueDate'] as Timestamp).toDate(), DateTime(2026, 10, 8));
+    });
+  });
+
+  group('a bill the ledger no longer supports', () {
+    // Taken from a real workspace. A Flipkart Axis card billing on the 14th,
+    // due on the 30th. The bill was raised at 2,233 from four entries, and a
+    // 3,794 cashback dated INSIDE the same cycle was entered afterwards —
+    // which puts the statement into credit. The card screen then said
+    // "Nothing to pay" while the dues list still asked for 2,233.
+    final card = _card(id: 'cc1', name: 'Flipkart Axis', statementDay: 14, paymentDueDay: 30);
+    final asOf = DateTime(2026, 9, 27);
+    final billed = [
+      _spend('dress', DateTime(2026, 8, 15), 626),
+      _spend('jeans', DateTime(2026, 9, 6), 608),
+      _spend('drill', DateTime(2026, 9, 12), 1584),
+      _cardCredit('jeansRefund', DateTime(2026, 9, 12), 585),
+    ];
+    final cashback = _cardCredit('cashback', DateTime(2026, 9, 10), 3794);
+    final billId = statementDueId('cc1', DateTime(2026, 9, 14));
+
+    Due raisedBill({double amount = 2233}) => Due(
+          id: billId,
+          workspaceId: 'ws',
+          direction: 'payable',
+          title: 'Flipkart Axis bill',
+          amount: amount,
+          dueDate: DateTime(2026, 9, 30),
+          status: 'open',
+        );
+
+    test('the bill was right when it was raised', () {
+      expect(statementOutstanding(card, billed, const {}, DateTime(2026, 9, 14)), 2233);
+    });
+
+    test('the late cashback puts the statement into credit', () {
+      expect(
+        statementOutstanding(card, [...billed, cashback], const {}, DateTime(2026, 9, 14)),
+        -1561,
+      );
+    });
+
+    test('so the bill standing against it is withdrawn', () {
+      final plans = statementDuePlans(
+        accounts: [card],
+        dues: [raisedBill()],
+        txns: [...billed, cashback],
+        debtsById: const {},
+        settledOf: (_) => 0,
+        now: asOf,
+      );
+      expect(plans.length, 1);
+      expect(plans.single.dueId, billId);
+      expect(plans.single.isCancel, true);
+    });
+
+    test('a bill already part paid is left for you to sort out', () {
+      // Money has moved against it; silently withdrawing it would hide that.
+      expect(
+        statementDuePlans(
+          accounts: [card], dues: [raisedBill()], txns: [...billed, cashback],
+          debtsById: const {}, settledOf: (_) => 500, now: asOf,
+        ),
+        isEmpty,
+      );
+    });
+
+    test('one already cancelled is not cancelled again', () {
+      final cancelled = Due(
+        id: billId, workspaceId: 'ws', direction: 'payable', title: 'Flipkart Axis bill',
+        amount: 2233, dueDate: DateTime(2026, 9, 30), status: 'cancelled',
+      );
+      expect(
+        statementDuePlans(
+          accounts: [card], dues: [cancelled], txns: [...billed, cashback],
+          debtsById: const {}, settledOf: (_) => 0, now: asOf,
+        ),
+        isEmpty,
+      );
+    });
+
+    test('nothing is raised or withdrawn when no bill was ever raised', () {
+      expect(
+        statementDuePlans(
+          accounts: [card], dues: const [], txns: [...billed, cashback],
+          debtsById: const {}, settledOf: (_) => 0, now: asOf,
+        ),
+        isEmpty,
+      );
     });
   });
 
