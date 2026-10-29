@@ -456,6 +456,8 @@ class _DebtPaymentSheetState extends State<_DebtPaymentSheet> {
     final now = DateTime.now();
     final lid = now.microsecondsSinceEpoch;
     final m = Mutations(Actor.fromUser(user));
+    // Read before the write: afterwards the cached balance already includes it.
+    final outstandingBefore = data.outstandingOf(debt.id);
     setState(() => _busy = true);
     try {
       await m.createTransaction(
@@ -470,7 +472,7 @@ class _DebtPaymentSheetState extends State<_DebtPaymentSheet> {
           {'lineId': 'rep_$lid', 'type': 'repayment', 'amount': amount, 'debtId': debt.id},
         ],
       );
-      if (data.outstandingOf(debt.id) - amount <= 0.005) {
+      if (repaymentSettles(outstandingBefore, amount)) {
         await m.updateDebt(ws, debt.id, {'status': 'settled'});
       }
       if (mounted) {
