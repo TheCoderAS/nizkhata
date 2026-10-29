@@ -150,6 +150,15 @@ String debtStatusFrom(Debt debt, double outstanding) {
   return debt.status.isEmpty ? 'open' : debt.status;
 }
 
+/// Whether a repayment of [amount] clears a debt that had [outstandingBefore]
+/// left to pay before it.
+///
+/// The balance must be read BEFORE the repayment is written: Firestore applies
+/// a local write to the cached data at once, so a balance read afterwards has
+/// already had the repayment taken off, and taking it off again would close a
+/// debt that still has money left on it.
+bool repaymentSettles(double outstandingBefore, double amount) => outstandingBefore - amount <= 0.005;
+
 /// True when a debt still has something left to pay.
 bool debtIsOutstanding(Debt debt, double outstanding) => debtStatusFrom(debt, outstanding) != 'settled';
 
