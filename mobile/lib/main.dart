@@ -278,7 +278,15 @@ class _RootState extends State<_Root> with WidgetsBindingObserver {
       try {
         if (plan.isCancel) {
           // The statement it was raised from owes nothing any more.
-          await m.updateDue(wsId, plan.dueId, {'status': 'cancelled'});
+          await m.updateDue(wsId, plan.dueId, plan.doc);
+        } else if (plan.isRestore) {
+          // Withdrawn earlier, owed again now.
+          await m.updateDue(wsId, plan.dueId, {
+            'status': 'open',
+            'autoWithdrawn': false,
+            'amount': plan.doc['amount'],
+            'lines': plan.doc['lines'],
+          });
         } else if (plan.isUpdate) {
           await m.updateDue(wsId, plan.dueId, {
             'amount': plan.doc['amount'],
@@ -287,9 +295,10 @@ class _RootState extends State<_Root> with WidgetsBindingObserver {
         } else {
           await m.createDue(wsId, plan.doc, id: plan.dueId);
         }
-      } catch (_) {
+      } catch (e) {
         // Another device may have raised it first — which is exactly what the
         // deterministic id is for. Skip quietly.
+        debugPrint('statement bill ${plan.dueId}: $e');
       }
     }
   }

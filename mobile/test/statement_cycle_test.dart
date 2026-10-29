@@ -456,8 +456,12 @@ void main() {
       // Money has moved against it; silently withdrawing it would hide that.
       expect(
         statementDuePlans(
-          accounts: [card], dues: [raisedBill()], txns: [...billed, cashback],
-          debtsById: const {}, settledOf: (_) => 500, now: asOf,
+          accounts: [card],
+          dues: [raisedBill()],
+          txns: [...billed, cashback],
+          debtsById: const {},
+          settledOf: (_) => 500,
+          now: asOf,
         ),
         isEmpty,
       );
@@ -465,13 +469,22 @@ void main() {
 
     test('one already cancelled is not cancelled again', () {
       final cancelled = Due(
-        id: billId, workspaceId: 'ws', direction: 'payable', title: 'Flipkart Axis bill',
-        amount: 2233, dueDate: DateTime(2026, 9, 30), status: 'cancelled',
+        id: billId,
+        workspaceId: 'ws',
+        direction: 'payable',
+        title: 'Flipkart Axis bill',
+        amount: 2233,
+        dueDate: DateTime(2026, 9, 30),
+        status: 'cancelled',
       );
       expect(
         statementDuePlans(
-          accounts: [card], dues: [cancelled], txns: [...billed, cashback],
-          debtsById: const {}, settledOf: (_) => 0, now: asOf,
+          accounts: [card],
+          dues: [cancelled],
+          txns: [...billed, cashback],
+          debtsById: const {},
+          settledOf: (_) => 0,
+          now: asOf,
         ),
         isEmpty,
       );
@@ -480,11 +493,93 @@ void main() {
     test('nothing is raised or withdrawn when no bill was ever raised', () {
       expect(
         statementDuePlans(
-          accounts: [card], dues: const [], txns: [...billed, cashback],
-          debtsById: const {}, settledOf: (_) => 0, now: asOf,
+          accounts: [card],
+          dues: const [],
+          txns: [...billed, cashback],
+          debtsById: const {},
+          settledOf: (_) => 0,
+          now: asOf,
         ),
         isEmpty,
       );
+    });
+  });
+
+  group('a withdrawn bill that is owed again', () {
+    // The statement briefly read as owing nothing (an entry edited or
+    // re-imported) and the sync withdrew its bill. Then the entries came back.
+    final now = DateTime(2026, 9, 20);
+    final owing = [_spend('t1', DateTime(2026, 8, 20), 3000)];
+    final id = statementDueId('cc1', DateTime(2026, 9, 5));
+
+    Due cancelled({bool auto = true}) => Due(
+          id: id,
+          workspaceId: 'ws',
+          direction: 'payable',
+          title: 'HDFC Regalia bill',
+          amount: 3000,
+          dueDate: DateTime(2026, 9, 25),
+          status: 'cancelled',
+          autoWithdrawn: auto,
+        );
+
+    List<StatementDuePlan> plans(List<Due> dues, List<Txn> txns, {double settled = 0}) => statementDuePlans(
+          accounts: [_card()],
+          dues: dues,
+          txns: txns,
+          debtsById: const {},
+          settledOf: (_) => settled,
+          now: now,
+        );
+
+    test('the sync marks a bill it withdraws as its own doing', () {
+      final open = Due(
+        id: id,
+        workspaceId: 'ws',
+        direction: 'payable',
+        title: 'HDFC Regalia bill',
+        amount: 3000,
+        dueDate: DateTime(2026, 9, 25),
+        status: 'open',
+      );
+      final p = plans([open], const []).single;
+      expect(p.isCancel, true);
+      expect(p.doc['autoWithdrawn'], true);
+    });
+
+    test('goes back on the dues list for what the statement says now', () {
+      final p = plans([cancelled()], owing).single;
+      expect(p.isRestore, true);
+      expect(p.doc['status'], 'open');
+      expect(p.doc['amount'], 3000);
+    });
+
+    test('a bill you cancelled yourself stays cancelled', () {
+      expect(plans([cancelled(auto: false)], owing), isEmpty);
+    });
+
+    test('is not put back once it has been paid', () {
+      expect(plans([cancelled()], [...owing, _payment('p1', DateTime(2026, 9, 10), 3000)]), isEmpty);
+    });
+
+    test('is not put back while it still owes nothing', () {
+      expect(plans([cancelled()], const []), isEmpty);
+    });
+  });
+
+  group('a payment entered ahead of time', () {
+    test('does not count as paid before its date', () {
+      // Entered on the 6th for the 25th, the due date. Until then the bill is
+      // unpaid and belongs on the dues list.
+      final p = statementDuePlans(
+        accounts: [_card()],
+        dues: const [],
+        txns: [_spend('t1', DateTime(2026, 8, 20), 3000), _payment('p1', DateTime(2026, 9, 25), 3000)],
+        debtsById: const {},
+        settledOf: (_) => 0,
+        now: DateTime(2026, 9, 6),
+      );
+      expect(p.single.doc['amount'], 3000);
     });
   });
 

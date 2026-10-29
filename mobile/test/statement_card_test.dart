@@ -50,7 +50,8 @@ void main() {
     await initializeDateFormatting('en_IN', null);
   });
 
-  Future<void> pump(WidgetTester tester, Account card, List<Txn> txns) async {
+  Future<void> pump(WidgetTester tester, Account card, List<Txn> txns,
+      {Due? bill, VoidCallback? onRestore}) async {
     // 360dp: the row of figures has to survive a real phone.
     tester.view.physicalSize = const Size(360, 800);
     tester.view.devicePixelRatio = 1.0;
@@ -66,6 +67,8 @@ void main() {
           // Pinned rather than DateTime.now(), so the assertions below mean the
           // same thing in every month this suite is ever run.
           now: DateTime(2026, 9, 20),
+          bill: bill,
+          onRestore: onRestore,
         ),
       ),
     ));
@@ -116,6 +119,59 @@ void main() {
     expect(find.text('Nothing to pay'), findsOneWidget);
     // No date nagging on a bill with nothing to pay.
     expect(find.textContaining('Due in'), findsNothing);
+  });
+
+  group('after a payment', () {
+    final billed = _spend('t1', DateTime(2026, 8, 20), 3000);
+
+    testWidgets('a bill paid in full says so, and stops counting down', (tester) async {
+      await pump(tester, _card(), [billed, _payment('p1', DateTime(2026, 9, 10), 3000)]);
+      expect(find.text('Paid'), findsOneWidget);
+      expect(find.textContaining('Due in'), findsNothing);
+    });
+
+    testWidgets('paying the bill is not counted as negative spending', (tester) async {
+      await pump(tester, _card(), [billed, _payment('p1', DateTime(2026, 9, 10), 3000)]);
+      expect(find.textContaining('spent since'), findsNothing);
+    });
+
+    testWidgets('a part payment shows what is left', (tester) async {
+      await pump(tester, _card(), [billed, _payment('p1', DateTime(2026, 9, 10), 1000)]);
+      expect(find.text('₹1,000.00 paid, ₹2,000.00 left'), findsOneWidget);
+      expect(find.text('Due in 5 days · by 25 Sept 2026'), findsOneWidget);
+    });
+  });
+
+  group('a bill missing from the dues list', () {
+    final billed = _spend('t1', DateTime(2026, 8, 20), 3000);
+    Due cancelled() => Due(
+          id: 'stmt_cc1_20260905',
+          workspaceId: 'ws',
+          direction: 'payable',
+          title: 'HDFC Regalia bill',
+          amount: 3000,
+          dueDate: DateTime(2026, 9, 25),
+          status: 'cancelled',
+        );
+
+    testWidgets('says so and offers to put it back', (tester) async {
+      var restored = 0;
+      await pump(tester, _card(), [billed], bill: cancelled(), onRestore: () => restored++);
+      expect(find.text('Not on your dues list'), findsOneWidget);
+      await tester.tap(find.text('Restore'));
+      expect(restored, 1);
+    });
+
+    testWidgets('offers nothing to someone who cannot manage dues', (tester) async {
+      await pump(tester, _card(), [billed], bill: cancelled());
+      expect(find.text('Not on your dues list'), findsOneWidget);
+      expect(find.text('Restore'), findsNothing);
+    });
+
+    testWidgets('is quiet when the bill has been paid anyway', (tester) async {
+      await pump(tester, _card(), [billed, _payment('p1', DateTime(2026, 9, 10), 3000)], bill: cancelled());
+      expect(find.text('Not on your dues list'), findsNothing);
+    });
   });
 
   group('the credit limit', () {
