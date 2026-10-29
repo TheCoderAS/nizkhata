@@ -165,8 +165,7 @@ class Account {
 
   /// True once this card knows when it bills and when the bill is due — the
   /// point from which statements can be worked out at all.
-  bool get hasBillingCycle =>
-      type == 'credit_card' && statementDay != null && paymentDueDay != null;
+  bool get hasBillingCycle => type == 'credit_card' && statementDay != null && paymentDueDay != null;
 }
 
 class AppCategory {
@@ -368,6 +367,10 @@ class Due {
   // Which instance of the series this is: 1 for the one you created, 2 for the
   // first the engine spawned. Backs the `{#}` placeholder.
   final int occurrence;
+  // Set when the sync withdrew a card bill because its statement stopped
+  // owing anything. Unlike a bill you cancelled yourself, such a bill is put
+  // back if the statement comes to owe money again.
+  final bool autoWithdrawn;
   Due({
     required this.id,
     required this.workspaceId,
@@ -386,6 +389,7 @@ class Due {
     this.titlePattern,
     this.notePattern,
     this.occurrence = 1,
+    this.autoWithdrawn = false,
   });
   factory Due.fromDoc(DocumentSnapshot d) {
     final m = d.data() as Map<String, dynamic>;
@@ -407,10 +411,8 @@ class Due {
       titlePattern: m['titlePattern'],
       notePattern: m['notePattern'],
       occurrence: (m['occurrence'] as num?)?.toInt() ?? 1,
-      lines: rawLines
-          .whereType<Map>()
-          .map((l) => TxnLine.fromMap(Map<String, dynamic>.from(l)))
-          .toList(),
+      autoWithdrawn: m['autoWithdrawn'] == true,
+      lines: rawLines.whereType<Map>().map((l) => TxnLine.fromMap(Map<String, dynamic>.from(l))).toList(),
     );
   }
 }

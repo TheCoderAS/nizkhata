@@ -15,7 +15,9 @@ import '../core/format.dart';
 import '../core/theme.dart';
 import '../data/derive.dart';
 import '../data/models.dart';
+import '../data/mutations.dart';
 import '../services/statement_cycle.dart';
+import '../state/auth_controller.dart';
 import '../state/data_controller.dart';
 import 'transaction_detail.dart';
 import '../state/workspace_controller.dart';
@@ -215,6 +217,8 @@ class _AccountLedgerScreenState extends State<AccountLedgerScreen> {
                 txns: data.transactions,
                 debtsById: data.debtsById,
                 currency: currency,
+                bill: _liveBill(account, data.dues),
+                onRestore: ws.can('dues.manage') ? () => _restoreBill(context, account) : null,
               ),
             ),
           Padding(
@@ -369,6 +373,45 @@ class _SummaryTile extends StatelessWidget {
 /// It reads the cycle rather than the due, so it says something useful from the
 /// moment the cycle is set up — before the sync has raised anything, and on a
 /// card whose bill you have already dismissed.
+/// The dues entry raised for [card]'s live statement, if any.
+Due? _liveBill(Account card, List<Due> dues) {
+  final cycle = latestStatement(card, DateTime.now());
+  if (cycle == null) return null;
+  final id = statementDueId(card.id, cycle.statementDate);
+  for (final d in dues) {
+    if (d.id == id) return d;
+  }
+  return null;
+}
+
+/// Put a cancelled card bill back on the dues list, for what the statement
+/// says today.
+Future<void> _restoreBill(BuildContext context, Account card) async {
+  final data = context.read<DataController>();
+  final wsId = context.read<WorkspaceController>().activeWorkspaceId;
+  final user = context.read<AuthController>().user;
+  final position = statementPosition(card, data.transactions, data.debtsById, DateTime.now());
+  if (wsId == null || user == null || position == null) return;
+  final doc = statementDueDoc(card, position.cycle, position.billed);
+  try {
+    await Mutations(Actor.fromUser(user))
+        .updateDue(wsId, statementDueId(card.id, position.cycle.statementDate), {
+      'status': 'open',
+      'autoWithdrawn': false,
+      'amount': doc['amount'],
+      'lines': doc['lines'],
+    });
+    if (context.mounted) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Bill is back on your dues list')));
+    }
+  } catch (e) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Couldn't restore the bill: $e")));
+    }
+  }
+}
+
 class StatementSummary extends StatelessWidget {
   final Account card;
   final List<Txn> txns;
@@ -378,6 +421,13 @@ class StatementSummary extends StatelessWidget {
   /// Injectable so the countdown can be asserted against a fixed day.
   final DateTime? now;
 
+  /// The dues entry raised for the live statement, if there is one.
+  final Due? bill;
+
+  /// Puts a cancelled bill back on the dues list. Null when the viewer may
+  /// not manage dues.
+  final VoidCallback? onRestore;
+
   const StatementSummary({
     super.key,
     required this.card,
@@ -385,6 +435,8 @@ class StatementSummary extends StatelessWidget {
     required this.debtsById,
     required this.currency,
     this.now,
+    this.bill,
+    this.onRestore,
   });
 
   @override
@@ -392,15 +444,20 @@ class StatementSummary extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final now = this.now ?? DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
-    final cycle = latestStatement(card, now);
-    if (cycle == null) return const SizedBox.shrink();
-
-    final owed = statementOutstanding(card, txns, debtsById, cycle.statementDate);
+    // The same reading the dues sync makes, so the two never disagree.
+    final position = statementPosition(card, txns, debtsById, now);
+    if (position == null) return const SizedBox.shrink();
+    final cycle = position.cycle;
+    final owed = position.billed;
     final days = cycle.paymentDue.difference(today).inDays;
-    final settled = owed <= 0.005;
+    final settled = position.owesNothing;
+    final paid = position.isPaid;
+    final partPaid = !settled && !paid && position.paidSince > 0.005;
+    final dropped = !settled && !paid && bill?.status == 'cancelled';
 
     final (String status, Color tone) = switch (days) {
       _ when settled => ('Nothing to pay', cs.onSurfaceVariant),
+      _ when paid => ('Paid', AppColors.accent2),
       < 0 => ('Overdue by ${-days} ${-days == 1 ? 'day' : 'days'}', AppColors.danger),
       0 => ('Due today', AppColors.warning),
       <= 3 => ('Due in $days ${days == 1 ? 'day' : 'days'}', AppColors.warning),
@@ -409,7 +466,9 @@ class StatementSummary extends StatelessWidget {
 
     // Spend since the statement is next month's bill, not this one's — worth
     // saying, because the card's current balance shows the two added together.
-    final sinceStatement = roundMoney(statementOutstanding(card, txns, debtsById, today) - owed);
+    // Payments since are added back: paying this bill is not negative spending.
+    final sinceStatement =
+        roundMoney(statementOutstanding(card, txns, debtsById, today) - owed + position.paidSince);
 
     final limit = card.creditLimit;
     final usedNow = statementOutstanding(card, txns, debtsById, today);
@@ -439,9 +498,30 @@ class StatementSummary extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             Text(
-              settled ? status : '$status · by ${formatDate(cycle.paymentDue)}',
+              settled || paid ? status : '$status · by ${formatDate(cycle.paymentDue)}',
               style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: tone),
             ),
+            if (partPaid) ...[
+              const SizedBox(height: 4),
+              Text(
+                '${formatMoney(position.paidSince, currency)} paid, ${formatMoney(position.remaining, currency)} left',
+                style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
+              ),
+            ],
+            if (dropped)
+              Row(
+                children: [
+                  Icon(Icons.event_busy, size: 14, color: cs.onSurfaceVariant),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'Not on your dues list',
+                      style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
+                    ),
+                  ),
+                  if (onRestore != null) TextButton(onPressed: onRestore, child: const Text('Restore')),
+                ],
+              ),
             if (sinceStatement.abs() > 0.005) ...[
               const SizedBox(height: 10),
               Text(

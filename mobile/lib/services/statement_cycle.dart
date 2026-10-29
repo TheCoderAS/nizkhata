@@ -104,20 +104,62 @@ double statementOutstanding(
 /// Purchases made afterwards are not netted off. Paying a bill settles it
 /// whatever you spend the next day — the new spending belongs to the next
 /// statement, exactly as the bank treats it.
+///
+/// With [until], credits dated after that day are left out: a payment entered
+/// ahead for the due date has not reached the card yet.
 double creditedSince(
   Account card,
   List<Txn> txns,
   Map<String, Debt> debtsById,
-  DateTime since,
-) {
+  DateTime since, {
+  DateTime? until,
+}) {
   final from = DateTime(since.year, since.month, since.day).add(const Duration(days: 1));
+  final to = until == null ? null : DateTime(until.year, until.month, until.day).add(const Duration(days: 1));
   var total = 0.0;
   for (final txn in txns) {
     if (txn.date.isBefore(from)) continue;
+    if (to != null && !txn.date.isBefore(to)) continue;
     final delta = accountDeltas(txn, debtsById)[card.id] ?? 0;
     if (delta > 0) total += delta;
   }
   return roundMoney(total);
+}
+
+/// Where a card's live statement stands today: what it billed, what has been
+/// credited to the card since, and what is still to pay.
+///
+/// The ledger card and the dues sync both read this, so the card can never
+/// show a bill as due that the dues list has decided is paid, or the reverse.
+class StatementPosition {
+  final StatementCycle cycle;
+
+  /// The statement's closing balance, positive when something is payable.
+  final double billed;
+
+  /// Payments and refunds credited to the card since the statement, up to today.
+  final double paidSince;
+
+  const StatementPosition(this.cycle, this.billed, this.paidSince);
+
+  bool get owesNothing => billed <= 0.005;
+  double get remaining => roundMoney(billed - paidSince);
+  bool get isPaid => !owesNothing && remaining <= 0.005;
+}
+
+StatementPosition? statementPosition(
+  Account card,
+  List<Txn> txns,
+  Map<String, Debt> debtsById,
+  DateTime now,
+) {
+  final cycle = latestStatement(card, now);
+  if (cycle == null) return null;
+  return StatementPosition(
+    cycle,
+    statementOutstanding(card, txns, debtsById, cycle.statementDate),
+    creditedSince(card, txns, debtsById, cycle.statementDate, until: now),
+  );
 }
 
 /// Deterministic id for a card's bill, so every device and every run agrees on
@@ -177,7 +219,12 @@ class StatementDuePlan {
   /// True when the bill should be withdrawn: the statement it was raised from
   /// no longer owes anything.
   final bool isCancel;
-  const StatementDuePlan(this.dueId, this.doc, {this.isUpdate = false, this.isCancel = false});
+
+  /// True when a bill the sync withdrew earlier is owed again and goes back on
+  /// the dues list.
+  final bool isRestore;
+  const StatementDuePlan(this.dueId, this.doc,
+      {this.isUpdate = false, this.isCancel = false, this.isRestore = false});
 }
 
 /// The bill dues that ought to exist right now, and the ones whose amount has
@@ -203,10 +250,10 @@ List<StatementDuePlan> statementDuePlans({
   final out = <StatementDuePlan>[];
 
   for (final card in accounts) {
-    final cycle = latestStatement(card, now);
-    if (cycle == null) continue;
-
-    final owed = statementOutstanding(card, txns, debtsById, cycle.statementDate);
+    final position = statementPosition(card, txns, debtsById, now);
+    if (position == null) continue;
+    final cycle = position.cycle;
+    final owed = position.billed;
     final id = statementDueId(card.id, cycle.statementDate);
     final existing = byId[id];
 
@@ -216,10 +263,8 @@ List<StatementDuePlan> statementDuePlans({
     // for money that was never owed. Withdraw it rather than leave the dues
     // list contradicting the card's own "Nothing to pay".
     if (owed <= 0.005) {
-      if (existing != null &&
-          existing.status != 'cancelled' &&
-          settledOf(id) <= 0.005) {
-        out.add(StatementDuePlan(id, const {'status': 'cancelled'}, isCancel: true));
+      if (existing != null && existing.status != 'cancelled' && settledOf(id) <= 0.005) {
+        out.add(StatementDuePlan(id, const {'status': 'cancelled', 'autoWithdrawn': true}, isCancel: true));
       }
       continue;
     }
@@ -231,13 +276,19 @@ List<StatementDuePlan> statementDuePlans({
       // sync after a cycle is set up looks back at last month's, and by then
       // that bill is usually settled. Raising it would ask for money already
       // sent, dated in the past, so it would land overdue as well as wrong.
-      if (owed - creditedSince(card, txns, debtsById, cycle.statementDate) <= 0.005) {
-        continue;
-      }
+      if (position.isPaid) continue;
       out.add(StatementDuePlan(id, doc));
       continue;
     }
-    if (existing.status == 'cancelled') continue; // dismissed on purpose
+    if (existing.status == 'cancelled') {
+      // Withdrawn by this sync while the statement briefly owed nothing (an
+      // entry edited or re-imported, say), and owed again now: put it back.
+      // A bill you cancelled yourself carries no such mark and stays gone.
+      if (existing.autoWithdrawn && settledOf(id) <= 0.005 && !position.isPaid) {
+        out.add(StatementDuePlan(id, {...doc, 'status': 'open', 'autoWithdrawn': false}, isRestore: true));
+      }
+      continue;
+    }
     if (settledOf(id) > 0.005) continue; // part paid: the figure is now history
     if ((existing.amount - owed).abs() > 0.005) {
       out.add(StatementDuePlan(id, doc, isUpdate: true));
