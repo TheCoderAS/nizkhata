@@ -1,0 +1,38 @@
+Niz Khata is the khata, the ledger book, rebuilt for your phone. Keep track of what you spend, what is due, what you lent and borrowed, and every credit card bill, shared with the people it involves, in your own currency.
+
+EVERY TRANSACTION, SPLIT THE WAY IT WENT
+Record a payment once and split it into lines: groceries, household and a delivery fee, each with its own category. Transfers between your own accounts are transfers, never spending counted twice. Repeating entries title themselves, like "Rent · {MMM}" or "EMI {#} of 24".
+
+DUES THAT REMIND YOU
+Rent, school fees, a friend's share of dinner: every due has a date and a direction, money coming in or going out. Get reminders on the day, let monthly and yearly dues schedule themselves, and keep what is due in sight on your home-screen widget and calendar.
+
+CREDIT CARD BILLS THAT RAISE THEMSELVES
+Set the day your statement is drawn and the day it is due. On statement day the bill appears in your dues for exactly what the card shows, and keeps itself in step if a late purchase or refund lands in the cycle. See how much of your limit is used at a glance.
+
+EVERY PERSON HAS A PAGE
+Money lent or borrowed, with part repayments, kept as a running ledger for each contact. Send anyone a clean statement as a PDF or a message.
+
+IMPORT YOUR BANK STATEMENT
+Bring in the CSV, Excel or PDF your bank sends, even a password-protected one. Niz Khata reads it on your phone, works out the columns, dates and number format, and shows every row for you to check before anything is saved. The file never leaves your device.
+
+SPLIT WITH FRIENDS WHO KEEP THEIR OWN BOOKS
+Add a shared expense with someone else who uses Niz Khata and it lands in their app to accept. Each of you keeps your own books; only the entries between you are shared, and nothing is added without consent.
+
+WORKSPACES FOR HOUSEHOLD, SHOP OR TRIP
+Keep separate workspaces and invite people with the right role: a partner who can edit, an accountant who can view and export, a member limited to their own records. Every change is kept in the history.
+
+ANY CURRENCY
+Choose a workspace's currency from 32, and every figure follows it: the symbol, the decimals and the grouping. Lakhs and crores for rupees, millions for dollars, no decimals for yen.
+
+REPORTS AND BUDGETS
+See spending by category and month, set monthly or yearly budgets, and export to CSV. In India, a tax pack with every TDS entry is ready for your accountant.
+
+PRIVATE BY DESIGN
+• No ads, no analytics, no tracking. Nothing is sold.
+• Bank statements and their passwords stay on your phone.
+• App lock with fingerprint or screen lock.
+• Delete your account and every record from the app, any time.
+
+Niz Khata is a record-keeping app. It does not hold, lend or move money, and is not financial advice.
+
+Made by Valorum Labs · nizkhata.valorumlabs.com
