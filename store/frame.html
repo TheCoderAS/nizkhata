@@ -1,0 +1,24 @@
+<!doctype html><html><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;700;800&family=Instrument+Serif:ital@1&display=swap" rel="stylesheet">
+<style>
+html,body{margin:0;width:1080px;height:1920px;overflow:hidden}
+body{position:relative;font-family:Inter,sans-serif;color:#ECEEF6;background:#0B0F1C}
+.bg{position:absolute;inset:0;background:
+ radial-gradient(700px 520px at 15% 8%,rgba(79,70,229,.55),transparent 70%),
+ radial-gradient(620px 520px at 95% 30%,rgba(124,58,237,.42),transparent 70%),
+ radial-gradient(700px 500px at 50% 105%,rgba(16,185,129,.18),transparent 70%)}
+.paper{position:absolute;inset:0;background:linear-gradient(90deg,transparent 0 70px,rgba(248,113,113,.14) 70px 72px,transparent 72px),repeating-linear-gradient(180deg,transparent 0 47px,rgba(255,255,255,.035) 47px 48px)}
+.cap{position:absolute;top:110px;left:0;right:0;text-align:center;padding:0 70px}
+.cap h1{margin:0;font-size:78px;font-weight:800;letter-spacing:-2.4px;line-height:1.04}
+.cap h1 i{display:block;font-family:"Instrument Serif",serif;font-weight:400;color:#C4B5FD;font-size:1.12em;letter-spacing:-1px}
+.phone{position:absolute;left:50%;top:420px;width:640px;transform:translateX(-50%);padding:16px;border-radius:84px;
+ background:linear-gradient(145deg,#2A3150,#12172A);box-shadow:0 50px 120px rgba(0,0,0,.6),0 0 0 2px rgba(255,255,255,.08) inset,0 0 160px rgba(79,70,229,.35)}
+.phone img{display:block;width:100%;border-radius:68px}
+</style></head><body><div class="bg"></div><div class="paper"></div>
+<div class="cap"><h1 id="t1"></h1></div>
+<div class="phone"><img id="shot"></div>
+<script>
+const q=new URLSearchParams(location.search);
+document.getElementById('shot').src='raw/'+q.get('img')+'.png';
+const h=document.getElementById('t1'); h.textContent=q.get('a'); const i=document.createElement('i'); i.textContent=q.get('b'); h.appendChild(i);
+</script></body></html>
