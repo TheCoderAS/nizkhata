@@ -71,7 +71,8 @@ const kCurrencies = <CurrencySpec>[
   CurrencySpec('KRW', 'South Korean won', '₩', decimals: 0),
   CurrencySpec('MYR', 'Malaysian ringgit', 'RM '),
   CurrencySpec('THB', 'Thai baht', '฿'),
-  CurrencySpec('IDR', 'Indonesian rupiah', 'Rp '),
+  // ISO gives the rupiah two decimals, but nobody in Indonesia writes them.
+  CurrencySpec('IDR', 'Indonesian rupiah', 'Rp ', decimals: 0),
   CurrencySpec('PHP', 'Philippine peso', '₱'),
   CurrencySpec('PKR', 'Pakistani rupee', 'Rs ', grouping: DigitGrouping.southAsian, defaultFyStartMonth: 7),
   CurrencySpec('BDT', 'Bangladeshi taka', '৳', grouping: DigitGrouping.southAsian, defaultFyStartMonth: 7),

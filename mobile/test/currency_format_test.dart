@@ -56,6 +56,13 @@ void main() {
       expect(formatMoneyCompact(999, 'JPY'), '¥999');
     });
 
+    test('the rupiah has none: Indonesia writes whole rupiah', () {
+      expect(formatMoney(150000, 'IDR'), 'Rp 150,000');
+      expect(formatMoney(1234567.4, 'IDR'), 'Rp 1,234,567');
+      MoneyContext.currency = 'IDR';
+      expect(roundMoney(2500.6), 2501);
+    });
+
     test('the Kuwaiti dinar has three', () {
       expect(formatMoney(12.345, 'KWD'), 'KWD 12.345');
     });
