@@ -44,7 +44,7 @@ jobs:
             if (!rw) { console.error('assetlinks rewrite missing — Android App Links would break'); process.exit(1); }
             // Google Play links to these two pages; both must exist and carry a
             // real contact address, never the placeholder they were drafted with.
-            for (const f of ['landing/privacy.html', 'landing/delete-account.html']) {
+            for (const f of ['landing/privacy.html', 'landing/delete-account.html', 'landing/terms.html']) {
               if (!fs.existsSync(f)) { console.error('missing ' + f); process.exit(1); }
               if (fs.readFileSync(f, 'utf8').includes('__CONTACT_EMAIL__')) {
                 console.error(f + ' still has the contact placeholder'); process.exit(1);
