@@ -7,14 +7,16 @@
 // set in Noto Sans, embedded from assets/fonts/, rather than the built-in
 // Helvetica, which only knows Latin-1: no ₹, no €, and no names in any script
 // but Latin. The embedded font is Noto Sans (Latin, Devanagari, the currency
-// signs) with Noto Sans Arabic merged in, pinned to static Regular and Bold
-// instances and cut down to those scripts, about 140 KB a weight. What it can
+// signs) with Noto Sans Arabic and Noto Sans Thai merged in, pinned to
+// static Regular and Bold instances and cut down to those scripts, about
+// 155 KB a weight. What it can
 // and cannot do is spelled out on [pdfSafe].
 
 import 'dart:async';
 import 'dart:typed_data';
 import 'dart:ui' show Color, Offset, Rect;
 
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter/services.dart' show AssetBundle, rootBundle;
 import 'package:intl/intl.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
@@ -146,6 +148,8 @@ bool _covered(int r) =>
     (r >= 0x2B0 && r <= 0x36F) ||
     (r >= 0x600 && r <= 0x6FF) ||
     (r >= 0x900 && r <= 0x97F) ||
+    (r >= 0xE00 && r <= 0xE7F) ||
+    (r >= 0xF700 && r <= 0xF716) ||
     (r >= 0x1CD0 && r <= 0x1CFF) ||
     (r >= 0x1E00 && r <= 0x1EFF) ||
     (r >= 0x2000 && r <= 0x206F) ||
@@ -157,6 +161,55 @@ bool _covered(int r) =>
     (r >= 0xFB50 && r <= 0xFBFF) ||
     (r >= 0xFE70 && r <= 0xFEFF);
 
+// Thai mark placement. The PDF library ignores the font's positioning rules,
+// so marks that would collide are switched to the raised or left-shifted
+// copies tool/pdf_font/add_thai.py adds at these private-use code points.
+const _thaiUpperVowels = [0x0E31, 0x0E34, 0x0E35, 0x0E36, 0x0E37, 0x0E47];
+const _thaiTones = [0x0E48, 0x0E49, 0x0E4A, 0x0E4B, 0x0E4C];
+const _thaiNikhahit = 0x0E4D;
+const _thaiSaraAm = 0x0E33;
+const _thaiTall = {0x0E1B, 0x0E1D, 0x0E1F, 0x0E2C}; // ป ฝ ฟ ฬ
+const _puaToneRaised = 0xF70A, _puaToneLeft = 0xF705, _puaToneRaisedLeft = 0xF700;
+const _puaUpperLeft = 0xF710, _puaNikhahitLeft = 0xF716;
+
+/// [runes] with Thai marks moved where the font's own rules would put them:
+/// a tone mark over an upper vowel (ที่), or before sara am (น้ำ), is raised
+/// above it, and marks over a tall consonant (ป ฝ ฟ ฬ) move left of its
+/// stroke.
+@visibleForTesting
+List<int> thaiForPdf(List<int> runes) {
+  final out = <int>[];
+  var tall = false;
+  for (var i = 0; i < runes.length; i++) {
+    final r = runes[i];
+    if (r >= 0x0E01 && r <= 0x0E2E) {
+      tall = _thaiTall.contains(r);
+      out.add(r);
+      continue;
+    }
+    final upper = _thaiUpperVowels.indexOf(r);
+    if (upper >= 0) {
+      out.add(tall ? _puaUpperLeft + upper : r);
+      continue;
+    }
+    final tone = _thaiTones.indexOf(r);
+    if (tone >= 0) {
+      final raised = (i > 0 && _thaiUpperVowels.contains(runes[i - 1])) ||
+          (i + 1 < runes.length && runes[i + 1] == _thaiSaraAm);
+      out.add(raised
+          ? (tall ? _puaToneRaisedLeft : _puaToneRaised) + tone
+          : (tall ? _puaToneLeft + tone : r));
+      continue;
+    }
+    if (r == _thaiNikhahit && tall) {
+      out.add(_puaNikhahitLeft);
+      continue;
+    }
+    out.add(r);
+  }
+  return out;
+}
+
 const _devanagariShortI = 0x093F;
 const _devanagariNukta = 0x093C;
 
@@ -167,7 +220,7 @@ bool _devanagariConsonant(int r) => (r >= 0x915 && r <= 0x939) || (r >= 0x958 &&
 /// With the embedded font ([embedded]), what renders, checked by rendering
 /// and looking, not assumed:
 ///  * Latin, including accented and Vietnamese letters, and every currency
-///    sign the app offers except the baht and the taka (฿ ৳): correct.
+///    sign the app offers except the taka (৳): correct.
 ///  * Arabic: correct, letters joined and right to left, alone or inside an
 ///    English line, as long as the text is drawn with [PdfFonts.format].
 ///  * Devanagari: legible but not typeset properly. Syncfusion does not apply
@@ -175,7 +228,12 @@ bool _devanagariConsonant(int r) => (r >= 0x915 && r <= 0x939) || (r >= 0x958 &&
 ///    क्‌ष) and a reph is written out (र्म as र्‌म). The one fix made here is
 ///    moving the short-i sign (ि) before its consonant, as shaping would, so
 ///    that simple syllables such as अमित and हिंदी come out right.
-///  * Anything else (Chinese, Tamil, Bengali, Thai, Greek, Cyrillic, emoji):
+///  * Thai, and the baht sign: drawn from Noto Sans Thai. Syncfusion does not
+///    apply the font's mark positioning, so [thaiForPdf] does the part that
+///    matters: tone marks stacked over a vowel are raised, and marks over a
+///    tall consonant move clear of its stroke. A PDF's copied text keeps
+///    those marks as private-use characters.
+///  * Anything else (Chinese, Tamil, Bengali, Greek, Cyrillic, emoji):
 ///    each character is drawn as '?'. The font does not carry those scripts,
 ///    and a character it lacks would otherwise vanish without a trace, which
 ///    reads worse than a visible gap.
@@ -196,7 +254,7 @@ String pdfSafe(String s, {bool embedded = false}) {
         ..removeAt(i)
         ..insert(start, _devanagariShortI);
     }
-    return String.fromCharCodes([for (final r in runes) _covered(r) ? r : 0x3F]);
+    return String.fromCharCodes([for (final r in thaiForPdf(runes)) _covered(r) ? r : 0x3F]);
   }
   const map = {
     '—': '-',
