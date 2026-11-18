@@ -21,9 +21,16 @@ on:
     tags:
       - "v*"
     branches:
-      # Build on the mainline and on the app dev branch.
+      # Build on the mainline and on the app dev branch...
       - "main"
       - "claude/android-app"
+    # ...but only when the app itself changed. A website, rules or store-kit
+    # change has nothing to build. (GitHub does not apply path filters to
+    # tag pushes, and manual release runs are workflow_dispatch, so neither
+    # is affected.)
+    paths:
+      - "mobile/**"
+      - ".github/workflows/android-apk.yml"
 
 permissions:
   contents: write
