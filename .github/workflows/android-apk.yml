@@ -85,14 +85,17 @@ jobs:
           if 'allowBackup' not in s:
               s = re.sub(r'(<application\b)', r'\1\n        android:allowBackup="false"\n        android:dataExtractionRules="@xml/data_extraction_rules"', s, count=1)
               print('allowBackup=false + dataExtractionRules added')
-          # Launcher name must be the branded, correctly-cased "NizKhata"
+          # Launcher name must be the brand name, "Niz Khata"
           # (flutter create emits the lowercase project name by default).
-          s2 = re.sub(r'android:label="[^"]*"', 'android:label="NizKhata"', s, count=1)
+          s2 = re.sub(r'android:label="[^"]*"', 'android:label="Niz Khata"', s, count=1)
           if s2 != s:
-              print('app label set to NizKhata')
+              print('app label set to Niz Khata')
               s = s2
-          # Verified Android App Links for https://nizkhata.web.app + enable
-          # Flutter's deep-link routing so go_router receives the incoming path.
+          # Verified Android App Links for https://nizkhata.valorumlabs.com (the
+          # site's home) and https://nizkhata.web.app (links already shared),
+          # + Flutter's deep-link routing so go_router receives the path. Both
+          # hosts serve the same /.well-known/assetlinks.json, and on Android
+          # 12+ (our minSdk) each host is verified on its own.
           if 'nizkhata.web.app' not in s:
               applink = (
                   '\n'
@@ -101,6 +104,7 @@ jobs:
                   '                <action android:name="android.intent.action.VIEW" />\n'
                   '                <category android:name="android.intent.category.DEFAULT" />\n'
                   '                <category android:name="android.intent.category.BROWSABLE" />\n'
+                  '                <data android:scheme="https" android:host="nizkhata.valorumlabs.com" />\n'
                   '                <data android:scheme="https" android:host="nizkhata.web.app" />\n'
                   '            </intent-filter>\n'
                   '        '
@@ -492,7 +496,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: android-latest
-          name: NizKhata Android (latest)
+          name: Niz Khata Android (latest)
           prerelease: true
           files: |
             mobile/build/app/outputs/flutter-apk/app-release.apk
@@ -517,7 +521,7 @@ jobs:
         with:
           tag_name: ${{ inputs.version }}
           target_commitish: ${{ github.sha }}
-          name: NizKhata Android ${{ inputs.version }}
+          name: Niz Khata Android ${{ inputs.version }}
           prerelease: false
           files: |
             mobile/build/app/outputs/flutter-apk/nizkhata_*.apk

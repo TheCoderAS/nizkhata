@@ -59,7 +59,7 @@ class _AppShellState extends State<AppShell> {
   Widget build(BuildContext context) {
     final ws = context.watch<WorkspaceController>();
     final data = context.watch<DataController>();
-    final title = ws.activeWorkspace?.name ?? 'NizKhata';
+    final title = ws.activeWorkspace?.name ?? 'Niz Khata';
     final tabs = _tabs(ws);
     return PopScope(
       // We manage back ourselves (tab → Home, Home → double-press exit).

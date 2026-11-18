@@ -79,7 +79,7 @@ class _ChooseCurrencyViewState extends State<ChooseCurrencyView> {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final text = Theme.of(context).textTheme;
-    final greeting = widget.firstName.isEmpty ? 'Welcome to NizKhata' : 'Welcome, ${widget.firstName}';
+    final greeting = widget.firstName.isEmpty ? 'Welcome to Niz Khata' : 'Welcome, ${widget.firstName}';
     return Scaffold(
       body: SafeArea(
         child: Center(

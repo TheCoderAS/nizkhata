@@ -1029,7 +1029,7 @@ class _TaxTab extends StatelessWidget {
     } catch (_) {}
     await PdfTypeface.load();
     final bytes = buildTaxPackPdf(
-      workspaceName: ws.activeWorkspace?.name ?? 'NizKhata',
+      workspaceName: ws.activeWorkspace?.name ?? 'Niz Khata',
       fy: fy,
       currency: currency,
       logoPng: logo,

@@ -29,14 +29,17 @@ jobs:
         run: |
           node -e "
             const fs = require('fs');
-            const html = fs.readFileSync('landing/index.html', 'utf8');
-            const must = [
-              'releases/latest/download/app-release.apk',
-              '<title>',
-              'og:image',
-            ];
-            for (const m of must) {
-              if (!html.includes(m)) { console.error('landing/index.html missing: ' + m); process.exit(1); }
+            // The landing page sends people to /download, which carries the
+            // stable APK link (releases/latest/download/app-release.apk).
+            const pages = {
+              'landing/index.html': ['href=\"/download\"', '<title>', 'og:image'],
+              'landing/download.html': ['releases/latest/download/app-release.apk', '<title>'],
+            };
+            for (const [f, must] of Object.entries(pages)) {
+              const html = fs.readFileSync(f, 'utf8');
+              for (const m of must) {
+                if (!html.includes(m)) { console.error(f + ' missing: ' + m); process.exit(1); }
+              }
             }
             const fb = JSON.parse(fs.readFileSync('firebase.json', 'utf8'));
             if (fb.hosting.public !== 'landing') { console.error('hosting.public must be landing'); process.exit(1); }

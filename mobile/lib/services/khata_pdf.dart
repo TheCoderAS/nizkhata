@@ -181,7 +181,7 @@ Uint8List buildKhataPdf({
       .drawString('Transactions (${entries.length})', h2, bounds: Rect.fromLTWH(0, y, w, 0), format: fmt);
   grid.draw(page: currentPage, bounds: Rect.fromLTWH(0, y + 20, w, 0));
 
-  drawPdfPageFooters(doc, fonts, 'Made with NizKhata | https://nizkhata.web.app');
+  drawPdfPageFooters(doc, fonts, 'Made with Niz Khata | https://nizkhata.valorumlabs.com');
 
   final bytes = Uint8List.fromList(doc.saveSync());
   doc.dispose();
@@ -220,7 +220,7 @@ String buildKhataText({
           '- ${dateFmt.format(e.date)}: ${e.description}, ${e.amount >= 0 ? '+' : '-'}${_money(e.amount.abs(), currency)}');
     }
   }
-  b.writeln('\nSent from NizKhata: https://nizkhata.web.app');
+  b.writeln('\nSent from Niz Khata: https://nizkhata.valorumlabs.com');
   return b.toString();
 }
 
@@ -260,6 +260,6 @@ String buildDueReminderText({
         ? 'This payment is pending at my end and will be released shortly. Apologies for the delay.'
         : 'This payment is scheduled and will be released on or before the due date.');
   }
-  b.write('\nSent from NizKhata: https://nizkhata.web.app');
+  b.write('\nSent from Niz Khata: https://nizkhata.valorumlabs.com');
   return b.toString();
 }

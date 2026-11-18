@@ -323,7 +323,7 @@ class _AccountFormState extends State<_AccountForm> {
                 const SizedBox(height: 22),
                 SectionLabel('Billing cycle'),
                 Text(
-                  'Both days are on your statement. Fill them in and NizKhata raises the '
+                  'Both days are on your statement. Fill them in and Niz Khata raises the '
                   'bill for you each month, for the balance outstanding on the statement day.',
                   style: TextStyle(
                     fontSize: 12,
