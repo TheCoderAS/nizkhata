@@ -316,7 +316,7 @@ class _RootState extends State<_Root> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     return LockGate(
       child: MaterialApp.router(
-        title: 'NizKhata',
+        title: 'Niz Khata',
         debugShowCheckedModeBanner: false,
         theme: buildLightTheme(),
         darkTheme: buildDarkTheme(),

@@ -618,7 +618,7 @@ class ContactDetailScreen extends StatelessWidget {
       entries: entries,
       openDues: openDues,
       currency: ws.currency,
-      workspaceName: ws.activeWorkspace?.name ?? 'NizKhata',
+      workspaceName: ws.activeWorkspace?.name ?? 'Niz Khata',
     );
   }
 

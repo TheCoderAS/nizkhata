@@ -82,7 +82,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                             ShaderMask(
                               shaderCallback: (r) => brandGradient.createShader(r),
                               child: Text(
-                                'NizKhata',
+                                'Niz Khata',
                                 style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                                       fontWeight: FontWeight.w800,
                                       letterSpacing: -0.8,
@@ -145,7 +145,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                       _reveal(
                         0.55,
                         Text(
-                          'nizkhata.web.app',
+                          'nizkhata.valorumlabs.com',
                           style: TextStyle(
                             fontSize: 11,
                             letterSpacing: 0.6,

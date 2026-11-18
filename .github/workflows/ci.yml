@@ -29,14 +29,17 @@ jobs:
         run: |
           node -e "
             const fs = require('fs');
-            const html = fs.readFileSync('landing/index.html', 'utf8');
-            const must = [
-              'releases/latest/download/app-release.apk',
-              '<title>',
-              'og:image',
-            ];
-            for (const m of must) {
-              if (!html.includes(m)) { console.error('landing/index.html missing: ' + m); process.exit(1); }
+            // The landing page sends people to /download, which carries the
+            // stable APK link (releases/latest/download/app-release.apk).
+            const pages = {
+              'landing/index.html': ['href=\"/download\"', '<title>', 'og:image'],
+              'landing/download.html': ['releases/latest/download/app-release.apk', '<title>'],
+            };
+            for (const [f, must] of Object.entries(pages)) {
+              const html = fs.readFileSync(f, 'utf8');
+              for (const m of must) {
+                if (!html.includes(m)) { console.error(f + ' missing: ' + m); process.exit(1); }
+              }
             }
             const fb = JSON.parse(fs.readFileSync('firebase.json', 'utf8'));
             if (fb.hosting.public !== 'landing') { console.error('hosting.public must be landing'); process.exit(1); }
@@ -44,7 +47,7 @@ jobs:
             if (!rw) { console.error('assetlinks rewrite missing — Android App Links would break'); process.exit(1); }
             // Google Play links to these two pages; both must exist and carry a
             // real contact address, never the placeholder they were drafted with.
-            for (const f of ['landing/privacy.html', 'landing/delete-account.html']) {
+            for (const f of ['landing/privacy.html', 'landing/delete-account.html', 'landing/terms.html']) {
               if (!fs.existsSync(f)) { console.error('missing ' + f); process.exit(1); }
               if (fs.readFileSync(f, 'utf8').includes('__CONTACT_EMAIL__')) {
                 console.error(f + ' still has the contact placeholder'); process.exit(1);

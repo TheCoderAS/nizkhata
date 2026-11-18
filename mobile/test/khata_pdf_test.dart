@@ -34,7 +34,7 @@ void main() {
     final doc = PdfDocument(inputBytes: bytes);
     final text = PdfTextExtractor(doc).extractText();
     doc.dispose();
-    expect(text, contains('NizKhata')); // header wordmark at positive y
+    expect(text, contains('Niz Khata')); // header wordmark at positive y
     expect(text, contains('Rahul Sharma'));
     expect(text, contains('Rent May'));
     expect(text, contains('Rent April'));
@@ -47,7 +47,7 @@ void main() {
     expect('18,000.00'.allMatches(text).length, greaterThanOrEqualTo(3),
         reason: 'lend amount, its balance, and the unchanged balance on the '
             'tagged-only row');
-    expect(text, contains('nizkhata.web.app'));
+    expect(text, contains('nizkhata.valorumlabs.com'));
   });
 
   test('many entries paginate without errors', () {
@@ -77,7 +77,7 @@ void main() {
         buildKhataText(contactName: 'Rahul', net: 500, entries: entries, openDues: dues, currency: 'INR');
     expect(receive, contains('Closing balance receivable'));
     expect(receive, contains('Rent May'));
-    expect(receive, contains('https://nizkhata.web.app'));
+    expect(receive, contains('https://nizkhata.valorumlabs.com'));
     expect(receive, isNot(contains('—'))); // humanized: no em-dashes
     final pay = buildKhataText(
         contactName: 'Rahul', net: -500, entries: entries, openDues: const [], currency: 'INR');
@@ -100,7 +100,7 @@ void main() {
     expect(askOverdue, contains('Amount: '));
     expect(askOverdue, contains('Due date: 05 Apr 2020 (overdue)'));
     expect(askOverdue, contains('Kindly arrange the payment at the earliest'));
-    expect(askOverdue, contains('https://nizkhata.web.app'));
+    expect(askOverdue, contains('https://nizkhata.valorumlabs.com'));
     expect(askOverdue, isNot(contains('—'))); // humanized: no em-dashes
 
     final askUpcoming = buildDueReminderText(

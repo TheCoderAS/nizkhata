@@ -250,7 +250,7 @@ class AuthController extends ChangeNotifier {
     // existing member to start a new one. Fail instead; the next sign-in or
     // launch checks again.
     if (snap.docs.isEmpty && snap.metadata.isFromCache) {
-      throw StateError("Couldn't reach NizKhata to load your workspaces. Check your connection.");
+      throw StateError("Couldn't reach Niz Khata to load your workspaces. Check your connection.");
     }
     return snap.docs
         .map((d) => (d.data()['workspaceId'] as String?) ?? '')

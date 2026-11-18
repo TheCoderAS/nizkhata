@@ -34,7 +34,7 @@ class AppLock {
   static Future<bool> authenticate() async {
     try {
       return await _auth.authenticate(
-        localizedReason: 'Unlock NizKhata',
+        localizedReason: 'Unlock Niz Khata',
         options: const AuthenticationOptions(
           biometricOnly: false, // device PIN/pattern is an acceptable fallback
           stickyAuth: true,
@@ -116,7 +116,7 @@ class _LockGateState extends State<LockGate> with WidgetsBindingObserver {
             children: [
               Image.asset('assets/splash.png', width: 120),
               const SizedBox(height: 12),
-              const Text('NizKhata is locked',
+              const Text('Niz Khata is locked',
                   style: TextStyle(color: Colors.white, fontSize: 16)),
               const SizedBox(height: 20),
               FilledButton.icon(

@@ -166,7 +166,7 @@ Uint8List buildTaxPackPdf({
     y = 0;
   }
   currentPage.graphics.drawString(
-      'Prepared from your NizKhata records. Please verify figures with your '
+      'Prepared from your Niz Khata records. Please verify figures with your '
       'accountant before filing.',
       small,
       brush: PdfSolidBrush(PdfColor(120, 128, 148)),
@@ -174,7 +174,7 @@ Uint8List buildTaxPackPdf({
       format: fmt);
 
   drawPdfPageFooters(
-      doc, fonts, 'Computer-generated statement, no signature required | https://nizkhata.web.app');
+      doc, fonts, 'Computer-generated statement, no signature required | https://nizkhata.valorumlabs.com');
 
   final bytes = Uint8List.fromList(doc.saveSync());
   doc.dispose();

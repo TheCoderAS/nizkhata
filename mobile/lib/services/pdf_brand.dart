@@ -247,7 +247,7 @@ double drawPdfBrandHeader(
   // Bounds are given no height (0 = as tall as the text needs): Noto's line
   // is taller than Helvetica's, and Syncfusion silently drops a line that
   // does not fit its bounds.
-  g.drawString('NizKhata', fonts.bold(20),
+  g.drawString('Niz Khata', fonts.bold(20),
       brush: PdfSolidBrush(pdfColorOf(pdfBrandIndigo)),
       bounds: Rect.fromLTWH(textX, 0, width - textX, 0),
       format: fonts.format());

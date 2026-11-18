@@ -3,43 +3,110 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Delete Your NizKhata Account</title>
-  <meta name="description" content="How to delete your NizKhata account and data, in the app or by request." />
+  <title>Delete Your Niz Khata Account</title>
+  <meta name="description" content="How to delete your Niz Khata account and data, in the app or by email, and what is deleted." />
+  <link rel="canonical" href="https://nizkhata.valorumlabs.com/delete-account" />
+  <meta property="og:site_name" content="Niz Khata" />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://nizkhata.valorumlabs.com/delete-account" />
+  <meta property="og:title" content="Delete Your Niz Khata Account" />
+  <meta property="og:description" content="How to delete your Niz Khata account and data, in the app or by email, and what is deleted." />
+  <meta property="og:image" content="https://nizkhata.valorumlabs.com/og-image.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="theme-color" content="#0B0F1C" />
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
-  <link rel="stylesheet" href="/legal.css" />
+  <link rel="icon" type="image/png" sizes="48x48" href="/favicon-48.png" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/site.css" />
 </head>
 <body>
-<main>
-  <a class="home" href="/">NizKhata</a>
-  <h1>Delete your account</h1>
+  <div class="paper" aria-hidden="true"></div>
+  <div class="aurora" aria-hidden="true"><i></i><i></i><i></i></div>
+  <div class="progress" aria-hidden="true"></div>
+  <header class="topnav">
+    <div class="wrap">
+      <a class="brand" href="/"><img src="/favicon-48.png" alt="" />Niz Khata</a>
+      <a class="btn btn-sm" href="/download">Get the app</a>
+    </div>
+  </header>
+  <div class="wrap page-head">
+    <span class="kicker">Your account</span>
+    <h1 class="split" aria-label="Delete your account."><span class="w"><span style="animation-delay:0.05s">Delete</span></span> <span class="w"><span style="animation-delay:0.13s">your</span></span> <span class="serif"><span class="w"><span style="animation-delay:0.21s">account.</span></span></span></h1>
+    <p class="lede reveal">Two ways to do it, and exactly what happens to your records.</p>
+  </div>
 
-  <h2>In the app</h2>
-  <ol>
-    <li>Open NizKhata and sign in.</li>
-    <li>Go to <strong>More</strong>, then <strong>Account</strong>.</li>
-    <li>Tap <strong>Delete my account</strong>, type DELETE, and confirm with Google sign-in.</li>
-  </ol>
-  <p>Deletion happens straight away.</p>
+  <div class="wrap">
+    <div class="paths reveal">
+      <div class="card path">
+        <span class="chip ok">Instant</span>
+        <h3>In the app</h3>
+        <ol class="steps stagger">
+          <li><span class="step-no">1</span><span>Open Niz Khata and sign in</span></li>
+          <li><span class="step-no">2</span><span>Go to <strong>More</strong>, then <strong>Account</strong></span></li>
+          <li><span class="step-no">3</span><span>Tap <strong>Delete my account</strong>, type DELETE, confirm with Google</span></li>
+        </ol>
+      </div>
+      <div class="card path">
+        <span class="chip warn">Within 30 days</span>
+        <h3>Without the app</h3>
+        <p>Email us from the Google account you sign in with. We delete it and reply to confirm.</p>
+        <a class="btn btn-lg contact" style="margin-top:20px" href="mailto:hello@valorumlabs.com?subject=Delete%20my%20Niz%20Khata%20account">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>
+          hello@valorumlabs.com
+        </a>
+      </div>
+    </div>
 
-  <h2>Without the app</h2>
-  <p>Email <a class="contact" href="mailto:hello@valorumlabs.com?subject=Delete%20my%20NizKhata%20account">hello@valorumlabs.com</a> from the Google account you sign in with, asking for your account to be deleted. We will delete it within 30 days and reply to confirm.</p>
+    <div class="ledger2 reveal">
+      <div class="card">
+        <h3>What is deleted</h3>
+        <ul class="struck stagger">
+          <li><span>Every workspace you own, with all its records and history</span></li>
+          <li><span>Your membership of workspaces others own</span></li>
+          <li><span>Shared entries you created, connections and invitations</span></li>
+          <li><span>Your profile and your sign-in</span></li>
+          <li><span>What the app keeps on your phone</span></li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>What is kept</h3>
+        <ul class="kept stagger">
+          <li>Records in workspaces someone else owns stay with their owner</li>
+          <li>Shared entries the other person created stay in their records</li>
+          <li>Google's encrypted backups expire after a limited period</li>
+        </ul>
+        <p style="margin-top:16px">More in the <a href="/privacy">privacy policy</a>.</p>
+      </div>
+    </div>
+  </div>
+  <style>
+    .paths, .ledger2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 18px; }
+    .path h3 { font-size: 24px; margin-top: 14px; }
+    .steps { list-style: none; margin-top: 18px; display: grid; gap: 12px; }
+    .steps li { display: flex; gap: 14px; align-items: center; font-size: 15.5px; padding: 12px; border-radius: 16px; background: rgba(255,255,255,.04); }
+    .steps .step-no { flex: none; }
+    .ledger2 ul { list-style: none; margin-top: 16px; display: grid; gap: 12px; }
+    .ledger2 li { position: relative; padding-left: 28px; font-size: 15px; color: #C9CEDD; }
+    /* Deleted entries are crossed out, the way a khata strikes a line. */
+    .struck li::before { content: "✕"; position: absolute; left: 2px; color: var(--out); font-weight: 700; }
+    .struck li span { background-image: linear-gradient(var(--out), var(--out)); background-repeat: no-repeat; background-position: 0 58%; background-size: 0 1.5px; transition: background-size 1s ease; }
+    .struck.in li span { background-size: 100% 1.5px; }
+    .struck.in li:nth-child(2) span { transition-delay: .25s; } .struck.in li:nth-child(3) span { transition-delay: .5s; }
+    .struck.in li:nth-child(4) span { transition-delay: .75s; } .struck.in li:nth-child(5) span { transition-delay: 1s; }
+    .kept li::before { content: ""; position: absolute; left: 2px; top: .5em; width: 12px; height: 7px; border-left: 2px solid var(--in); border-bottom: 2px solid var(--in); transform: rotate(-45deg); }
+    @media (max-width: 900px) { .paths, .ledger2 { grid-template-columns: 1fr; } }
+    @media (max-width: 480px) { .contact.btn-lg { font-size: 15px; padding: 16px; } }
+  </style>
 
-  <h2>What is deleted</h2>
-  <ul>
-    <li>Every workspace you own, with all its accounts, transactions, dues, debts, contacts, budgets, categories and history.</li>
-    <li>Your membership of workspaces other people own.</li>
-    <li>Shared ledger entries you created, your shared connections, and invitations you sent.</li>
-    <li>Your profile (name, email and photo link) and your sign-in.</li>
-    <li>What the app keeps on your phone: remembered statement passwords, reminders and settings.</li>
-  </ul>
-
-  <h2>What is kept</h2>
-  <ul>
-    <li>Records in a workspace someone else owns belong to that workspace and stay with its owner.</li>
-    <li>Shared ledger entries the other person created stay in their records.</li>
-    <li>Google may hold encrypted backups for a limited period before they expire.</li>
-  </ul>
-  <p>See the <a href="/privacy">privacy policy</a> for more. NizKhata is made by <a href="https://valorumlabs.com">Valorum Labs</a>.</p>
-</main>
+  <footer class="site-foot">
+    <div class="wrap">
+      <span>© 2026 <a href="https://valorumlabs.com">Valorum Labs</a> · <a href="/">Niz Khata</a></span>
+      <nav aria-label="Footer"><a href="/download">Download</a><a href="/privacy">Privacy</a><a href="/terms">Terms</a><a href="/delete-account" aria-current="page">Delete account</a><a href="mailto:hello@valorumlabs.com">Contact</a></nav>
+    </div>
+  </footer>
+  <script src="/site.js" defer></script>
 </body>
 </html>
