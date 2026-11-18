@@ -17,6 +17,15 @@ run-name: Deploy to Firebase
 on:
   push:
     branches: [main]
+    # Only when something it deploys changed: the site, the hosting config,
+    # the Firestore rules or indexes, or this workflow. App-only changes have
+    # nothing to deploy. A manual run (workflow_dispatch) always deploys.
+    paths:
+      - "landing/**"
+      - "firebase.json"
+      - "firestore.rules"
+      - "firestore.indexes.json"
+      - ".github/workflows/deploy.yml"
   workflow_dispatch:
 
 # Don't cancel an in-flight deploy; let it finish to keep prod consistent.
