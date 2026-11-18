@@ -102,7 +102,8 @@ class ProfileScreen extends StatelessWidget {
               segments: const [
                 ButtonSegment(value: ThemeMode.light, label: Text('Light'), icon: Icon(Icons.light_mode)),
                 ButtonSegment(value: ThemeMode.dark, label: Text('Dark'), icon: Icon(Icons.dark_mode)),
-                ButtonSegment(value: ThemeMode.system, label: Text('System'), icon: Icon(Icons.brightness_auto)),
+                ButtonSegment(
+                    value: ThemeMode.system, label: Text('System'), icon: Icon(Icons.brightness_auto)),
               ],
               selected: {context.watch<ThemeController>().mode},
               showSelectedIcon: false,
@@ -127,6 +128,31 @@ class ProfileScreen extends StatelessWidget {
                 icon: const Icon(Icons.logout),
                 label: const Text('Sign out'),
               ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          SectionCard(
+            title: 'Delete account',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Deletes your account and every workspace you own, with all their records. '
+                  'This cannot be undone.',
+                  style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                ),
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  key: const Key('delete-account'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.danger,
+                    side: const BorderSide(color: AppColors.danger),
+                  ),
+                  onPressed: () => deleteAccountFlow(context),
+                  icon: const Icon(Icons.delete_forever),
+                  label: const Text('Delete my account'),
+                ),
+              ],
             ),
           ),
         ],
@@ -256,6 +282,126 @@ typedef NewWorkspaceRequest = ({String name, String currency});
 /// Name the new workspace and choose its currency. The currency is permanent,
 /// so it is asked here in full rather than copied silently from the workspace
 /// in use.
+/// Ask, confirm, delete. Kept apart from the screen so the confirmation can be
+/// tested on its own.
+Future<void> deleteAccountFlow(BuildContext context) async {
+  final ok = await showDialog<bool>(
+    context: context,
+    useRootNavigator: true,
+    builder: (_) => const DeleteAccountDialog(),
+  );
+  if (ok != true || !context.mounted) return;
+  final auth = context.read<AuthController>();
+  final messenger = ScaffoldMessenger.of(context);
+  final router = GoRouter.of(context);
+  // Deleting the sign-in signs out at once, and the router then moves to the
+  // login page, which may take this progress dialog with it. maybePop on the
+  // root navigator closes the dialog if it is still there and does nothing
+  // if it is not.
+  final rootNav = Navigator.of(context, rootNavigator: true);
+  showDialog<void>(
+    context: context,
+    useRootNavigator: true,
+    barrierDismissible: false,
+    builder: (_) => const PopScope(
+      canPop: false,
+      child: AlertDialog(
+        content: Row(children: [
+          SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.5)),
+          SizedBox(width: 16),
+          Expanded(child: Text('Deleting your account...')),
+        ]),
+      ),
+    ),
+  );
+  try {
+    final report = await auth.deleteAccount();
+    await rootNav.maybePop();
+    if (report == null) return; // backed out of the Google prompt
+    router.go('/login');
+    messenger.showSnackBar(const SnackBar(content: Text('Your account and its data have been deleted')));
+  } catch (e) {
+    await rootNav.maybePop();
+    messenger.showSnackBar(SnackBar(
+      content:
+          Text("Couldn't finish deleting your account: $e. Try again; it carries on from where it stopped."),
+      duration: const Duration(seconds: 8),
+      showCloseIcon: true,
+    ));
+  }
+}
+
+/// Spells out what goes, and asks for the word DELETE before it will.
+class DeleteAccountDialog extends StatefulWidget {
+  const DeleteAccountDialog({super.key});
+  @override
+  State<DeleteAccountDialog> createState() => _DeleteAccountDialogState();
+}
+
+class _DeleteAccountDialogState extends State<DeleteAccountDialog> {
+  final _confirm = TextEditingController();
+
+  @override
+  void dispose() {
+    _confirm.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final ready = _confirm.text.trim().toUpperCase() == 'DELETE';
+    return AlertDialog(
+      title: const Text('Delete your account?'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('This permanently deletes:'),
+            const SizedBox(height: 8),
+            for (final line in const [
+              'Every workspace you own, with all its accounts, transactions, dues, debts, contacts, budgets and history',
+              'Your place in workspaces other people own (their records stay with them)',
+              'Shared ledger entries you created, and your shared connections',
+              'Your profile, and what this phone keeps for you',
+            ])
+              Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Icon(Icons.remove, size: 16, color: cs.onSurfaceVariant),
+                  const SizedBox(width: 6),
+                  Expanded(child: Text(line, style: const TextStyle(fontSize: 13))),
+                ]),
+              ),
+            const SizedBox(height: 8),
+            Text(
+              'Export anything you want to keep first. You will be asked to sign in with Google again.',
+              style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _confirm,
+              autocorrect: false,
+              textCapitalization: TextCapitalization.characters,
+              decoration: const InputDecoration(labelText: 'Type DELETE to confirm'),
+              onChanged: (_) => setState(() {}),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
+        FilledButton(
+          style: FilledButton.styleFrom(backgroundColor: AppColors.danger, foregroundColor: Colors.white),
+          onPressed: ready ? () => Navigator.of(context).pop(true) : null,
+          child: const Text('Delete account'),
+        ),
+      ],
+    );
+  }
+}
+
 class NewWorkspaceDialog extends StatefulWidget {
   final String initialCurrency;
   const NewWorkspaceDialog({super.key, required this.initialCurrency});

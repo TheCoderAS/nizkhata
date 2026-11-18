@@ -1,0 +1,28 @@
+/* Shared by the privacy policy and the account-deletion page. Same palette
+   as the landing page, laid out for reading. */
+:root {
+  --bg: #141A2A;
+  --text: #E8EBF4;
+  --muted: #9AA3B8;
+  --border: rgba(255, 255, 255, 0.10);
+  --brand: #4F46E5;
+  --link: #A5B4FC;
+}
+@media (prefers-color-scheme: light) {
+  :root { --bg: #F7F8FC; --text: #141A2A; --muted: #4B5468; --border: rgba(0, 0, 0, 0.10); --link: #4338CA; }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  line-height: 1.6; -webkit-font-smoothing: antialiased;
+}
+main { max-width: 680px; margin: 0 auto; padding: 32px 16px 64px; }
+a { color: var(--link); overflow-wrap: anywhere; }
+.home { font-weight: 700; text-decoration: none; color: var(--link); }
+h1 { font-size: 30px; line-height: 1.2; margin: 24px 0 4px; }
+h2 { font-size: 20px; margin: 32px 0 8px; padding-top: 16px; border-top: 1px solid var(--border); }
+h3 { font-size: 16px; margin: 20px 0 4px; }
+.meta { color: var(--muted); margin: 0 0 16px; }
+ul, ol { padding-left: 22px; }
+li { margin: 4px 0; }

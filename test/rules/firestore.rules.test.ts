@@ -696,3 +696,71 @@ describe("own-records scope (scope.own)", () => {
     await assertSucceeds(getDoc(doc(db, "contacts", "c-other")));
   });
 });
+
+// Deleting an account removes every record of every workspace the person owns
+// (Google Play requires it). The phone does the deleting, in the order
+// AccountEraser uses, and these tests walk that order against the rules.
+describe("deleting a workspace and everything in it", () => {
+  async function seedRecords() {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, "transactions", "t1"), {
+        id: "t1", workspaceId: WS, accountId: "a1", totalAmount: -10, createdBy: { uid: "owner", name: "O" },
+      });
+      await setDoc(doc(db, "accounts", "a1"), { id: "a1", workspaceId: WS, name: "Cash", type: "cash", openingBalance: 0 });
+      await setDoc(doc(db, "revisions", "r1"), { id: "r1", workspaceId: WS, by: { uid: "owner" } });
+      await setDoc(doc(db, "categories", "c1"), { id: "c1", workspaceId: WS, name: "Food", isSystem: true });
+      await setDoc(doc(db, "memberships", `${WS}_member`), {
+        id: `${WS}_member`, workspaceId: WS, uid: "member", roleId: `${WS}_viewer`, status: "active",
+      });
+    });
+  }
+
+  it("the history, built-in categories and roles stay protected while the workspace exists", async () => {
+    await seedRecords();
+    const db = env.authenticatedContext("owner").firestore();
+    await assertFails(deleteDoc(doc(db, "revisions", "r1")));
+    await assertFails(deleteDoc(doc(db, "categories", "c1")));
+    await assertFails(deleteDoc(doc(db, "roles", `${WS}_owner`)));
+  });
+
+  it("the owner can delete it all, in the eraser's order", async () => {
+    await seedRecords();
+    const db = env.authenticatedContext("owner").firestore();
+    // 1. everyday records, while the workspace and roles exist
+    await assertSucceeds(deleteDoc(doc(db, "transactions", "t1")));
+    await assertSucceeds(deleteDoc(doc(db, "accounts", "a1")));
+    // 2. other people's memberships
+    await assertSucceeds(deleteDoc(doc(db, "memberships", `${WS}_member`)));
+    // 3. the workspace
+    await assertSucceeds(deleteDoc(doc(db, "workspaces", WS)));
+    // 4. what is protected only while it exists; roles last
+    await assertSucceeds(deleteDoc(doc(db, "revisions", "r1")));
+    await assertSucceeds(deleteDoc(doc(db, "categories", "c1")));
+    await assertSucceeds(deleteDoc(doc(db, "roles", `${WS}_viewer`)));
+    await assertSucceeds(deleteDoc(doc(db, "roles", `${WS}_owner`)));
+    // 5. their own membership
+    await assertSucceeds(deleteDoc(doc(db, "memberships", `${WS}_owner`)));
+  });
+
+  it("an outsider cannot clear what a deleted workspace left behind", async () => {
+    await seedRecords();
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await deleteDoc(doc(ctx.firestore(), "workspaces", WS));
+    });
+    const db = env.authenticatedContext("nobody").firestore();
+    await assertFails(deleteDoc(doc(db, "revisions", "r1")));
+    await assertFails(deleteDoc(doc(db, "roles", `${WS}_owner`)));
+  });
+
+  it("a person can delete their own profile, and nobody else's", async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, "users", "owner"), { uid: "owner", email: "o@example.com" });
+      await setDoc(doc(db, "users", "stranger"), { uid: "stranger", email: "s@example.com" });
+    });
+    const db = env.authenticatedContext("owner").firestore();
+    await assertFails(deleteDoc(doc(db, "users", "stranger")));
+    await assertSucceeds(deleteDoc(doc(db, "users", "owner")));
+  });
+});

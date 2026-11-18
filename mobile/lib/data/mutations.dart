@@ -9,6 +9,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import 'models.dart';
+import '../services/account_eraser.dart';
 
 const externalAccount = '__external__';
 
@@ -180,8 +181,7 @@ class Mutations {
   Future<void> bulkSetTxnCategory(String ws, List<Txn> txns, String categoryId) async {
     const chunkSize = 200;
     for (var start = 0; start < txns.length; start += chunkSize) {
-      final chunk = txns.sublist(
-          start, start + chunkSize > txns.length ? txns.length : start + chunkSize);
+      final chunk = txns.sublist(start, start + chunkSize > txns.length ? txns.length : start + chunkSize);
       final batch = _db.batch();
       for (final t in chunk) {
         final lines = t.lines.map((l) {
@@ -271,7 +271,8 @@ class Mutations {
   /// concurrent run on another device cannot create duplicates.
   Future<String> createDue(String ws, Map<String, dynamic> data, {String? id}) =>
       _auditedCreate('dues', ws, {...data, 'status': 'open'}, id: id);
-  Future<void> updateDue(String ws, String id, Map<String, dynamic> data) => _auditedUpdate('dues', ws, id, data);
+  Future<void> updateDue(String ws, String id, Map<String, dynamic> data) =>
+      _auditedUpdate('dues', ws, id, data);
   Future<void> deleteDue(String ws, String id) => _auditedDelete('dues', ws, id);
 
   // ---- debts ----
@@ -363,8 +364,8 @@ class Mutations {
     const chunkSize = 200;
     var written = 0;
     for (var start = 0; start < records.length; start += chunkSize) {
-      final chunk = records.sublist(
-          start, start + chunkSize > records.length ? records.length : start + chunkSize);
+      final chunk =
+          records.sublist(start, start + chunkSize > records.length ? records.length : start + chunkSize);
       final batch = _db.batch();
       for (final r in chunk) {
         final id = newId('transactions');
@@ -386,8 +387,7 @@ class Mutations {
               lines: [line]),
           'importKey': r['importKey'],
         });
-        _appendRevision(batch,
-            workspaceId: ws, entityType: 'transactions', entityId: id, action: 'create');
+        _appendRevision(batch, workspaceId: ws, entityType: 'transactions', entityId: id, action: 'create');
       }
       await batch.commit();
       written += chunk.length;
@@ -701,24 +701,7 @@ class Mutations {
     await _db.collection('workspaces').doc(id).update(data);
   }
 
-  Future<void> deleteWorkspace(String id, String ownerUid) async {
-    final memberSnap = await _db.collection('memberships').where('workspaceId', isEqualTo: id).get();
-    final others = memberSnap.docs.where((d) => d.data()['uid'] != ownerUid).toList();
-    if (others.isNotEmpty) {
-      final batch = _db.batch();
-      for (final m in others) {
-        batch.delete(m.reference);
-      }
-      await batch.commit();
-    }
-    await _db.collection('workspaces').doc(id).delete();
-    await _db.collection('memberships').doc('${id}_$ownerUid').delete();
-    try {
-      final userRef = _db.collection('users').doc(ownerUid);
-      final snap = await userRef.get();
-      if (snap.data()?['lastWorkspaceId'] == id) {
-        await userRef.update({'lastWorkspaceId': null});
-      }
-    } catch (_) {}
-  }
+  /// Delete a workspace and every record in it. See [AccountEraser] for why
+  /// the order of deletion is what it is.
+  Future<void> deleteWorkspace(String id, String ownerUid) => AccountEraser(_db).eraseWorkspace(id, ownerUid);
 }

@@ -9,6 +9,8 @@ import 'package:google_sign_in/google_sign_in.dart';
 
 import '../core/currency.dart';
 import '../firebase_options.dart';
+import '../services/account_eraser.dart';
+import '../services/local_data.dart';
 import '../data/permissions.dart';
 
 /// The fields a new workspace document starts with, less the server
@@ -52,9 +54,8 @@ class AuthController extends ChangeNotifier {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   late final GoogleSignIn _google = GoogleSignIn(
     scopes: const ['email', 'profile'],
-    serverClientId: DefaultFirebaseOptions.googleWebClientId.isEmpty
-        ? null
-        : DefaultFirebaseOptions.googleWebClientId,
+    serverClientId:
+        DefaultFirebaseOptions.googleWebClientId.isEmpty ? null : DefaultFirebaseOptions.googleWebClientId,
   );
 
   User? user;
@@ -111,6 +112,33 @@ class AuthController extends ChangeNotifier {
       await _google.signOut();
     } catch (_) {}
     await _auth.signOut();
+  }
+
+  /// Delete this person's account: every workspace they own and everything
+  /// in it, their place in workspaces they only belong to, their shared
+  /// ledger entries, their profile, what this phone keeps for them, and
+  /// finally the sign-in itself.
+  ///
+  /// Google sign-in is asked for again first. Firebase refuses to delete a
+  /// sign-in that is not recent, and asking up front means a refusal comes
+  /// before anything is deleted, not after the data is gone. Returns null if
+  /// the person backs out of that prompt.
+  Future<ErasureReport?> deleteAccount() async {
+    final u = _auth.currentUser;
+    if (u == null) return null;
+    await _google.signOut().catchError((_) => null); // always show the account picker
+    final account = await _google.signIn();
+    if (account == null) return null;
+    final gAuth = await account.authentication;
+    await u.reauthenticateWithCredential(
+      GoogleAuthProvider.credential(idToken: gAuth.idToken, accessToken: gAuth.accessToken),
+    );
+
+    final report = await AccountEraser(_db).eraseAccount(u.uid);
+    await clearLocalData();
+    await u.delete();
+    await signOut();
+    return report;
   }
 
   // ---- onboarding (onboarding.ts) ----
