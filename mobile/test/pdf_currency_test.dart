@@ -43,6 +43,58 @@ void main() {
     expect(PdfTypeface.isLoaded, true, reason: 'the font assets must load');
   });
 
+  group('a Thai baht ledger', () {
+    late String text;
+    setUpAll(() {
+      text = _khata(
+        currency: 'THB',
+        net: 12500,
+        contactName: 'สมชาย ใจดี',
+        entries: [
+          KhataEntry(DateTime(2026, 3, 1), 'ค่าอาหาร', -12500, positionDelta: 12500),
+        ],
+      );
+    });
+
+    test('writes the baht sign, not a question mark', () {
+      expect(text, contains('฿12,500.00'));
+    });
+
+    test('keeps Thai names and notes', () {
+      expect(text, contains('สมชาย'));
+      expect(text, contains('ค่าอาหาร'));
+      expect(text, isNot(contains('????')));
+    });
+
+    test('pdfSafe lets Thai through with the embedded font', () {
+      expect(pdfSafe('฿ สมชาย', embedded: true), '฿ สมชาย');
+    });
+
+    test('raises a tone mark that sits over an upper vowel', () {
+      // ที่: tho thahan, sara ii, mai ek. Without this the tone mark draws
+      // inside the vowel and disappears.
+      expect(thaiForPdf('ที่'.runes.toList()), [0x0E17, 0x0E35, 0xF70A]);
+      // A tone mark with no vowel above stays as it is: ค่า.
+      expect(thaiForPdf('ค่า'.runes.toList()), 'ค่า'.runes.toList());
+      // Before sara am it is raised too: น้ำ.
+      expect(thaiForPdf('น้ำ'.runes.toList()), [0x0E19, 0xF70B, 0x0E33]);
+    });
+
+    test('moves marks over a tall consonant clear of its stroke', () {
+      // ปี: po pla, sara ii.
+      expect(thaiForPdf('ปี'.runes.toList()), [0x0E1B, 0xF712]);
+      // ป่: tone mark alone, moved left.
+      expect(thaiForPdf('ป่'.runes.toList()), [0x0E1B, 0xF705]);
+      // ปี่: vowel left, tone raised and left.
+      expect(thaiForPdf('ปี่'.runes.toList()), [0x0E1B, 0xF712, 0xF700]);
+    });
+
+    test('leaves everything that is not a Thai mark alone', () {
+      const s = 'Rent ₹500 सिंह عربي ฿';
+      expect(thaiForPdf(s.runes.toList()), s.runes.toList());
+    });
+  });
+
   group('a US dollar ledger', () {
     late String text;
     setUpAll(() {
