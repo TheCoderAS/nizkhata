@@ -311,6 +311,8 @@ void main() {
       report(details, description);
     };
     // Screens remember view choices in shared preferences; start them empty.
+    // This file is test code; it lives outside test/ only so CI skips it.
+    // ignore: invalid_use_of_visible_for_testing_member
     SharedPreferences.setMockInitialValues({});
     await initializeDateFormatting();
     await loadFonts();
