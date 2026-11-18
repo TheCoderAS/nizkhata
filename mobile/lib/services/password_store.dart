@@ -32,6 +32,13 @@ class PasswordStore {
     }
   }
 
+  /// Forget every remembered password (used when the account is deleted).
+  Future<void> clearAll() async {
+    try {
+      await _storage.deleteAll();
+    } catch (_) {}
+  }
+
   Future<void> remove(String accountId) async {
     try {
       await _storage.delete(key: _key(accountId));

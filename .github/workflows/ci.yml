@@ -42,6 +42,14 @@ jobs:
             if (fb.hosting.public !== 'landing') { console.error('hosting.public must be landing'); process.exit(1); }
             const rw = (fb.hosting.rewrites || []).some(r => r.source === '/.well-known/assetlinks.json');
             if (!rw) { console.error('assetlinks rewrite missing — Android App Links would break'); process.exit(1); }
+            // Google Play links to these two pages; both must exist and carry a
+            // real contact address, never the placeholder they were drafted with.
+            for (const f of ['landing/privacy.html', 'landing/delete-account.html']) {
+              if (!fs.existsSync(f)) { console.error('missing ' + f); process.exit(1); }
+              if (fs.readFileSync(f, 'utf8').includes('__CONTACT_EMAIL__')) {
+                console.error(f + ' still has the contact placeholder'); process.exit(1);
+              }
+            }
             for (const f of ['landing/well-known-assetlinks.json', 'landing/logo.png', 'landing/robots.txt']) {
               if (!fs.existsSync(f)) { console.error('missing asset: ' + f); process.exit(1); }
             }

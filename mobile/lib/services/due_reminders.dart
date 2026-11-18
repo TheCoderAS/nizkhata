@@ -58,8 +58,7 @@ class DueReminders {
         }
       },
     );
-    final android = _plugin
-        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+    final android = _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
     await android?.requestNotificationsPermission();
 
     // Cold start from a notification tap: stash the route until the router is up.
@@ -133,7 +132,10 @@ class DueReminders {
     }
   }
 
-  /// Exact when permitted; falls back to inexact (fires within a small window).
+  /// Inexact on purpose. The app asks for no exact-alarm permission (Google
+  /// Play reserves it for alarm clocks and calendars), and a reminder at a
+  /// check-in time on a due's day loses nothing by arriving a few minutes
+  /// late. Android may batch it with other alarms while the phone dozes.
   static Future<void> _zonedSchedule(
     int id,
     String title,
@@ -142,28 +144,15 @@ class DueReminders {
     NotificationDetails details, {
     required String payload,
   }) async {
-    try {
-      await _plugin.zonedSchedule(
-        id,
-        title,
-        body,
-        when,
-        details,
-        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-        uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
-        payload: payload,
-      );
-    } catch (_) {
-      await _plugin.zonedSchedule(
-        id,
-        title,
-        body,
-        when,
-        details,
-        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-        uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
-        payload: payload,
-      );
-    }
+    await _plugin.zonedSchedule(
+      id,
+      title,
+      body,
+      when,
+      details,
+      androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+      uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
+      payload: payload,
+    );
   }
 }

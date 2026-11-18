@@ -134,10 +134,21 @@ service cloud.firestore {
         inviteDoc(ws).data.roleId == roleId;
     }
 
+    // What is left of a workspace once its document has been deleted: the
+    // records nobody may otherwise remove (the audit log, the built-in
+    // categories and roles). Any member still holding a membership may clear
+    // them, and only then; while the workspace exists they stay protected.
+    // This is how deleting a workspace, or a whole account, removes ALL of
+    // its data rather than leaving it orphaned in the database.
+    function wsGoneAndMember(ws) {
+      return !exists(/databases/$(database)/documents/workspaces/$(ws)) && isMember(ws);
+    }
+
     // ---- users -------------------------------------------------------------
+    // A person may delete their own profile: that is the last step of
+    // deleting their account.
     match /users/{uid} {
-      allow read, create, update: if isSignedIn() && request.auth.uid == uid;
-      allow delete: if false;
+      allow read, create, update, delete: if isSignedIn() && request.auth.uid == uid;
     }
 
     // ---- workspaces --------------------------------------------------------
@@ -254,7 +265,8 @@ service cloud.firestore {
             request.resource.data.get('isSystem', false) == resource.data.get('isSystem', false)
           )
         );
-      allow delete: if can(exWs(), 'roles.manage') && resource.data.isSystem == false;
+      allow delete: if (can(exWs(), 'roles.manage') && resource.data.isSystem == false)
+        || wsGoneAndMember(exWs());
     }
 
     // ---- invites -----------------------------------------------------------
@@ -288,8 +300,8 @@ service cloud.firestore {
       // [FIX 2] owner bypass for first-login seeding of default categories.
       allow create:         if can(inWs(), 'categories.manage') || isOwner(inWs());
       allow update:         if can(exWs(), 'categories.manage') && wsImmutable();
-      allow delete:         if can(exWs(), 'categories.manage')
-                              && resource.data.isSystem == false;
+      allow delete:         if (can(exWs(), 'categories.manage') && resource.data.isSystem == false)
+                              || wsGoneAndMember(exWs());
     }
 
     match /contacts/{id} {
@@ -429,13 +441,15 @@ service cloud.firestore {
 
     // ---- revisions (append-only audit log) ---------------------------------
     // Any workspace member can read the history and append entries; nobody can
-    // edit or delete them. The author must stamp themselves as `by.uid`.
+    // edit them, and nobody can delete them while the workspace exists. The
+    // author must stamp themselves as `by.uid`.
     // (Client-authored today; a Cloud Function can take over later unchanged.)
     match /revisions/{id} {
       allow read:   if isMember(exWs());
       allow create: if isMember(inWs())
         && request.resource.data.by.uid == request.auth.uid;
-      allow update, delete: if false;
+      allow update: if false;
+      allow delete: if wsGoneAndMember(exWs());
     }
 
     // default deny
