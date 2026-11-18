@@ -56,6 +56,18 @@ jobs:
             for (const f of ['landing/well-known-assetlinks.json', 'landing/logo.png', 'landing/robots.txt', 'landing/google-play-badge.png']) {
               if (!fs.existsSync(f)) { console.error('missing asset: ' + f); process.exit(1); }
             }
+            // App Links verify against these: the upload key (GitHub builds)
+            // and Google Play's app signing key (Play installs). Dropping
+            // either silently breaks links, and the check the app relies on,
+            // for everyone who installed that way.
+            const links = JSON.parse(fs.readFileSync('landing/well-known-assetlinks.json', 'utf8'));
+            const fps = links[0].target.sha256_cert_fingerprints;
+            for (const fp of [
+              '87:B6:66:C1:A5:E1:A6:7A:28:7D:F2:18:02:A5:87:00:2F:FC:53:B4:98:2C:F5:9D:27:A0:A6:09:B0:CF:D9:62',
+              '5D:FC:A5:BF:14:01:FF:84:DA:59:73:E4:4D:CE:A5:3D:36:6E:46:84:74:06:57:9B:00:5D:45:8B:EE:77:2F:07',
+            ]) {
+              if (!fps.includes(fp)) { console.error('assetlinks.json is missing ' + fp); process.exit(1); }
+            }
             console.log('landing page OK');
           "
 
