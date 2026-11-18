@@ -45,10 +45,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Java 21: the Android lint that runs inside every release build now
+      # calls Java 21 APIs (List.removeLast) and crashes on 17, failing the
+      # build before any APK is made. AGP 8 and current Gradle support 21.
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: "21"
 
       - uses: subosito/flutter-action@v2
         with:
