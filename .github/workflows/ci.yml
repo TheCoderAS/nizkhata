@@ -29,11 +29,11 @@ jobs:
         run: |
           node -e "
             const fs = require('fs');
-            // The landing page sends people to /download, which carries the
-            // stable APK link (releases/latest/download/app-release.apk).
+            // The landing page sends people to /download, which sends them to
+            // the app's Google Play listing.
             const pages = {
               'landing/index.html': ['href=\"/download\"', '<title>', 'og:image'],
-              'landing/download.html': ['releases/latest/download/app-release.apk', '<title>'],
+              'landing/download.html': ['play.google.com/store/apps/details?id=com.nizkhata.nizkhata', 'google-play-badge.png', '<title>'],
             };
             for (const [f, must] of Object.entries(pages)) {
               const html = fs.readFileSync(f, 'utf8');
@@ -53,7 +53,7 @@ jobs:
                 console.error(f + ' still has the contact placeholder'); process.exit(1);
               }
             }
-            for (const f of ['landing/well-known-assetlinks.json', 'landing/logo.png', 'landing/robots.txt']) {
+            for (const f of ['landing/well-known-assetlinks.json', 'landing/logo.png', 'landing/robots.txt', 'landing/google-play-badge.png']) {
               if (!fs.existsSync(f)) { console.error('missing asset: ' + f); process.exit(1); }
             }
             console.log('landing page OK');
