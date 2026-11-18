@@ -46,9 +46,17 @@
         <div class="icon"><img src="/logo.png" alt="" width="132" height="132" /></div>
       </div>
       <div class="dl-copy">
-        <a id="dl-play" class="play" href="https://play.google.com/store/apps/details?id=com.nizkhata.nizkhata" rel="noopener">
-          <img src="/google-play-badge.png" alt="Get it on Google Play" width="646" height="250" />
-        </a>
+        <h2 class="app-name">Niz Khata</h2>
+        <p class="app-sub">Money ledger · Valorum Labs</p>
+        <div class="get">
+          <a id="dl-play" class="play" href="https://play.google.com/store/apps/details?id=com.nizkhata.nizkhata" rel="noopener">
+            <img src="/google-play-badge.png" alt="Get it on Google Play" width="646" height="250" />
+          </a>
+          <div class="qr">
+            <img src="/play-qr.svg" alt="QR code that opens Niz Khata on Google Play" width="124" height="124" />
+            <span>Scan with your phone</span>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -76,15 +84,21 @@
       background: rgba(20,26,46,.9); border: 1px solid var(--line); color: var(--ink); animation: orbit 18s linear infinite; }
     .o2 { animation-delay: -3.6s; } .o3 { animation-delay: -7.2s; } .o4 { animation-delay: -10.8s; } .o5 { animation-delay: -14.4s; }
     @keyframes orbit { from { transform: rotate(0) translateX(150px) rotate(0); } to { transform: rotate(360deg) translateX(150px) rotate(-360deg); } }
-    .play { display: inline-block; transition: transform .2s ease, filter .2s ease; filter: drop-shadow(0 10px 30px rgba(79,70,229,.35)); }
-    .play:hover { transform: translateY(-2px) scale(1.02); filter: drop-shadow(0 14px 40px rgba(79,70,229,.55)); }
-    .play img { display: block; width: 260px; max-width: 100%; height: auto; margin: -18px -16px; }
-    .dl-meta { color: var(--muted); font-size: 14px; margin-top: 14px; }
+    .app-name { font-size: clamp(34px, 4vw, 48px); letter-spacing: -1.2px; line-height: 1.05; }
+    .app-sub { color: var(--muted); margin-top: 6px; font-size: 15px; }
+    .get { display: flex; align-items: center; gap: 28px; margin-top: 28px; }
+    .play { display: inline-block; flex: none; transition: transform .2s ease, filter .2s ease; filter: drop-shadow(0 12px 34px rgba(79,70,229,.4)); }
+    .play:hover { transform: translateY(-2px) scale(1.02); filter: drop-shadow(0 16px 44px rgba(79,70,229,.6)); }
+    /* The badge image carries its own transparent margin; pull it back so its
+       visible edge lines up with the text above. */
+    .play img { display: block; width: 300px; max-width: 100%; height: auto; margin: -24px -19px; }
+    .qr { display: grid; justify-items: center; gap: 8px; padding-left: 28px; border-left: 1px solid var(--line); color: var(--muted); font-size: 12.5px; }
+    .qr img { width: 124px; height: 124px; border-radius: 12px; background: #fff; box-shadow: 0 10px 30px rgba(0,0,0,.35); }
     .tm { font-size: 12px; margin-top: 8px; opacity: .8; }
     .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 22px; }
     .sec { font-size: clamp(30px, 4vw, 46px); letter-spacing: -1.2px; margin: 80px 0 24px; line-height: 1.1; }
     .note { color: var(--muted); font-size: 14px; margin-top: 22px; }
-    @media (max-width: 900px) { .dl { grid-template-columns: 1fr; text-align: center; padding: 26px 18px; } .chips { justify-content: center; } }
+    @media (max-width: 900px) { .dl { grid-template-columns: 1fr; text-align: center; padding: 26px 18px; } .get { justify-content: center; } .qr { display: none; } }
     @media (max-width: 480px) { .orbit { width: 240px; height: 240px; } .o { animation-name: orbitS; }
       @keyframes orbitS { from { transform: rotate(0) translateX(120px) rotate(0); } to { transform: rotate(360deg) translateX(120px) rotate(-360deg); } } }
   </style>
