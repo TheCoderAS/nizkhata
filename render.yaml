@@ -1,0 +1,36 @@
+# Render Blueprint: the Niz Khata connector (MCP server for Claude and ChatGPT).
+# New > Blueprint in Render, pick this repo; fill in the two Google values when asked.
+# See connector/README.md for the one-time Google OAuth setup.
+services:
+  - type: web
+    name: nizkhata-connector
+    runtime: docker
+    rootDir: connector
+    dockerfilePath: ./Dockerfile
+    plan: starter
+    region: singapore
+    healthCheckPath: /healthz
+    autoDeploy: true
+    buildFilter:
+      paths:
+        - connector/**
+    envVars:
+      # Seals every token the connector issues. Changing it signs everyone out.
+      - key: TOKEN_SECRET
+        generateValue: true
+      # The Firebase Web API key is a public identifier (it ships in the app).
+      - key: FIREBASE_API_KEY
+        value: AIzaSyBUNKeUYJ_3M8u3h4IJER7eflq2C8kd-AU
+      - key: FIREBASE_PROJECT_ID
+        value: nizkhata
+      - key: APP_TIMEZONE
+        value: Asia/Kolkata
+      # The Web client in Google Cloud > APIs & Services > Credentials.
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      # Optional: set to a custom domain (e.g. https://mcp.nizkhata.valorumlabs.com).
+      # Left unset, the service's onrender.com address is used.
+      - key: PUBLIC_URL
+        sync: false
