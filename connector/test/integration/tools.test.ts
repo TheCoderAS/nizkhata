@@ -96,6 +96,30 @@ describe('workspaces and accounts', () => {
   });
 });
 
+describe('several workspaces', () => {
+  it('asks which one when none is named, and keeps each call to the one named', async () => {
+    const set = (collection: string, id: string, data: Plain) => ({ kind: 'set' as const, collection, id, data: { id, ...data } });
+    await admin.commit([
+      set('workspaces', 'ws2', { name: 'Shop', ownerId: 'm1', baseCurrency: 'INR', fyStartMonth: 4 }),
+      set('roles', 'ws2_owner', { workspaceId: 'ws2', name: 'Owner', isSystem: true, permissions: perms(() => true) }),
+      set('memberships', 'ws2_m1', { workspaceId: 'ws2', uid: 'm1', roleId: 'ws2_owner', status: 'active' }),
+      set('memberships', `${WS}_m1`, { workspaceId: WS, uid: 'm1', roleId: `${WS}_owner`, status: 'active' }),
+      set('users', 'm1', { lastWorkspaceId: 'ws2' }),
+      set('accounts', 'till', { workspaceId: 'ws2', name: 'Till', type: 'cash', openingBalance: 500 }),
+    ]);
+    const m = await asUser('m1', 'Mo');
+    expect((await m.call('list_workspaces')).map((w: any) => w.id).sort()).toEqual([WS, 'ws2']);
+    const refused = await m.call('list_accounts');
+    expect(refused.error).toMatch(/2 workspaces\. Ask which one/);
+    expect(refused.error).toContain('Shop (ws2)');
+    expect((await m.call('list_accounts', { workspace_id: 'ws2' })).accounts.map((a: any) => a.id)).toEqual(['till']);
+    const c = await m.call('create_contact', { workspace_id: 'ws2', name: 'Supplier' });
+    expect((await doc('contacts', c.id)).workspaceId).toBe('ws2');
+    expect((await m.call('get_contact', { workspace_id: WS, contact_id: c.id })).error).toMatch(/No contact/);
+    await m.close();
+  });
+});
+
 describe('contacts', () => {
   let id = '';
   it('creates one the way the app does, with the audit trail', async () => {

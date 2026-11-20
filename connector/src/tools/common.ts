@@ -19,7 +19,7 @@ export const workspaceArg = {
   workspace_id: z
     .string()
     .optional()
-    .describe('Workspace to use. Optional when the account has one workspace; see list_workspaces.'),
+    .describe('Workspace to use, from list_workspaces. Required when the account has more than one; keep using the same one for the rest of the conversation unless the person names another.'),
 };
 
 export const dateArg = (what: string) =>

@@ -75,7 +75,9 @@ export class Books {
 
   /**
    * The workspace to act in: the one named, or, when there is only one, that
-   * one, or else the one the app last had open.
+   * one. With several and none named, refuse and list them, so the assistant
+   * asks once instead of guessing. (The app keeps the workspace you have open
+   * on the phone only, so there is nothing reliable to default to.)
    */
   static async open(fs: Firestore, actor: Actor, timeZone: string, workspaceId?: string): Promise<Books> {
     const all = await listWorkspaces(fs, actor.uid);
@@ -87,14 +89,10 @@ export class Books {
     } else if (all.length === 1) {
       ws = all[0];
     } else {
-      const user = await fs.get('users', actor.uid).catch(() => null);
-      ws = all.find((w) => w.id === user?.lastWorkspaceId);
-      if (!ws) {
-        throw new UserError(
-          `This account has ${all.length} workspaces; pass workspace_id. ` +
-            all.map((w) => `${w.name} (${w.id})`).join(', '),
-        );
-      }
+      throw new UserError(
+        `This account has ${all.length} workspaces. Ask which one to use, then pass its workspace_id: ` +
+          all.map((w) => `${w.name} (${w.id})`).join(', '),
+      );
     }
     if (!ws) throw new UserError('No workspace found.');
     return new Books(fs, actor, ws, timeZone);
