@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { UserError } from '../books.js';
 import { newDocId, SERVER_TIME, type Plain, type Write } from '../firestore.js';
 import { debtOutstanding, debtStatusFrom, financialYearOf, parseWhen } from '../ledger.js';
-import { DESTRUCTIVE, READ, WRITE, dateArg, day, run, workspaceArg, type Register } from './common.js';
+import { DESTRUCTIVE, READ, WRITE, OVERWRITE, dateArg, day, run, workspaceArg, type Register } from './common.js';
 
 const EXTERNAL_ACCOUNT = '__external__';
 
@@ -159,7 +159,7 @@ export const registerDebtTools: Register = (server, ctx) => {
         interest_rate: z.number().min(0).nullable().optional(),
         status: z.enum(['open', 'settled']).optional(),
       },
-      annotations: WRITE,
+      annotations: OVERWRITE,
     },
     (a) =>
       run(async () => {

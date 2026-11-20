@@ -53,5 +53,8 @@ export function requireFound<T>(v: T | undefined, what: string): T {
 }
 
 export const READ = { readOnlyHint: true, destructiveHint: false, openWorldHint: false } as const;
+/** Adds new records only. */
 export const WRITE = { readOnlyHint: false, destructiveHint: false, openWorldHint: false } as const;
+/** Changes or replaces what is already there: not additive, so marked destructive (ChatGPT's rule). */
+export const OVERWRITE = { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false } as const;
 export const DESTRUCTIVE = { readOnlyHint: false, destructiveHint: true, openWorldHint: false } as const;

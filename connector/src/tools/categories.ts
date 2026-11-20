@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { UserError } from '../books.js';
 import type { Plain } from '../firestore.js';
 import { periodRange, spendByCategory } from '../ledger.js';
-import { DESTRUCTIVE, READ, WRITE, run, workspaceArg, type Register } from './common.js';
+import { DESTRUCTIVE, READ, WRITE, OVERWRITE, run, workspaceArg, type Register } from './common.js';
 
 export const registerCategoryTools: Register = (server, ctx) => {
   // ---- categories ----
@@ -52,7 +52,7 @@ export const registerCategoryTools: Register = (server, ctx) => {
         name: z.string().min(1).optional(),
         kind: z.enum(['income', 'expense']).optional(),
       },
-      annotations: WRITE,
+      annotations: OVERWRITE,
     },
     ({ workspace_id, category_id, name, kind }) =>
       run(async () => {
@@ -154,7 +154,7 @@ export const registerCategoryTools: Register = (server, ctx) => {
         amount: budgetFields.amount.optional(),
         period: budgetFields.period.optional(),
       },
-      annotations: WRITE,
+      annotations: OVERWRITE,
     },
     ({ workspace_id, budget_id, category_id, amount, period }) =>
       run(async () => {
