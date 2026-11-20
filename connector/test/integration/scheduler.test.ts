@@ -26,12 +26,12 @@ const fcm: typeof fetch = async (url, init) => {
   if (body.message.token === 'dead-token') return new Response(JSON.stringify({ error: { status: 'NOT_FOUND', message: 'UNREGISTERED' } }), { status: 404 });
   return new Response('{}', { status: 200 });
 };
-const scheduler = () =>
+const scheduler = (now: Date = NOW) =>
   new Scheduler({
     admin: async () => admin,
     push: new Push(PROJECT, async () => 'test', fcm, 'http://fcm.test'),
     defaultTimeZone: TZ,
-    now: () => NOW,
+    now: () => now,
     log: () => undefined,
   });
 
@@ -110,5 +110,53 @@ describe('scheduled jobs', () => {
     await s.remind();
     await s.remind();
     expect(sent.length).toBe(before);
+  });
+
+  it('the next repeating due appears at the end of the current one\'s day, in the workspace\'s time zone', async () => {
+    // 23:50 in Kolkata on 20 Nov: November's rent is today, its day not yet over.
+    expect((await scheduler(new Date('2026-11-20T18:20:00Z')).materialise()).created).toBe(0);
+    expect(await admin.get('dues', 'rec_rent_20261220')).toBeNull();
+    // 23:56: the day is over, so December's appears, though November's is unpaid.
+    expect((await scheduler(new Date('2026-11-20T18:26:00Z')).materialise()).created).toBe(1);
+    expect(await admin.get('dues', 'rec_rent_20261220')).toMatchObject({ title: 'Rent Dec', status: 'open', occurrence: 4 });
+  });
+
+  it('a deleted due is never made again, so deleting the newest ends the series', async () => {
+    await admin.commit([
+      { kind: 'delete', collection: 'dues', id: 'rec_rent_20261220' },
+      set('revisions', 'del_dec_rent', { workspaceId: 'ws_s', entityType: 'dues', entityId: 'rec_rent_20261220', action: 'delete', by: { uid: 'sch', name: 'Sch' }, at: new Date() }),
+    ]);
+    await scheduler(new Date('2026-12-25T10:00:00Z')).materialise();
+    expect(await admin.get('dues', 'rec_rent_20261220')).toBeNull();
+    expect(await admin.get('dues', 'rec_rent_20270120')).toBeNull();
+    // The card's December statement is still billed: only the deleted due stays gone.
+    expect(await admin.get('dues', 'stmt_card_s_20261205')).toMatchObject({ title: 'Visa bill', amount: 4200 });
+  });
+
+  it('a workspace in New York runs on New York\'s days and clock', async () => {
+    await admin.commit([
+      set('workspaces', 'ws_ny', { name: 'NY', ownerId: 'nyo', baseCurrency: 'USD', fyStartMonth: 1, timeZone: 'America/New_York' }),
+      set('roles', 'ws_ny_owner', { workspaceId: 'ws_ny', name: 'Owner', isSystem: true, permissions: { 'dues.view': true } }),
+      set('memberships', 'ws_ny_nyo', { workspaceId: 'ws_ny', uid: 'nyo', roleId: 'ws_ny_owner', status: 'active' }),
+      // Her phone is in Kolkata, but the books are New York's.
+      set('devices', 'nyo_phone', { uid: 'nyo', token: 'ny-phone', timeZone: 'Asia/Kolkata', updatedAt: new Date() }),
+      set('dues', 'ny_gym', {
+        workspaceId: 'ws_ny', direction: 'payable', title: 'Gym', amount: 40, status: 'open', recurrence: 'monthly', occurrence: 1,
+        dueDate: atMidnight({ y: 2026, m: 11, d: 20 }, 'America/New_York'),
+      }),
+    ]);
+    // 23:56 on the 20th in Kolkata is only 13:26 in New York: its day is not over.
+    expect((await scheduler(new Date('2026-11-20T18:26:00Z')).materialise()).created).toBe(0);
+    // 23:56 in New York.
+    expect((await scheduler(new Date('2026-11-21T04:56:00Z')).materialise()).created).toBeGreaterThanOrEqual(1);
+    const dec = await admin.get('dues', 'rec_ny_gym_20261220');
+    expect(iso(calOf(dec!.dueDate as Date, 'America/New_York'))).toBe('2026-12-20');
+
+    // The 9:00 reminder is New York's 9:00, not the phone's.
+    sent.length = 0;
+    await scheduler(new Date('2026-11-20T09:30:00Z')).remind(); // 15:00 in Kolkata, 04:30 in New York
+    expect(sent.filter((x) => x.token === 'ny-phone')).toEqual([]);
+    await scheduler(new Date('2026-11-20T14:05:00Z')).remind(); // 09:05 in New York
+    expect(sent.filter((x) => x.token === 'ny-phone')).toHaveLength(1);
   });
 });

@@ -239,3 +239,38 @@ describe('shared ledger', () => {
     expect((await asha.call('respond_shared_entry', { entry_id: 'usd_entry', accept: false })).rejected).toBe(true);
   });
 });
+
+describe('repeating dues and time zones', () => {
+  it('stop_repeating_due ends a series from that due onward and keeps what exists', async () => {
+    const first = await asha.call('create_due', { title: 'Netflix', direction: 'payable', amount: 649, due_date: '2026-10-05', repeats: 'monthly' });
+    const nov = `rec_${first.id}_20261105`;
+    const dec = `rec_${first.id}_20261205`;
+    await admin.commit([
+      set('dues', nov, { workspaceId: 'wa', direction: 'payable', title: 'Netflix', amount: 649, status: 'open', recurrence: 'monthly', recurrenceId: first.id, dueDate: new Date('2026-11-04T18:30:00Z') }),
+      set('dues', dec, { workspaceId: 'wa', direction: 'payable', title: 'Netflix', amount: 649, status: 'open', recurrence: 'monthly', recurrenceId: first.id, dueDate: new Date('2026-12-04T18:30:00Z') }),
+    ]);
+    const r = await asha.call('stop_repeating_due', { due_id: nov });
+    expect(r.dues_changed.sort()).toEqual([dec, nov].sort());
+    expect('recurrence' in (await doc('dues', nov))).toBe(false);
+    expect('recurrence' in (await doc('dues', dec))).toBe(false);
+    expect((await doc('dues', first.id)).recurrence).toBe('monthly'); // October's is history, untouched
+    expect((await asha.call('stop_repeating_due', { due_id: nov })).error).toMatch(/does not repeat/);
+  });
+
+  it('dates in a workspace are its own days', async () => {
+    await admin.commit([
+      set('workspaces', 'wny', { name: 'NY books', ownerId: 'asha', baseCurrency: 'USD', fyStartMonth: 1, timeZone: 'America/New_York' }),
+      set('roles', 'wny_owner', { workspaceId: 'wny', name: 'Owner', isSystem: true, permissions: perms(() => true) }),
+      set('memberships', 'wny_asha', { workspaceId: 'wny', uid: 'asha', roleId: 'wny_owner', status: 'active' }),
+      set('accounts', 'wny_chase', { workspaceId: 'wny', name: 'Chase', type: 'bank', openingBalance: 0 }),
+    ]);
+    const ws = (await asha.call('list_workspaces')).find((w: any) => w.id === 'wny');
+    expect(ws.time_zone).toBe('America/New_York');
+    const t = await asha.call('create_transaction', { workspace_id: 'wny', account_id: 'wny_chase', date: '2026-11-20', lines: [{ type: 'income', amount: 10 }] });
+    expect(((await doc('transactions', t.id)).date as Date).toISOString()).toBe('2026-11-20T05:00:00.000Z'); // midnight in New York
+    expect((await asha.call('get_transaction', { workspace_id: 'wny', transaction_id: t.id })).date).toBe('2026-11-20');
+    // An Indian workspace still means Indian midnight.
+    const i = await asha.call('create_transaction', { workspace_id: 'wa', account_id: 'wa_bank', date: '2026-11-20', lines: [{ type: 'income', amount: 10, category_id: 'wa_pay' }] });
+    expect(((await doc('transactions', i.id)).date as Date).toISOString()).toBe('2026-11-19T18:30:00.000Z');
+  });
+});

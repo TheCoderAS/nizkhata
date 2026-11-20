@@ -13,11 +13,11 @@
 // It acts as "Niz Khata" (uid "system") in the workspace history, and runs with
 // the service account, never with anyone's sign-in.
 
-import { Books, type Actor, type WorkspaceInfo } from '../books.js';
+import { Books, workspaceTimeZone, type Actor, type WorkspaceInfo } from '../books.js';
 import { Firestore, FirestoreError, SERVER_TIME, type Plain } from '../firestore.js';
 import { dueSettledAmount, dueStatusFromSettled, makeRound, type Debt } from '../ledger.js';
 import type { Push } from './push.js';
-import { calOf, iso, missingDueInstances, nextDueDoc, statementDuePlans, type Cal } from './rules.js';
+import { calOf, closedDay, iso, missingDueInstances, nextDueDoc, statementDuePlans, type Cal } from './rules.js';
 
 /** What a run did, for /healthz: counts and error kinds only, never ids or names. */
 export interface RunReport {
@@ -138,26 +138,35 @@ export class Scheduler {
   }
 
   private async materialiseWorkspace(fs: Firestore, w: Plain, devices: Device[]) {
-    const { tz, locale } = this.placeOf(String(w.ownerId ?? ''), devices);
+    // The workspace's own time zone decides when its days end; the owner's
+    // phone only lends its date format to rendered titles.
+    const tz = workspaceTimeZone(w);
+    const { locale } = this.placeOf(String(w.ownerId ?? ''), devices);
     const info: WorkspaceInfo = {
       id: String(w.id),
       name: String(w.name ?? ''),
       currency: String(w.baseCurrency ?? 'INR'),
       fyStartMonth: Number(w.fyStartMonth ?? 4),
       ownerId: String(w.ownerId ?? ''),
+      timeZone: tz,
     };
     const b = Books.forWorkspace(fs, SYSTEM, info, tz);
-    const today = calOf(this.now(), tz);
+    const lastClosed = closedDay(this.now(), tz);
     const dues = await b.load('dues');
     let created = 0;
     let updated = 0;
     let errors = 0;
     let firstError: string | undefined;
 
-    // Repeating dues, caught up to today: an instance created for a past date
-    // spawns its own successor on the next pass, as successive syncs did.
+    // Dues someone deleted are never made again: deleting the newest of a
+    // series, or a card bill, is how a person says "not this one".
+    const deleted = new Set(
+      (await fs.whereEqual('revisions', { workspaceId: info.id, entityType: 'dues', action: 'delete' })).map((r) => String(r.entityId)),
+    );
+
+    // Repeating dues, caught up to the last day that has ended.
     for (let pass = 0; pass < 120; pass++) {
-      const missing = missingDueInstances(dues, today, tz);
+      const missing = missingDueInstances(dues, lastClosed, tz, deleted);
       if (!missing.length) break;
       for (const inst of missing) {
         const data = { ...nextDueDoc(inst, { fyStartMonth: info.fyStartMonth, tz, locale }), status: 'open' };
@@ -185,12 +194,14 @@ export class Scheduler {
         txns,
         debts: new Map<string, Debt>(debts.map((d) => [d.id, d])),
         settledOf,
-        today,
+        // A statement is billed once its day is over.
+        today: lastClosed,
         tz,
         locale,
         round,
       });
       for (const p of plans) {
+        if (p.kind === 'create' && deleted.has(p.dueId)) continue;
         try {
           if (p.kind === 'create') {
             const { writes } = b.createWrites('dues', { ...p.doc, status: 'open' }, p.dueId);
@@ -227,53 +238,69 @@ export class Scheduler {
       const now = this.now();
       let remindErrors = 0;
       let remindFirst: string | undefined;
-      const groups = new Map<string, Device[]>();
-      for (const d of devices) {
-        const key = `${d.uid}|${d.timeZone}`;
-        groups.set(key, [...(groups.get(key) ?? []), d]);
-      }
-      const cache = new Map<string, Promise<{ dues: Plain[]; txns: Plain[]; round: (n: number) => number }>>();
-      const books = (ws: string) => {
-        let p = cache.get(ws);
-        if (!p) {
-          p = (async () => {
-            const w = await fs.get('workspaces', ws);
-            const round = makeRound(String(w?.baseCurrency ?? 'INR'));
-            const [dues, txns] = await Promise.all([fs.where('dues', 'workspaceId', ws), fs.where('transactions', 'workspaceId', ws)]);
-            return { dues, txns, round };
-          })();
-          cache.set(ws, p);
-        }
+      const byUser = new Map<string, Device[]>();
+      for (const d of devices) byUser.set(d.uid, [...(byUser.get(d.uid) ?? []), d]);
+
+      const wsCache = new Map<string, Promise<Plain | null>>();
+      const workspace = (id: string) => {
+        let p = wsCache.get(id);
+        if (!p) wsCache.set(id, (p = fs.get('workspaces', id)));
+        return p;
+      };
+      const duesCache = new Map<string, Promise<Plain[]>>();
+      const duesOf = (id: string) => {
+        let p = duesCache.get(id);
+        if (!p) duesCache.set(id, (p = fs.where('dues', 'workspaceId', id)));
+        return p;
+      };
+      const paidCache = new Map<string, Promise<Plain[]>>();
+      const txnsOf = (id: string) => {
+        let p = paidCache.get(id);
+        if (!p) paidCache.set(id, (p = fs.where('transactions', 'workspaceId', id)));
         return p;
       };
 
-      for (const group of groups.values()) {
-        const { uid, timeZone: tz } = group[0]!;
-        const slot = SLOTS.filter((h) => h <= localHour(now, tz)).at(-1);
-        if (slot === undefined) continue;
-        const today = calOf(now, tz);
-        const key = `${uid}_${iso(today)}_${slot}`;
-        if (this.handled.has(key)) continue;
+      for (const [uid, phones] of byUser) {
         try {
-          const n = await this.countDueToday(fs, uid, today, tz, books);
-          if (n > 0 && (await this.claim(fs, key, uid, today, slot, n))) {
-            for (const d of group) {
-              const r = await push.send(d.token, {
-                title: n === 1 ? 'You have a due to clear today' : `You have ${n} dues to clear today`,
-                body: "Tap to see what's due",
-                route: `/dues-day?date=${iso(today)}`,
-                channel: 'due_reminders',
-                tag: `dues_${iso(today)}`,
-              });
-              if (r === 'sent') sent++;
-              if (r === 'gone') await fs.commit([{ kind: 'delete', collection: 'devices', id: d.id }]).catch(() => undefined);
-            }
+          // Each workspace's dues are counted on its own calendar and its own
+          // clock: "today" and the 9:00 slot are the workspace's.
+          const perZone = new Map<string, { today: Cal; slot: number; n: number }>();
+          for (const m of await fs.where('memberships', 'uid', uid)) {
+            const wsId = String(m.workspaceId ?? '');
+            if (!wsId) continue;
+            const w = await workspace(wsId);
+            if (!w) continue;
+            const tz = workspaceTimeZone(w);
+            const slot = SLOTS.filter((h) => h <= localHour(now, tz)).at(-1);
+            if (slot === undefined) continue;
+            const today = calOf(now, tz);
+            if (this.handled.has(this.reminderKey(uid, today, slot, tz))) continue;
+            const n = await this.countDueToday(fs, m, wsId, w, today, tz, duesOf, txnsOf);
+            const cur = perZone.get(tz) ?? { today, slot, n: 0 };
+            cur.n += n;
+            perZone.set(tz, cur);
           }
-          this.handled.add(key);
+          for (const [tz, { today, slot, n }] of perZone) {
+            const key = this.reminderKey(uid, today, slot, tz);
+            if (n > 0 && (await this.claim(fs, key, uid, today, slot, n))) {
+              for (const d of phones) {
+                const r = await push.send(d.token, {
+                  title: n === 1 ? 'You have a due to clear today' : `You have ${n} dues to clear today`,
+                  body: "Tap to see what's due",
+                  route: `/dues-day?date=${iso(today)}`,
+                  channel: 'due_reminders',
+                  tag: `dues_${iso(today)}`,
+                });
+                if (r === 'sent') sent++;
+                if (r === 'gone') await fs.commit([{ kind: 'delete', collection: 'devices', id: d.id }]).catch(() => undefined);
+              }
+            }
+            this.handled.add(key);
+          }
         } catch (e) {
           remindErrors++;
           remindFirst ??= errorKind(e);
-          this.log(`reminder ${key}: ${(e as Error).message}`);
+          this.log(`reminder ${uid}: ${(e as Error).message}`);
         }
       }
       this.lastReminders = { at: this.now().toISOString(), sent, errors: remindErrors, ...(remindFirst ? { firstError: remindFirst } : {}) };
@@ -286,34 +313,39 @@ export class Scheduler {
     return { sent };
   }
 
-  /** Unsettled dues on [today] across the workspaces where [uid] may see dues. */
+  /** One reminder per person, day and slot; per time zone too when theirs differ. */
+  private reminderKey(uid: string, today: Cal, slot: number, tz: string): string {
+    return `${uid}_${iso(today)}_${slot}${tz === 'Asia/Kolkata' ? '' : `_${tz.replace(/\//g, '-')}`}`;
+  }
+
+  /** Unsettled dues on [today] in one workspace that membership [m] may see. */
   private async countDueToday(
     fs: Firestore,
-    uid: string,
+    m: Plain,
+    wsId: string,
+    w: Plain,
     today: Cal,
     tz: string,
-    books: (ws: string) => Promise<{ dues: Plain[]; txns: Plain[]; round: (n: number) => number }>,
+    duesOf: (id: string) => Promise<Plain[]>,
+    txnsOf: (id: string) => Promise<Plain[]>,
   ): Promise<number> {
+    const role = m.roleId ? await fs.get('roles', String(m.roleId)) : null;
+    const permissions = (role?.permissions as Record<string, boolean> | undefined) ?? {};
+    if (permissions['dues.view'] !== true) return 0;
+    const own = permissions['scope.own'] === true;
+    const linked = m.linkedContactId as string | undefined;
+    if (own && !linked) return 0;
+    const todays = (await duesOf(wsId)).filter(
+      (d) => (!own || d.contactId === linked) && d.dueDate instanceof Date && iso(calOf(d.dueDate, tz)) === iso(today),
+    );
+    if (!todays.length) return 0;
+    const round = makeRound(String(w.baseCurrency ?? 'INR'));
+    const linkedTxns = (await txnsOf(wsId)).map((t) => ({ id: String(t.id), dueId: t.dueId as string | undefined, totalAmount: Number(t.totalAmount ?? 0) }));
     let n = 0;
-    for (const m of await fs.where('memberships', 'uid', uid)) {
-      const ws = String(m.workspaceId ?? '');
-      if (!ws) continue;
-      const role = m.roleId ? await fs.get('roles', String(m.roleId)) : null;
-      const permissions = (role?.permissions as Record<string, boolean> | undefined) ?? {};
-      if (permissions['dues.view'] !== true) continue;
-      const own = permissions['scope.own'] === true;
-      const linked = m.linkedContactId as string | undefined;
-      if (own && !linked) continue;
-      const { dues, txns, round } = await books(ws);
-      const linkedTxns = txns.map((t) => ({ id: String(t.id), dueId: t.dueId as string | undefined, totalAmount: Number(t.totalAmount ?? 0) }));
-      for (const d of dues) {
-        if (own && d.contactId !== linked) continue;
-        if (!(d.dueDate instanceof Date) || iso(calOf(d.dueDate, tz)) !== iso(today)) continue;
-        const due = { id: String(d.id), amount: Number(d.amount ?? 0), status: String(d.status ?? 'open') };
-        const settled = dueSettledAmount(due, linkedTxns as never, round);
-        const st = dueStatusFromSettled(due, settled);
-        if (st === 'open' || st === 'partial') n++;
-      }
+    for (const d of todays) {
+      const due = { id: String(d.id), amount: Number(d.amount ?? 0), status: String(d.status ?? 'open') };
+      const st = dueStatusFromSettled(due, dueSettledAmount(due, linkedTxns as never, round));
+      if (st === 'open' || st === 'partial') n++;
     }
     return n;
   }
@@ -340,7 +372,7 @@ export class Scheduler {
   }
 
   /** Run the reminders every [remindEveryMs] and the dues every [materialiseEveryMs], starting now. */
-  start(remindEveryMs = 5 * 60_000, materialiseEveryMs = 30 * 60_000): () => void {
+  start(remindEveryMs = 5 * 60_000, materialiseEveryMs = 5 * 60_000): () => void {
     const safe = (f: () => Promise<unknown>) => () => void f().catch((e) => this.log(`scheduler: ${(e as Error).message}`));
     const m = safe(() => this.materialise());
     const r = safe(() => this.remind());

@@ -120,24 +120,40 @@ export interface DueInstance {
 }
 
 /**
- * Which next instances are missing. A recurring due spawns its successor once
- * it is settled or cancelled, or its date has passed; only the latest of a
- * series spawns; existing ids make it idempotent.
+ * The last calendar day that has ended in [tz] at [now]. Scheduled work runs
+ * "at the end of the day": from 23:55 a day counts as over, so a run in the
+ * last five minutes before midnight acts on it. Before that, yesterday is the
+ * last day that has ended.
  */
-export function missingDueInstances(dues: Plain[], today: Cal, tz: string): DueInstance[] {
+export function closedDay(now: Date, tz: string, endOfDayMinute = 23 * 60 + 55): Cal {
+  const parts = new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(now);
+  const h = Number(parts.find((p) => p.type === 'hour')!.value);
+  const m = Number(parts.find((p) => p.type === 'minute')!.value);
+  const today = calOf(now, tz);
+  return h * 60 + m >= endOfDayMinute ? today : addDays(today, -1);
+}
+
+/**
+ * Which next instances are due to be created. At the end of each due's own
+ * date the next one in its series is created, whatever became of this one
+ * (paid, unpaid or cancelled). Only the newest instance of a series spawns, a
+ * series whose newest instance no longer repeats has ended, and an instance
+ * someone deleted ([deleted]) is never made again, which also ends the series
+ * if it was the newest. Existing ids make it idempotent.
+ */
+export function missingDueInstances(dues: Plain[], lastClosed: Cal, tz: string, deleted: Set<string> = new Set()): DueInstance[] {
   const ids = new Set(dues.map((d) => String(d.id)));
   const out: DueInstance[] = [];
   const dateOf = (d: Plain) => (d.dueDate instanceof Date ? d.dueDate : new Date(0));
   for (const d of dues) {
     const freq = d.recurrence as string | undefined;
     if (!freq) continue;
-    const done = d.status === 'settled' || d.status === 'cancelled';
     const due = calOf(dateOf(d), tz);
-    if (!done && !before(due, today)) continue;
+    if (after(due, lastClosed)) continue; // its day has not ended yet
     const seriesId = String(d.recurrenceId ?? d.id);
     const next = nextOccurrence(due, freq);
     const id = recurringDueId(seriesId, next);
-    if (ids.has(id)) continue;
+    if (ids.has(id) || deleted.has(id)) continue;
     const isLatest = !dues.some(
       (o) => o.id !== d.id && String(o.recurrenceId ?? o.id) === seriesId && dateOf(o).getTime() > dateOf(d).getTime(),
     );

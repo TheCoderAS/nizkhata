@@ -81,7 +81,7 @@ export const registerDebtTools: Register = (server, ctx) => {
     (a) =>
       run(async () => {
         const b = await ctx().books(a.workspace_id);
-        const tz = ctx().timeZone;
+        const tz = b.timeZone;
         await b.getOne('contacts', a.contact_id);
         if (a.account_id) await b.getOne('accounts', a.account_id);
         const amount = b.round(a.amount);
@@ -212,7 +212,7 @@ export const registerDebtTools: Register = (server, ctx) => {
     (a) =>
       run(async () => {
         const b = await ctx().books(a.workspace_id);
-        const tz = ctx().timeZone;
+        const tz = b.timeZone;
         const debts = await b.debts();
         const debt = debts.find((d) => d.id === a.debt_id);
         if (!debt) throw new UserError(`No debt with id ${a.debt_id}. Call list_debts.`);

@@ -62,7 +62,7 @@ export const registerContactTools: Register = (server, ctx) => {
         const b = await ctx().books(workspace_id);
         const c = await b.getOne('contacts', contact_id);
         const [debts, txns] = await Promise.all([b.debts(), b.txns()]);
-        const tz = ctx().timeZone;
+        const tz = b.timeZone;
         const p = contactPosition(contact_id, debts, txns, b.round);
         return {
           currency: b.ws.currency,

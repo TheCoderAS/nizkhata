@@ -68,7 +68,7 @@ export const registerDueTools: Register = (server, ctx) => {
     (a) =>
       run(async () => {
         const b = await ctx().books(a.workspace_id);
-        const tz = ctx().timeZone;
+        const tz = b.timeZone;
         const [dues, txns, contacts] = await Promise.all([b.dues(), b.txns(), b.load('contacts')]);
         const names = new Map(contacts.map((c) => [String(c.id), String(c.name)]));
         const from = a.from ? parseWhen(a.from, tz) : undefined;
@@ -126,7 +126,7 @@ export const registerDueTools: Register = (server, ctx) => {
     (a) =>
       run(async () => {
         const b = await ctx().books(a.workspace_id);
-        const tz = ctx().timeZone;
+        const tz = b.timeZone;
         if (a.contact_id) await b.getOne('contacts', a.contact_id);
         if (a.account_id) await b.getOne('accounts', a.account_id);
         await checkCategory(b, a.category_id, a.direction);
@@ -180,7 +180,7 @@ export const registerDueTools: Register = (server, ctx) => {
     (a) =>
       run(async () => {
         const b = await ctx().books(a.workspace_id);
-        const tz = ctx().timeZone;
+        const tz = b.timeZone;
         const due = await b.getOne('dues', a.due_id);
         const dir = String(due.direction);
         const lines = ((due.lines as Plain[] | undefined) ?? []) as unknown as Line[];
@@ -281,7 +281,7 @@ export const registerDueTools: Register = (server, ctx) => {
     (a) =>
       run(async () => {
         const b = await ctx().books(a.workspace_id);
-        const tz = ctx().timeZone;
+        const tz = b.timeZone;
         const due = await b.getOne('dues', a.due_id);
         if (due.status === 'cancelled') throw new UserError('This due is cancelled. Reopen it with update_due first.');
         const accountId = a.account_id ?? (due.accountId as string | undefined);
@@ -317,6 +317,32 @@ export const registerDueTools: Register = (server, ctx) => {
         writes[writes.length - 1] = b.revision('dues', a.due_id, 'update', undefined, ['status']);
         await b.commit(writes, 'record payments on dues');
         return { recorded: true, transaction_id: txnId, amount, due_status: newStatus, left: b.round(Math.max(0, left - amount)) };
+      }),
+  );
+
+  server.registerTool(
+    'stop_repeating_due',
+    {
+      title: 'Stop a repeating due',
+      description:
+        'End a repeating series from this due onward: this due and the later ones already created stop repeating, so no new ones are made. Dues already created are kept (pay, cancel or delete them as usual). To skip a single one instead, cancel it with update_due.',
+      inputSchema: { ...workspaceArg, due_id: z.string() },
+      annotations: OVERWRITE,
+    },
+    ({ workspace_id, due_id }) =>
+      run(async () => {
+        const b = await ctx().books(workspace_id);
+        const due = await b.getOne('dues', due_id);
+        if (!due.recurrence) throw new UserError('This due does not repeat.');
+        const series = String(due.recurrenceId ?? due.id);
+        const from = due.dueDate instanceof Date ? due.dueDate.getTime() : 0;
+        const affected = (await b.load('dues')).filter(
+          (d) => d.recurrence && String(d.recurrenceId ?? d.id) === series && (d.dueDate instanceof Date ? d.dueDate.getTime() : 0) >= from,
+        );
+        const writes: Write[] = [];
+        for (const d of affected) writes.push(...b.updateWrites('dues', String(d.id), { recurrence: null }));
+        await b.commit(writes, 'change dues');
+        return { stopped: true, series_ended_at: day(due.dueDate, b.timeZone), dues_changed: affected.map((d) => d.id) };
       }),
   );
 };

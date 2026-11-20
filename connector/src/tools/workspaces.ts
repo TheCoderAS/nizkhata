@@ -7,7 +7,7 @@ export const registerWorkspaceTools: Register = (server, ctx) => {
     {
       title: 'List workspaces',
       description:
-        "The person's Niz Khata workspaces (separate books: a household, a shop, a trip), each with its currency. Amounts in a workspace are always in its currency.",
+        "The person's Niz Khata workspaces (separate books: a household, a shop, a trip), each with its currency and time zone. Amounts in a workspace are always in its currency; its dates are days in its time zone.",
       annotations: READ,
     },
     () =>
@@ -17,6 +17,7 @@ export const registerWorkspaceTools: Register = (server, ctx) => {
           id: w.id,
           name: w.name,
           currency: w.currency,
+          time_zone: w.timeZone,
           financial_year_starts_month: w.fyStartMonth,
           you_own_it: w.ownerId === actor.uid,
         }));
