@@ -112,6 +112,7 @@ The phone used to schedule these itself. The backend now does it, so they happen
 
 - **Repeating dues:** the next instance of each repeating due is created once the current one is paid, cancelled or past its date. It catches up if the service was down.
 - **Card bills:** each credit card's current bill is raised from its statement day and payment due day. Its amount is kept in step with the card's ledger.
+- **Shared ledger notifications:** every action on a shared entry is pushed to the other person within about 20 seconds, at any hour, one notification per action. That covers a new expense, a new settlement, an acceptance and a rejection. The server looks for shared entries whose `updatedAt` moved since its last look. Each (entry, status) is logged in `pushLog` before it is sent, so none is sent twice. History from before the first run is never replayed.
 - **Due reminders:** pushes go out through Firebase Cloud Messaging at 9:00, 12:00, 15:00, 18:00 and 21:00 local time, on days with unsettled dues. The time zone comes from each phone's `devices` record. A reminder is logged in `pushLog` before it is sent, so none is sent twice. The log is cleared after 30 days.
 
 These jobs run only with `FIREBASE_SERVICE_ACCOUNT`, a service account of the `nizkhata` project. Set it up once:
@@ -136,7 +137,7 @@ The assistant's tools never use this key. They act with the signed-in person's o
 | `APP_TIMEZONE` (where a bare date falls) | no | `Asia/Kolkata` |
 | `PORT` | no | `8080` |
 | `FIREBASE_SERVICE_ACCOUNT` (JSON or base64 of it; turns on the scheduled jobs) | for reminders, repeating dues and card bills | |
-| `SCHEDULER_REMIND_MINUTES`, `SCHEDULER_DUES_MINUTES` | no | `5`, `30` |
+| `SCHEDULER_REMIND_MINUTES`, `SCHEDULER_DUES_MINUTES`, `SCHEDULER_SHARED_SECONDS` | no | `5`, `30`, `20` |
 | `OPENAI_APPS_CHALLENGE` (ChatGPT domain check, served at `/.well-known/openai-apps-challenge`) | for ChatGPT review | |
 
 ## Develop
