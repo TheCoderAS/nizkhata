@@ -132,3 +132,37 @@ jobs:
 
       - name: Run the rules matrix against the emulator
         run: firebase emulators:exec --only firestore --project demo-rules-test "npm run test:rules"
+
+  # The MCP connector (connector/, deployed to Render). Its tools run against
+  # the Firestore emulator with the real firestore.rules, so a rules change
+  # that would refuse the connector's writes fails here too.
+  connector:
+    name: Connector
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: connector
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: connector/package-lock.json
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+
+      - name: Tools against the emulator
+        working-directory: .
+        run: npx --yes firebase-tools emulators:exec --only firestore --project demo-connector-test "cd connector && npm run test:emulator"
+
+      - name: Docker image builds
+        run: docker build -t nizkhata-connector .
