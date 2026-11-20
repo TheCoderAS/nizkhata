@@ -82,7 +82,7 @@ export function buildApp(cfg: Config, fetchImpl: typeof fetch = fetch): Express 
     }) as unknown as { _registeredTools?: Record<string, unknown> })._registeredTools ?? {},
   ).length;
   app.get('/healthz', (_req, res) =>
-    res.json({ ok: true, version: status.version, tools: toolCount, jobs: status.jobs, ...(status.jobsDetail ? { jobs_detail: status.jobsDetail } : {}) }),
+    res.json({ ok: true, version: status.version, tools: toolCount, jobs: status.jobs, ...(status.jobsDetail ? { jobs_detail: status.jobsDetail } : {}), ...(status.runs ? { last_runs: status.runs() } : {}) }),
   );
   // ChatGPT's app review checks the domain by fetching this token.
   app.get('/.well-known/openai-apps-challenge', (_req, res) => {
