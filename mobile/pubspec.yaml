@@ -1,7 +1,7 @@
 name: nizkhata
 description: Niz Khata, the native Android app.
 publish_to: "none"
-version: 1.13.1+73
+version: 1.14.2+11402
 
 environment:
   sdk: ">=3.4.0 <4.0.0"
