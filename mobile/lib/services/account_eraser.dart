@@ -84,6 +84,8 @@ class AccountEraser {
     }
 
     report.documentsDeleted += await _eraseShared(uid);
+    // Every phone this person gets reminders on.
+    report.documentsDeleted += await _deleteWhere(_db.collection('devices').where('uid', isEqualTo: uid));
     await _db.collection('users').doc(uid).delete();
     report.documentsDeleted++;
     return report;

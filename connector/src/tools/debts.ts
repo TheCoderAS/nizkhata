@@ -180,7 +180,7 @@ export const registerDebtTools: Register = (server, ctx) => {
     'delete_debt',
     {
       title: 'Delete a debt',
-      description: 'Stop tracking a debt. Its transactions are kept. Cannot be undone from here.',
+      description: 'Stop tracking a debt. Its transactions are kept. It can be brought back with restore_deleted.',
       inputSchema: { ...workspaceArg, debt_id: z.string() },
       annotations: DESTRUCTIVE,
     },
@@ -188,7 +188,7 @@ export const registerDebtTools: Register = (server, ctx) => {
       run(async () => {
         const b = await ctx().books(workspace_id);
         const d = await b.getOne('debts', debt_id);
-        await b.commit(b.deleteWrites('debts', debt_id), 'delete debts');
+        await b.commit(b.deleteWrites('debts', debt_id, d), 'delete debts');
         return { deleted: true, id: debt_id, label: d.label };
       }),
   );

@@ -16,12 +16,18 @@ import { registerDebtTools } from './tools/debts.js';
 import { registerDueTools } from './tools/dues.js';
 import { registerTransactionTools } from './tools/transactions.js';
 import { registerWorkspaceTools } from './tools/workspaces.js';
+import { registerAccountTools } from './tools/accounts.js';
+import { registerReportTools } from './tools/reports.js';
+import { registerRecategoriseTools } from './tools/recategorise.js';
+import { registerHistoryTools } from './tools/history.js';
+import { registerSharedTools } from './tools/shared.js';
 
-const INSTRUCTIONS = `Niz Khata is a money ledger: accounts, transactions, dues (bills to pay and money to receive on a date), debts (money lent and borrowed, per person), contacts, categories and budgets, kept in workspaces.
+const INSTRUCTIONS = `Niz Khata is a money ledger: accounts, transactions, dues (bills to pay and money to receive on a date), debts (money lent and borrowed, per person), contacts, categories and budgets, kept in workspaces, plus shared ledgers kept with other Niz Khata users. It records money; it never moves real money or connects to a bank.
 If the person has more than one workspace, call list_workspaces, ask which one they mean, and pass that workspace_id on every call; switch only when they name another.
 Every amount is in its workspace's currency (list_workspaces). Amounts you send are always positive; the line type or direction decides which way money moves.
 To add a transaction you need an account_id (list_accounts) and, for income or expense, a category_id (list_categories). Look ids up instead of guessing them.
-Before deleting anything, or writing on the person's behalf, say what you are about to do.`;
+For "how am I doing" questions use get_summary rather than adding up transactions yourself.
+Before deleting anything, or writing on the person's behalf, say what you are about to do. A shared entry is seen by the other person as soon as it is added, so confirm who and how much first. Deleted records can be brought back with restore_deleted.`;
 
 /** The app icon, served from public/, so assistants show Niz Khata rather than the parent domain's. */
 const PUBLIC_DIR = fileURLToPath(new URL('../public', import.meta.url));
@@ -46,11 +52,16 @@ export function buildMcpServer(ctx: () => Ctx, publicUrl?: string): McpServer {
   );
   for (const register of [
     registerWorkspaceTools,
+    registerAccountTools,
+    registerReportTools,
     registerContactTools,
     registerCategoryTools,
     registerDueTools,
     registerDebtTools,
     registerTransactionTools,
+    registerRecategoriseTools,
+    registerHistoryTools,
+    registerSharedTools,
   ]) {
     register(server, ctx);
   }
@@ -108,6 +119,7 @@ export function buildApp(cfg: Config, fetchImpl: typeof fetch = fetch): Express 
     const ctx: Ctx = {
       fs,
       actor,
+      email: (p.email ?? '').toLowerCase(),
       timeZone: cfg.timeZone,
       books: (workspaceId?: string) => Books.open(fs, actor, cfg.timeZone, workspaceId),
     };

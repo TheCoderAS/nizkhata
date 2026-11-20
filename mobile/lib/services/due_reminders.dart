@@ -1,72 +1,115 @@
-// Due reminders — a single aggregated local notification per time slot on each
-// day that has unsettled dues ("You have N dues to clear today"), fired by
-// Android's AlarmManager so it works even when the app is closed. Tapping opens
-// the Dues screen filtered to that day (/dues-day?date=…). Schedules are
-// recomputed from the live dues list on every app open and dues change, and are
-// re-registered after reboot by the plugin's boot receiver.
+// Due reminders: "You have N dues to clear today", at 9:00, 12:00, 15:00,
+// 18:00 and 21:00 on a day with unsettled dues. They are push notifications
+// from the Niz Khata backend (see push_registration.dart), so they arrive
+// whether or not the app has been opened, and nothing is scheduled here.
+//
+// What is left on the phone: the notification channel the pushes are shown
+// in, showing one while the app is in front (Android leaves that to the app),
+// opening the Dues screen for that day when one is tapped, and, once after
+// updating, clearing the reminders older versions scheduled on the phone so
+// nobody gets each one twice.
 
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:flutter_timezone/flutter_timezone.dart';
-import 'package:timezone/data/latest_all.dart' as tzdata;
-import 'package:timezone/timezone.dart' as tz;
-
-import '../data/derive.dart';
-import '../data/models.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class DueReminders {
   DueReminders._();
   static final _plugin = FlutterLocalNotificationsPlugin();
 
-  /// Set by main.dart — receives the payload route (e.g. /dues-day?date=…)
-  /// when a notification is tapped.
+  /// Set by main.dart: receives the route (e.g. /dues-day?date=...) when a
+  /// reminder is tapped.
   static void Function(String route)? onOpenRoute;
 
   static bool _inited = false;
   static String? _pendingRoute;
 
-  /// Reminder slots on the due day (hours, local time). 09:00–21:00 every 3h —
-  /// deliberately not a 24h grid so nobody gets buzzed at 3am.
-  static const _slots = [9, 12, 15, 18, 21];
+  static const _channel = AndroidNotificationChannel(
+    'due_reminders',
+    'Due reminders',
+    description: 'Reminders on the day a due is to be cleared',
+    importance: Importance.high,
+  );
 
-  /// How many days ahead to keep scheduled (well under Android's ~500 cap:
-  /// 30 days × 5 slots = 150 worst case).
-  static const _horizonDays = 30;
+  /// Reminders used to be scheduled on the phone; this marks them cleared.
+  static const _clearedKey = 'localRemindersCleared';
 
   static Future<void> init() async {
     if (_inited) return;
     _inited = true;
-    tzdata.initializeTimeZones();
     try {
-      final name = await FlutterTimezone.getLocalTimezone();
-      tz.setLocalLocation(tz.getLocation(name));
-    } catch (_) {
-      // Keep the default (UTC) — reminders still fire, at shifted hours.
-    }
-    const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
-    await _plugin.initialize(
-      const InitializationSettings(android: androidInit),
-      onDidReceiveNotificationResponse: (resp) {
-        final p = resp.payload;
-        if (p != null && p.isNotEmpty) {
-          final open = onOpenRoute;
-          if (open != null) {
-            open(p);
-          } else {
-            _pendingRoute = p;
-          }
-        }
-      },
-    );
-    final android = _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
-    await android?.requestNotificationsPermission();
+      const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
+      await _plugin.initialize(
+        const InitializationSettings(android: androidInit),
+        onDidReceiveNotificationResponse: (resp) => _open(resp.payload),
+      );
+      final android = _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+      await android?.createNotificationChannel(_channel);
+      await android?.requestNotificationsPermission();
 
-    // Cold start from a notification tap: stash the route until the router is up.
-    final launch = await _plugin.getNotificationAppLaunchDetails();
-    final payload = launch?.notificationResponse?.payload;
-    if ((launch?.didNotificationLaunchApp ?? false) && payload != null && payload.isNotEmpty) {
-      _pendingRoute = payload;
+      final prefs = await SharedPreferences.getInstance();
+      if (prefs.getBool(_clearedKey) != true) {
+        await _plugin.cancelAll();
+        await prefs.setBool(_clearedKey, true);
+      }
+
+      // A reminder shown while the app is open.
+      FirebaseMessaging.onMessage.listen(_showForeground);
+      // A reminder tapped while the app was in the background...
+      FirebaseMessaging.onMessageOpenedApp.listen((m) => _open(m.data['route'] as String?));
+      // ...or one that started the app: a push, or one shown by [_showForeground].
+      final initial = await FirebaseMessaging.instance.getInitialMessage();
+      final route = initial?.data['route'] as String?;
+      if (route != null && route.isNotEmpty) _pendingRoute = route;
+      final launch = await _plugin.getNotificationAppLaunchDetails();
+      final payload = launch?.notificationResponse?.payload;
+      if ((launch?.didNotificationLaunchApp ?? false) && payload != null && payload.isNotEmpty) {
+        _pendingRoute = payload;
+      }
+    } catch (e) {
+      debugPrint('DueReminders.init failed: $e');
     }
+  }
+
+  static void _open(String? route) {
+    if (route == null || route.isEmpty) return;
+    final open = onOpenRoute;
+    if (open != null) {
+      open(route);
+    } else {
+      _pendingRoute = route;
+    }
+  }
+
+  static Future<void> _showForeground(RemoteMessage m) async {
+    final n = m.notification;
+    if (n == null) return;
+    final date = (m.data['route'] as String?) ?? '';
+    await _plugin.show(
+      // One per day, replaced by the next slot's, like the backend's tag.
+      date.hashCode & 0x7fffffff,
+      n.title,
+      n.body,
+      NotificationDetails(
+        android: AndroidNotificationDetails(
+          _channel.id,
+          _channel.name,
+          channelDescription: _channel.description,
+          importance: Importance.high,
+          priority: Priority.high,
+          category: AndroidNotificationCategory.reminder,
+        ),
+      ),
+      payload: m.data['route'] as String?,
+    );
+  }
+
+  /// Remove every reminder this app has on screen.
+  static Future<void> clear() async {
+    try {
+      await _plugin.cancelAll();
+    } catch (_) {}
   }
 
   /// Route waiting from a tap that happened before the router was ready.
@@ -74,85 +117,5 @@ class DueReminders {
     final r = _pendingRoute;
     _pendingRoute = null;
     return r;
-  }
-
-  /// Recompute the whole schedule from the current dues. One aggregated
-  /// notification per slot per day that has unsettled dues due that day.
-  static Future<void> sync(List<Due> dues, double Function(String dueId) settledOf) async {
-    if (!_inited) return;
-    try {
-      await _plugin.cancelAll();
-
-      // Count unsettled dues per due-date (today .. horizon).
-      final now = tz.TZDateTime.now(tz.local);
-      final today = DateTime(now.year, now.month, now.day);
-      final counts = <DateTime, int>{};
-      for (final d in dues) {
-        final st = dueStatusFromSettled(d, settledOf(d.id));
-        if (st != 'open' && st != 'partial') continue;
-        final day = DateTime(d.dueDate.year, d.dueDate.month, d.dueDate.day);
-        if (day.isBefore(today)) continue;
-        if (day.difference(today).inDays > _horizonDays) continue;
-        counts[day] = (counts[day] ?? 0) + 1;
-      }
-
-      const details = NotificationDetails(
-        android: AndroidNotificationDetails(
-          'due_reminders',
-          'Due reminders',
-          channelDescription: 'Reminders on the day a due is to be cleared',
-          importance: Importance.high,
-          priority: Priority.high,
-          category: AndroidNotificationCategory.reminder,
-        ),
-      );
-
-      for (final e in counts.entries) {
-        final day = e.key;
-        final n = e.value;
-        final dateStr =
-            '${day.year.toString().padLeft(4, '0')}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}';
-        for (final hour in _slots) {
-          final when = tz.TZDateTime(tz.local, day.year, day.month, day.day, hour);
-          if (!when.isAfter(now)) continue; // past slots today
-          // Stable id per (day, slot) so reschedules replace cleanly.
-          final id = ((day.year * 10000 + day.month * 100 + day.day) % 1000000) * 10 + _slots.indexOf(hour);
-          await _zonedSchedule(
-            id,
-            n == 1 ? 'You have a due to clear today' : 'You have $n dues to clear today',
-            'Tap to see what\'s due',
-            when,
-            details,
-            payload: '/dues-day?date=$dateStr',
-          );
-        }
-      }
-    } catch (e) {
-      debugPrint('DueReminders.sync failed: $e');
-    }
-  }
-
-  /// Inexact on purpose. The app asks for no exact-alarm permission (Google
-  /// Play reserves it for alarm clocks and calendars), and a reminder at a
-  /// check-in time on a due's day loses nothing by arriving a few minutes
-  /// late. Android may batch it with other alarms while the phone dozes.
-  static Future<void> _zonedSchedule(
-    int id,
-    String title,
-    String body,
-    tz.TZDateTime when,
-    NotificationDetails details, {
-    required String payload,
-  }) async {
-    await _plugin.zonedSchedule(
-      id,
-      title,
-      body,
-      when,
-      details,
-      androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-      uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
-      payload: payload,
-    );
   }
 }

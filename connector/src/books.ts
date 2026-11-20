@@ -98,6 +98,11 @@ export class Books {
     return new Books(fs, actor, ws, timeZone);
   }
 
+  /** Books for a workspace already known, for the scheduled jobs' system actor. */
+  static forWorkspace(fs: Firestore, actor: Actor, ws: WorkspaceInfo, timeZone: string): Books {
+    return new Books(fs, actor, ws, timeZone);
+  }
+
   // ---- reads ----
 
   async load(collection: string): Promise<Plain[]> {
@@ -199,8 +204,12 @@ export class Books {
     ];
   }
 
-  deleteWrites(collection: string, id: string): Write[] {
-    return [{ kind: 'delete', collection, id }, this.revision(collection, id, 'delete')];
+  /**
+   * With [snapshot] (the document as it stood), the delete revision keeps its
+   * contents, so restore_deleted can bring it back exactly as it was.
+   */
+  deleteWrites(collection: string, id: string, snapshot?: Plain): Write[] {
+    return [{ kind: 'delete', collection, id }, this.revision(collection, id, 'delete', snapshot)];
   }
 
   /** A transaction document as _buildTxnDoc makes it. */

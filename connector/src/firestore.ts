@@ -17,6 +17,8 @@ export interface Write {
   collection: string;
   id: string;
   data?: Plain;
+  /** A 'set' that must create: the commit fails if the document already exists. */
+  mustNotExist?: boolean;
 }
 
 export class FirestoreError extends Error {
@@ -136,14 +138,52 @@ export class Firestore {
     }
   }
 
-  /** Every document in [collection] whose [field] equals [value]. */
-  async where(collection: string, field: string, value: unknown, op = 'EQUAL'): Promise<Plain[]> {
-    const rows = (await this.call(':runQuery', {
-      structuredQuery: {
-        from: [{ collectionId: collection }],
-        where: { fieldFilter: { field: { fieldPath: field }, op, value: encodeValue(value) } },
-      },
-    })) as Array<{ document?: { name: string; fields?: Record<string, FsValue> } }>;
+  /**
+   * Every document in [collection] whose [field] matches [value] under [op]
+   * (EQUAL, ARRAY_CONTAINS, IN, LESS_THAN_OR_EQUAL ...), optionally ordered and
+   * capped.
+   */
+  async where(
+    collection: string,
+    field: string,
+    value: unknown,
+    op = 'EQUAL',
+    opts: { orderBy?: string; descending?: boolean; limit?: number } = {},
+  ): Promise<Plain[]> {
+    return this.query(collection, { fieldFilter: { field: { fieldPath: field }, op, value: encodeValue(value) } }, opts);
+  }
+
+  /** Every document in [collection] matching all of [equals] (field: value). */
+  async whereEqual(
+    collection: string,
+    equals: Record<string, unknown>,
+    opts: { orderBy?: string; descending?: boolean; limit?: number } = {},
+  ): Promise<Plain[]> {
+    const filters = Object.entries(equals).map(([f, v]) => ({
+      fieldFilter: { field: { fieldPath: f }, op: 'EQUAL', value: encodeValue(v) },
+    }));
+    return this.query(collection, filters.length === 1 ? filters[0] : { compositeFilter: { op: 'AND', filters } }, opts);
+  }
+
+  /** Every document in [collection]. */
+  async all(collection: string): Promise<Plain[]> {
+    return this.query(collection, undefined, {});
+  }
+
+  private async query(
+    collection: string,
+    where: unknown,
+    opts: { orderBy?: string; descending?: boolean; limit?: number },
+  ): Promise<Plain[]> {
+    const structuredQuery: Record<string, unknown> = { from: [{ collectionId: collection }] };
+    if (where) structuredQuery.where = where;
+    if (opts.orderBy) {
+      structuredQuery.orderBy = [{ field: { fieldPath: opts.orderBy }, direction: opts.descending ? 'DESCENDING' : 'ASCENDING' }];
+    }
+    if (opts.limit) structuredQuery.limit = opts.limit;
+    const rows = (await this.call(':runQuery', { structuredQuery })) as Array<{
+      document?: { name: string; fields?: Record<string, FsValue> };
+    }>;
     return rows
       .filter((r) => r.document)
       .map((r) => {
@@ -174,6 +214,8 @@ export class Firestore {
               .map(([k]) => (/^[A-Za-z_][A-Za-z0-9_]*$/.test(k) ? k : `\`${k}\``)),
           };
           out.currentDocument = { exists: true };
+        } else if (w.mustNotExist) {
+          out.currentDocument = { exists: false };
         }
         return out;
       }),

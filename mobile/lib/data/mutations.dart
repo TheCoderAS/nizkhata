@@ -140,10 +140,15 @@ class Mutations {
     await batch.commit();
   }
 
-  Future<void> _auditedDelete(String col, String workspaceId, String id) async {
+  /// With [snapshot] (what the document held), the delete's history entry
+  /// keeps it, so the record can be restored later, not just in the Undo
+  /// window.
+  Future<void> _auditedDelete(String col, String workspaceId, String id,
+      {Map<String, dynamic>? snapshot}) async {
     final batch = _db.batch();
     batch.delete(_db.collection(col).doc(id));
-    _appendRevision(batch, workspaceId: workspaceId, entityType: col, entityId: id, action: 'delete');
+    _appendRevision(batch,
+        workspaceId: workspaceId, entityType: col, entityId: id, action: 'delete', snapshot: snapshot);
     await batch.commit();
   }
 
@@ -166,7 +171,7 @@ class Mutations {
     } catch (_) {
       // Undo becomes unavailable; the delete still proceeds.
     }
-    await _auditedDelete(col, ws, id);
+    await _auditedDelete(col, ws, id, snapshot: snapshot);
     return snapshot;
   }
 

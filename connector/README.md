@@ -17,9 +17,13 @@ It runs as a Docker web service, for example on Render.
 
 | Area | Read | Write |
 | --- | --- | --- |
-| Workspaces | `list_workspaces`, `list_accounts` (with balances) | |
+| Workspaces | `list_workspaces` | |
+| Accounts | `list_accounts` (with balances) | `create_account`, `update_account`, `delete_account` |
+| Reports | `get_summary` (income, expense, by category, per account, trend) | |
+| History | `list_activity` | `restore_deleted` |
+| Shared ledger | `list_shared` | `add_shared_expense`, `record_shared_settlement`, `respond_shared_entry` |
 | Contacts | `list_contacts` (with net position), `get_contact` | `create_contact`, `update_contact`, `delete_contact` |
-| Transactions | `list_transactions`, `get_transaction` | `create_transaction`, `update_transaction`, `delete_transaction` |
+| Transactions | `list_transactions`, `get_transaction` | `create_transaction`, `update_transaction`, `delete_transaction`, `recategorise_transactions` |
 | Categories | `list_categories` | `create_category`, `update_category`, `delete_category` |
 | Budgets | `list_budgets` (spent and left this period) | `create_budget`, `update_budget`, `delete_budget` |
 | Dues | `list_dues` | `create_due`, `update_due`, `delete_due`, `record_due_payment` |
@@ -102,6 +106,24 @@ The server URL is `https://nizkhata-api.valorumlabs.com/mcp`.
 - **Claude:** go to Settings > Connectors > Add custom connector and paste the URL. Claude registers itself, then opens the Google sign-in.
 - **ChatGPT:** go to Settings > Apps & Connectors and turn on Developer mode. Then choose Create, paste the URL and pick OAuth for authentication.
 
+## Scheduled jobs
+
+The phone used to schedule these itself. The backend now does it, so they happen even when nobody opens the app:
+
+- **Repeating dues:** the next instance of each repeating due is created once the current one is paid, cancelled or past its date. It catches up if the service was down.
+- **Card bills:** each credit card's current bill is raised from its statement day and payment due day. Its amount is kept in step with the card's ledger.
+- **Due reminders:** pushes go out through Firebase Cloud Messaging at 9:00, 12:00, 15:00, 18:00 and 21:00 local time, on days with unsettled dues. The time zone comes from each phone's `devices` record. A reminder is logged in `pushLog` before it is sent, so none is sent twice. The log is cleared after 30 days.
+
+These jobs run only with `FIREBASE_SERVICE_ACCOUNT`, a service account of the `nizkhata` project. Set it up once:
+
+1. In Google Cloud, go to IAM & Admin > Service accounts and create a service account, for example `nizkhata-jobs`.
+2. Give it two roles: **Cloud Datastore User** and **Firebase Cloud Messaging API Admin**.
+3. Under Keys, choose **Add key > JSON**.
+4. Paste the whole JSON into Render as `FIREBASE_SERVICE_ACCOUNT`.
+5. Make sure the **Firebase Cloud Messaging API (V1)** is enabled in the project.
+
+The assistant's tools never use this key. They act with the signed-in person's own token, under the security rules.
+
 ## Environment
 
 | Variable | Required | Default |
@@ -113,6 +135,8 @@ The server URL is `https://nizkhata-api.valorumlabs.com/mcp`.
 | `FIREBASE_PROJECT_ID` | no | `nizkhata` |
 | `APP_TIMEZONE` (where a bare date falls) | no | `Asia/Kolkata` |
 | `PORT` | no | `8080` |
+| `FIREBASE_SERVICE_ACCOUNT` (JSON or base64 of it; turns on the scheduled jobs) | for reminders, repeating dues and card bills | |
+| `SCHEDULER_REMIND_MINUTES`, `SCHEDULER_DUES_MINUTES` | no | `5`, `30` |
 | `OPENAI_APPS_CHALLENGE` (ChatGPT domain check, served at `/.well-known/openai-apps-challenge`) | for ChatGPT review | |
 
 ## Develop

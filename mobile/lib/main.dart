@@ -17,8 +17,7 @@ import 'router.dart';
 import 'services/app_lock.dart';
 import 'services/due_reminders.dart';
 import 'services/pdf_brand.dart';
-import 'services/recurrence.dart';
-import 'services/statement_cycle.dart';
+import 'services/push_registration.dart';
 import 'services/widget_sync.dart';
 import 'state/auth_controller.dart';
 import 'state/data_controller.dart';
@@ -54,7 +53,11 @@ class NizkhataApp extends StatelessWidget {
           create: (_) => WorkspaceController(),
           update: (_, auth, ws) {
             final c = ws ?? WorkspaceController();
-            WidgetsBinding.instance.addPostFrameCallback((_) => c.setUid(auth.user?.uid));
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              c.setUid(auth.user?.uid);
+              // Where to send this person's due reminders.
+              PushRegistration.sync(auth.user?.uid);
+            });
             return c;
           },
         ),
@@ -206,100 +209,18 @@ class _RootState extends State<_Root> with WidgetsBindingObserver {
     final data = _data;
     if (data == null) return;
     final currency = _ws?.currency ?? 'INR';
-    DueReminders.sync(data.dues, data.settledOf);
+    // Reminders, repeating dues and card bills are the backend's job now; the
+    // phone only keeps its own widget and shortcuts in step.
     WidgetSync.sync(data.dues, data.settledOf, currency);
     _updateShortcuts();
     _attemptAutoLink();
-    _materializeRecurringDues();
-    _materializeCardStatements();
   }
 
-  /// Reminders are alarms scheduled ahead of time, so a change only reaches
-  /// them when this sync runs. Leaving the app within the debounce window used
-  /// to drop the pending run, which left yesterday's alarm to fire for a due
-  /// that had since been moved. Flush before going away.
+  /// Flush a pending sync before going away, so the widget shows the latest.
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.paused || state == AppLifecycleState.detached) {
       if (_syncDebounce?.isActive ?? false) _runSync();
-    }
-  }
-
-  /// Create the next instance of any recurring due that has settled or fallen
-  /// due. Deterministic instance ids make this safe to run on every device on
-  /// every sync — a second run (or a second device) is a no-op.
-  Future<void> _materializeRecurringDues() async {
-    final data = _data;
-    final ws = _ws;
-    final user = context.read<AuthController>().user;
-    final wsId = ws?.activeWorkspaceId;
-    if (data == null || ws == null || wsId == null || user == null) return;
-    if (!ws.can('dues.manage')) return;
-    final missing = missingDueInstances(data.dues, DateTime.now());
-    if (missing.isEmpty) return;
-    final m = Mutations(Actor.fromUser(user));
-    final fyStart = ws.fyStartMonth;
-    for (final inst in missing) {
-      try {
-        await m.createDue(
-          wsId,
-          nextDueDoc(inst, fyStartMonth: fyStart),
-          id: inst.id,
-        );
-      } catch (_) {
-        // A concurrent device may have created it first — that's the point of
-        // the deterministic id; skip quietly.
-      }
-    }
-  }
-
-  /// Raise the bill for any credit card whose statement date has passed, and
-  /// keep an unpaid bill's amount in step with the ledger behind it. The due id
-  /// is derived from the card and the statement date, so running this on every
-  /// sync and on every device converges on one document per statement.
-  Future<void> _materializeCardStatements() async {
-    final data = _data;
-    final ws = _ws;
-    final user = context.read<AuthController>().user;
-    final wsId = ws?.activeWorkspaceId;
-    if (data == null || ws == null || wsId == null || user == null) return;
-    if (!ws.can('dues.manage')) return;
-    final plans = statementDuePlans(
-      accounts: data.accounts,
-      dues: data.dues,
-      txns: data.transactions,
-      debtsById: data.debtsById,
-      settledOf: data.settledOf,
-      now: DateTime.now(),
-    );
-    if (plans.isEmpty) return;
-    final m = Mutations(Actor.fromUser(user));
-    for (final plan in plans) {
-      try {
-        if (plan.isCancel) {
-          // The statement it was raised from owes nothing any more.
-          await m.updateDue(wsId, plan.dueId, plan.doc);
-        } else if (plan.isRestore) {
-          // Withdrawn earlier, owed again now.
-          await m.updateDue(wsId, plan.dueId, {
-            'status': 'open',
-            'autoWithdrawn': false,
-            'amount': plan.doc['amount'],
-            'lines': plan.doc['lines'],
-          });
-        } else if (plan.isUpdate) {
-          await m.updateDue(wsId, plan.dueId, {
-            'amount': plan.doc['amount'],
-            'lines': plan.doc['lines'],
-          });
-        } else {
-          await m.createDue(wsId, plan.doc, id: plan.dueId);
-        }
-      } catch (e) {
-        // Another device may have raised it first — which is exactly what the
-        // deterministic id is for. Skip quietly.
-        debugPrint('statement bill ${plan.dueId}: $e');
-      }
     }
   }
 

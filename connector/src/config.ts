@@ -14,6 +14,12 @@ export interface Config {
   tokenSecret: string;
   /** How a bare date ("2026-11-20") is placed in time, as the app does on the phone. */
   timeZone: string;
+  /** Admin access for the scheduled jobs (raw or base64 JSON); jobs are off without it. */
+  serviceAccount: string;
+  /** Minutes between reminder checks and between due/card-bill runs. */
+  remindEveryMinutes: number;
+  duesEveryMinutes: number;
+  fcmBaseUrl: string;
   /** ChatGPT's domain-verification token, served at /.well-known/openai-apps-challenge. */
   openaiAppsChallenge: string;
   /** Overrides for tests: the Firestore and Identity Toolkit endpoints. */
@@ -35,6 +41,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   if (tokenSecret.length < 32) throw new Error('TOKEN_SECRET must be at least 32 characters');
   return {
     openaiAppsChallenge: env.OPENAI_APPS_CHALLENGE?.trim() ?? '',
+    serviceAccount: env.FIREBASE_SERVICE_ACCOUNT?.trim() ?? '',
+    remindEveryMinutes: Number(env.SCHEDULER_REMIND_MINUTES ?? 5),
+    duesEveryMinutes: Number(env.SCHEDULER_DUES_MINUTES ?? 30),
+    fcmBaseUrl: env.FCM_BASE_URL?.trim() || 'https://fcm.googleapis.com',
     // Render sets RENDER_EXTERNAL_URL itself; PUBLIC_URL wins (a custom domain).
     publicUrl: (env.PUBLIC_URL?.trim() || env.RENDER_EXTERNAL_URL?.trim() || need('PUBLIC_URL')).replace(/\/+$/, ''),
     port: Number(env.PORT ?? 8080),

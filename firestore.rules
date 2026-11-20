@@ -151,6 +151,31 @@ service cloud.firestore {
       allow read, create, update, delete: if isSignedIn() && request.auth.uid == uid;
     }
 
+    // ---- devices -----------------------------------------------------------
+    // Where to send a person's push reminders: one record per phone they are
+    // signed in on, id `${uid}_${install}`, carrying the push token and the
+    // phone's time zone. Each person sees and manages only their own; nobody
+    // can point another person's reminders at their phone or read their
+    // tokens. The backend reads them with its service account.
+    match /devices/{id} {
+      function ownDeviceId() { return id.matches(request.auth.uid + '_[A-Za-z0-9]{1,64}'); }
+      function deviceShapeOk() {
+        return request.resource.data.uid == request.auth.uid
+          && request.resource.data.token is string
+          && request.resource.data.token.size() > 0
+          && request.resource.data.token.size() < 4096
+          && request.resource.data.keys().hasOnly(['uid', 'token', 'timeZone', 'locale', 'platform', 'updatedAt']);
+      }
+      allow read, delete: if isSignedIn() && resource.data.uid == request.auth.uid;
+      allow create: if isSignedIn() && ownDeviceId() && deviceShapeOk();
+      allow update: if isSignedIn() && ownDeviceId() && resource.data.uid == request.auth.uid && deviceShapeOk();
+    }
+
+    // The backend's record of reminders already sent. Server only.
+    match /pushLog/{id} {
+      allow read, write: if false;
+    }
+
     // ---- workspaces --------------------------------------------------------
     // A workspace keeps its books in exactly one currency, chosen when it is
     // created and never changed: every amount already stored is a figure in

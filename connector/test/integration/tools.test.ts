@@ -62,7 +62,7 @@ async function seed() {
 async function asUser(uid: string, name: string) {
   const fs = new Firestore(BASE, idToken(uid));
   const actor = { uid, name };
-  const ctx: Ctx = { fs, actor, timeZone: TZ, books: (w?: string) => Books.open(fs, actor, TZ, w) };
+  const ctx: Ctx = { fs, actor, email: `${uid}@example.com`, timeZone: TZ, books: (w?: string) => Books.open(fs, actor, TZ, w) };
   const [a, b] = InMemoryTransport.createLinkedPair();
   await buildMcpServer(() => ctx).connect(a);
   const client = new Client({ name: 'test', version: '1' });

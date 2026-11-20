@@ -764,3 +764,54 @@ describe("deleting a workspace and everything in it", () => {
     await assertSucceeds(deleteDoc(doc(db, "users", "owner")));
   });
 });
+
+describe("devices: where push reminders go", () => {
+  const device = (uid: string, extra: Record<string, unknown> = {}) => ({
+    uid,
+    token: "fcm-token-abc",
+    timeZone: "Asia/Kolkata",
+    locale: "en_IN",
+    platform: "android",
+    updatedAt: new Date(),
+    ...extra,
+  });
+
+  it("a person registers, refreshes and removes their own phone", async () => {
+    const db = env.authenticatedContext("alice").firestore();
+    const ref = doc(db, "devices", "alice_install1");
+    await assertSucceeds(setDoc(ref, device("alice")));
+    await assertSucceeds(setDoc(ref, device("alice", { token: "fcm-token-new" })));
+    await assertSucceeds(getDoc(ref));
+    await assertSucceeds(deleteDoc(ref));
+  });
+
+  it("nobody can register a phone for someone else, or under someone else's id", async () => {
+    const db = env.authenticatedContext("mallory").firestore();
+    await assertFails(setDoc(doc(db, "devices", "alice_install9"), device("alice")));
+    await assertFails(setDoc(doc(db, "devices", "alice_install9"), device("mallory")));
+  });
+
+  it("nobody else can read, take over or delete a phone's record", async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), "devices", "alice_install2"), device("alice"));
+    });
+    const db = env.authenticatedContext("mallory").firestore();
+    const ref = doc(db, "devices", "alice_install2");
+    await assertFails(getDoc(ref));
+    await assertFails(updateDoc(ref, { token: "hijack" }));
+    await assertFails(deleteDoc(ref));
+    await assertFails(getDoc(doc(env.unauthenticatedContext().firestore(), "devices", "alice_install2")));
+  });
+
+  it("only the expected fields, and a real token", async () => {
+    const db = env.authenticatedContext("alice").firestore();
+    await assertFails(setDoc(doc(db, "devices", "alice_i3"), device("alice", { isAdmin: true })));
+    await assertFails(setDoc(doc(db, "devices", "alice_i3"), device("alice", { token: "" })));
+  });
+
+  it("the reminder log is the server's alone", async () => {
+    const db = env.authenticatedContext("alice").firestore();
+    await assertFails(getDoc(doc(db, "pushLog", "alice_2026-11-20_9")));
+    await assertFails(setDoc(doc(db, "pushLog", "alice_2026-11-20_9"), { uid: "alice" }));
+  });
+});

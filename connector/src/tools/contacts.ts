@@ -155,7 +155,7 @@ export const registerContactTools: Register = (server, ctx) => {
     'delete_contact',
     {
       title: 'Delete a contact',
-      description: 'Remove a contact. Their transactions are kept. This cannot be undone from here.',
+      description: 'Remove a contact. Their transactions are kept. It can be brought back with restore_deleted.',
       inputSchema: { ...workspaceArg, contact_id: z.string() },
       annotations: DESTRUCTIVE,
     },
@@ -163,7 +163,7 @@ export const registerContactTools: Register = (server, ctx) => {
       run(async () => {
         const b = await ctx().books(workspace_id);
         const c = await b.getOne('contacts', contact_id);
-        await b.commit(b.deleteWrites('contacts', contact_id), 'delete contacts');
+        await b.commit(b.deleteWrites('contacts', contact_id, c), 'delete contacts');
         return { deleted: true, id: contact_id, name: c.name };
       }),
   );
