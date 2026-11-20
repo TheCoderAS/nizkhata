@@ -145,6 +145,12 @@ describe('signing in', () => {
     await client.close();
   });
 
+  it('reports its build, tool count and jobs on /healthz', async () => {
+    const h = await (await fetch(base + '/healthz')).json();
+    expect(h).toMatchObject({ ok: true, tools: 41, jobs: 'off' });
+    expect(typeof h.version).toBe('string');
+  });
+
   it('serves its own favicon and icons', async () => {
     for (const [path, type] of [['/favicon.ico', 'image/'], ['/icon-48.png', 'image/png'], ['/icon-180.png', 'image/png']] as const) {
       const r = await fetch(base + path);

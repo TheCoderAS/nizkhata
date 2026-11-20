@@ -17,10 +17,29 @@ export interface ServiceAccount {
 
 /** FIREBASE_SERVICE_ACCOUNT as raw JSON or base64 of it. */
 export function parseServiceAccount(raw: string | undefined): ServiceAccount | null {
-  const v = raw?.trim();
+  let v = raw?.trim();
   if (!v) return null;
+  // Pasted with its surrounding quotes, as some dashboards keep them.
+  if (v.startsWith("'") && v.endsWith("'")) v = v.slice(1, -1).trim();
+  if (v.startsWith('"')) {
+    try {
+      const inner = JSON.parse(v) as unknown; // the key file as a quoted JSON string
+      if (typeof inner === 'string') v = inner.trim();
+    } catch {
+      /* not a quoted string; parsed below */
+    }
+  }
   const json = v.startsWith('{') ? v : Buffer.from(v, 'base64').toString('utf8');
-  const sa = JSON.parse(json) as ServiceAccount;
+  let sa: ServiceAccount;
+  try {
+    sa = JSON.parse(json) as ServiceAccount;
+  } catch {
+    throw new Error('not valid JSON (paste the whole key file, or its base64)');
+  }
+  // A key whose line breaks arrived as the two characters \ and n.
+  if (typeof sa.private_key === 'string' && !sa.private_key.includes('\n') && sa.private_key.includes('\\n')) {
+    sa.private_key = sa.private_key.replace(/\\n/g, '\n');
+  }
   if (!sa.client_email || !sa.private_key || !sa.project_id) {
     throw new Error('FIREBASE_SERVICE_ACCOUNT is missing client_email, private_key or project_id');
   }
