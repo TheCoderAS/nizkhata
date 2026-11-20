@@ -98,6 +98,11 @@ export class Books {
     return new Books(fs, actor, ws, timeZone);
   }
 
+  /** Books for a workspace already known, for the scheduled jobs' system actor. */
+  static forWorkspace(fs: Firestore, actor: Actor, ws: WorkspaceInfo, timeZone: string): Books {
+    return new Books(fs, actor, ws, timeZone);
+  }
+
   // ---- reads ----
 
   async load(collection: string): Promise<Plain[]> {
