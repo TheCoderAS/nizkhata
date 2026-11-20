@@ -1,3 +1,5 @@
+// Push notifications shown by the app: due reminders and shared ledger news.
+//
 // Due reminders: "You have N dues to clear today", at 9:00, 12:00, 15:00,
 // 18:00 and 21:00 on a day with unsettled dues. They are push notifications
 // from the Niz Khata backend (see push_registration.dart), so they arrive
@@ -32,6 +34,15 @@ class DueReminders {
     importance: Importance.high,
   );
 
+  /// Shared ledger news (an entry added, accepted or rejected), apart from
+  /// reminders so either can be muted without the other.
+  static const _sharedChannel = AndroidNotificationChannel(
+    'shared_ledger',
+    'Shared ledger',
+    description: 'When someone adds, accepts or rejects an entry you share',
+    importance: Importance.high,
+  );
+
   /// Reminders used to be scheduled on the phone; this marks them cleared.
   static const _clearedKey = 'localRemindersCleared';
 
@@ -46,6 +57,7 @@ class DueReminders {
       );
       final android = _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
       await android?.createNotificationChannel(_channel);
+      await android?.createNotificationChannel(_sharedChannel);
       await android?.requestNotificationsPermission();
 
       final prefs = await SharedPreferences.getInstance();
@@ -85,20 +97,22 @@ class DueReminders {
   static Future<void> _showForeground(RemoteMessage m) async {
     final n = m.notification;
     if (n == null) return;
-    final date = (m.data['route'] as String?) ?? '';
+    final route = (m.data['route'] as String?) ?? '';
+    final channel = n.android?.channelId == _sharedChannel.id ? _sharedChannel : _channel;
     await _plugin.show(
-      // One per day, replaced by the next slot's, like the backend's tag.
-      date.hashCode & 0x7fffffff,
+      // Reminders: one per day, replaced by the next slot's, like the
+      // backend's tag. Shared ledger: one per entry, each its own.
+      route.hashCode & 0x7fffffff,
       n.title,
       n.body,
       NotificationDetails(
         android: AndroidNotificationDetails(
-          _channel.id,
-          _channel.name,
-          channelDescription: _channel.description,
+          channel.id,
+          channel.name,
+          channelDescription: channel.description,
           importance: Importance.high,
           priority: Priority.high,
-          category: AndroidNotificationCategory.reminder,
+          category: channel == _channel ? AndroidNotificationCategory.reminder : AndroidNotificationCategory.social,
         ),
       ),
       payload: m.data['route'] as String?,
