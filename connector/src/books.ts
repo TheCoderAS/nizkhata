@@ -199,8 +199,12 @@ export class Books {
     ];
   }
 
-  deleteWrites(collection: string, id: string): Write[] {
-    return [{ kind: 'delete', collection, id }, this.revision(collection, id, 'delete')];
+  /**
+   * With [snapshot] (the document as it stood), the delete revision keeps its
+   * contents, so restore_deleted can bring it back exactly as it was.
+   */
+  deleteWrites(collection: string, id: string, snapshot?: Plain): Write[] {
+    return [{ kind: 'delete', collection, id }, this.revision(collection, id, 'delete', snapshot)];
   }
 
   /** A transaction document as _buildTxnDoc makes it. */

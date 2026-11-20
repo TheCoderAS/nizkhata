@@ -259,15 +259,16 @@ export const registerTransactionTools: Register = (server, ctx) => {
     'delete_transaction',
     {
       title: 'Delete a transaction',
-      description: 'Remove a transaction; balances, debts and dues update to match. Cannot be undone from here.',
+      description: 'Remove a transaction; balances, debts and dues update to match. It can be brought back with restore_deleted.',
       inputSchema: { ...workspaceArg, transaction_id: z.string() },
       annotations: DESTRUCTIVE,
     },
     ({ workspace_id, transaction_id }) =>
       run(async () => {
         const b = await ctx().books(workspace_id);
-        const t = toTxn(await b.getOne('transactions', transaction_id));
-        await b.commit(b.deleteWrites('transactions', transaction_id), 'delete transactions');
+        const raw = await b.getOne('transactions', transaction_id);
+        const t = toTxn(raw);
+        await b.commit(b.deleteWrites('transactions', transaction_id, raw), 'delete transactions');
         return { deleted: true, id: transaction_id, note: t.note, total: t.totalAmount };
       }),
   );

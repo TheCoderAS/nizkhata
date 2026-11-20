@@ -121,19 +121,21 @@ describe('signing in', () => {
     }));
     const tools = (await client.listTools()).tools.map((x) => x.name).sort();
     expect(tools).toEqual([
-      'create_budget', 'create_category', 'create_contact', 'create_debt', 'create_due', 'create_transaction',
-      'delete_budget', 'delete_category', 'delete_contact', 'delete_debt', 'delete_due', 'delete_transaction',
-      'get_contact', 'get_transaction',
-      'list_accounts', 'list_budgets', 'list_categories', 'list_contacts', 'list_debts', 'list_dues', 'list_transactions', 'list_workspaces',
-      'record_debt_repayment', 'record_due_payment',
-      'update_budget', 'update_category', 'update_contact', 'update_debt', 'update_due', 'update_transaction',
+      'add_shared_expense',
+      'create_account', 'create_budget', 'create_category', 'create_contact', 'create_debt', 'create_due', 'create_transaction',
+      'delete_account', 'delete_budget', 'delete_category', 'delete_contact', 'delete_debt', 'delete_due', 'delete_transaction',
+      'get_contact', 'get_summary', 'get_transaction',
+      'list_accounts', 'list_activity', 'list_budgets', 'list_categories', 'list_contacts', 'list_debts', 'list_dues', 'list_shared', 'list_transactions', 'list_workspaces',
+      'recategorise_transactions', 'record_debt_repayment', 'record_due_payment', 'record_shared_settlement',
+      'respond_shared_entry', 'restore_deleted',
+      'update_account', 'update_budget', 'update_category', 'update_contact', 'update_debt', 'update_due', 'update_transaction',
     ]);
     const deletes = (await client.listTools()).tools.filter((x) => x.name.startsWith('delete_'));
     expect(deletes.every((x) => x.annotations?.destructiveHint === true)).toBe(true);
     // ChatGPT's rule: every hint explicit, and only additive writes non-destructive.
     for (const t of (await client.listTools()).tools) {
       for (const h of ['readOnlyHint', 'destructiveHint', 'openWorldHint'] as const) expect(typeof t.annotations?.[h], `${t.name} ${h}`).toBe('boolean');
-      if (/^(update|delete)_/.test(t.name)) expect(t.annotations?.destructiveHint, t.name).toBe(true);
+      if (/^(update|delete|recategorise)_/.test(t.name)) expect(t.annotations?.destructiveHint, t.name).toBe(true);
       if (/^(list|get)_/.test(t.name)) expect(t.annotations?.readOnlyHint, t.name).toBe(true);
     }
     // The assistant shows Niz Khata's own icon, not the parent domain's.

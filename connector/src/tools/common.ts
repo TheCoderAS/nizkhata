@@ -9,6 +9,8 @@ import { localDate } from '../ledger.js';
 export interface Ctx {
   fs: Firestore;
   actor: Actor;
+  /** The signed-in person's email, lowercased ('' if Google gave none). */
+  email: string;
   timeZone: string;
   books(workspaceId?: string): Promise<Books>;
 }

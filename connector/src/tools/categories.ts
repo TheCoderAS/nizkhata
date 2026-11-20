@@ -71,7 +71,7 @@ export const registerCategoryTools: Register = (server, ctx) => {
     'delete_category',
     {
       title: 'Delete a category',
-      description: 'Remove a custom category. Built-in ones cannot be deleted. Cannot be undone from here.',
+      description: 'Remove a custom category. Built-in ones cannot be deleted. It can be brought back with restore_deleted.',
       inputSchema: { ...workspaceArg, category_id: z.string() },
       annotations: DESTRUCTIVE,
     },
@@ -80,7 +80,7 @@ export const registerCategoryTools: Register = (server, ctx) => {
         const b = await ctx().books(workspace_id);
         const c = await b.getOne('categories', category_id);
         if (c.isSystem === true) throw new UserError(`"${c.name}" is a built-in category and cannot be deleted.`);
-        await b.commit(b.deleteWrites('categories', category_id), 'delete categories');
+        await b.commit(b.deleteWrites('categories', category_id, c), 'delete categories');
         return { deleted: true, id: category_id, name: c.name };
       }),
   );
@@ -178,15 +178,15 @@ export const registerCategoryTools: Register = (server, ctx) => {
     'delete_budget',
     {
       title: 'Delete a budget',
-      description: 'Remove a budget. Spending is not affected. Cannot be undone from here.',
+      description: 'Remove a budget. Spending is not affected. It can be brought back with restore_deleted.',
       inputSchema: { ...workspaceArg, budget_id: z.string() },
       annotations: DESTRUCTIVE,
     },
     ({ workspace_id, budget_id }) =>
       run(async () => {
         const b = await ctx().books(workspace_id);
-        await b.getOne('budgets', budget_id);
-        await b.commit(b.deleteWrites('budgets', budget_id), 'delete budgets');
+        const bud = await b.getOne('budgets', budget_id);
+        await b.commit(b.deleteWrites('budgets', budget_id, bud), 'delete budgets');
         return { deleted: true, id: budget_id };
       }),
   );

@@ -250,7 +250,7 @@ export const registerDueTools: Register = (server, ctx) => {
     'delete_due',
     {
       title: 'Delete a due',
-      description: 'Remove a due. Payments already recorded stay as transactions. Cannot be undone from here; to withdraw it instead, use update_due with status "cancelled".',
+      description: 'Remove a due. Payments already recorded stay as transactions. It can be brought back with restore_deleted; to withdraw it instead, use update_due with status "cancelled".',
       inputSchema: { ...workspaceArg, due_id: z.string() },
       annotations: DESTRUCTIVE,
     },
@@ -258,7 +258,7 @@ export const registerDueTools: Register = (server, ctx) => {
       run(async () => {
         const b = await ctx().books(workspace_id);
         const d = await b.getOne('dues', due_id);
-        await b.commit(b.deleteWrites('dues', due_id), 'delete dues');
+        await b.commit(b.deleteWrites('dues', due_id, d), 'delete dues');
         return { deleted: true, id: due_id, title: d.title };
       }),
   );
