@@ -17,6 +17,12 @@ describe('service account', () => {
     expect(parseServiceAccount(Buffer.from(JSON.stringify(sa)).toString('base64'))?.project_id).toBe('nizkhata');
     expect(parseServiceAccount('')).toBeNull();
     expect(() => parseServiceAccount('{"project_id":"x"}')).toThrow(/missing/);
+    expect(() => parseServiceAccount('{not json')).toThrow(/not valid JSON/);
+    // Pasted in quotes, or as a quoted JSON string, or with its line breaks flattened.
+    expect(parseServiceAccount(`'${JSON.stringify(sa)}'`)?.client_email).toBe(sa.client_email);
+    expect(parseServiceAccount(JSON.stringify(JSON.stringify(sa)))?.client_email).toBe(sa.client_email);
+    const flat = parseServiceAccount(JSON.stringify({ ...sa, private_key: sa.private_key.replace(/\n/g, '\\n') }));
+    expect(flat?.private_key).toBe(sa.private_key);
   });
 
   it('signs a JWT bearer grant Google can verify, and caches the token', async () => {

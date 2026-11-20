@@ -5,6 +5,7 @@ import { Push } from './jobs/push.js';
 import { Scheduler } from './jobs/scheduler.js';
 import { SharedNotifier } from './jobs/shared-notify.js';
 import { buildApp } from './server.js';
+import { status } from './status.js';
 
 const cfg = loadConfig();
 buildApp(cfg).listen(cfg.port, () => {
@@ -13,9 +14,35 @@ buildApp(cfg).listen(cfg.port, () => {
 
 // Scheduled jobs (repeating dues, card bills, push reminders) need admin
 // access; without a service account the server only serves the connector.
-const sa = parseServiceAccount(cfg.serviceAccount);
+// A key that cannot be read turns the jobs off; it must never stop the
+// connector from serving.
+let sa: ReturnType<typeof parseServiceAccount> = null;
+try {
+  sa = parseServiceAccount(cfg.serviceAccount);
+} catch (e) {
+  status.jobs = 'error';
+  status.jobsDetail = `FIREBASE_SERVICE_ACCOUNT could not be read: ${(e as Error).message}`;
+  console.error(status.jobsDetail);
+}
 if (sa) {
-  const token = googleTokenSource(sa);
+  status.jobs = 'on';
+  status.jobsDetail = undefined;
+  const source = googleTokenSource(sa);
+  // A key Google refuses (revoked, wrong project) shows on /healthz too.
+  const token = async () => {
+    try {
+      const t = await source();
+      if (status.jobs === 'error') {
+        status.jobs = 'on';
+        status.jobsDetail = undefined;
+      }
+      return t;
+    } catch (e) {
+      status.jobs = 'error';
+      status.jobsDetail = (e as Error).message;
+      throw e;
+    }
+  };
   const scheduler = new Scheduler({
     admin: async () => new Firestore(cfg.firestoreBaseUrl, await token()),
     push: new Push(sa.project_id, token, fetch, cfg.fcmBaseUrl),
@@ -28,6 +55,6 @@ if (sa) {
   console.log(
     `Scheduled jobs on: reminders every ${cfg.remindEveryMinutes} min, dues every ${cfg.duesEveryMinutes} min, shared ledger every ${cfg.sharedEverySeconds} s`,
   );
-} else {
+} else if (status.jobs === 'off') {
   console.log('Scheduled jobs off: FIREBASE_SERVICE_ACCOUNT is not set');
 }
