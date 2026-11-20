@@ -1,5 +1,6 @@
 # Render Blueprint: the Niz Khata connector (MCP server for Claude and ChatGPT).
-# New > Blueprint in Render, pick this repo; fill in the two Google values when asked.
+# New > Blueprint in Render (paid workspaces), or create the Web Service by hand
+# with the same settings (connector/README.md).
 # See connector/README.md for the one-time Google OAuth setup.
 services:
   - type: web
@@ -10,6 +11,8 @@ services:
     plan: starter
     region: singapore
     healthCheckPath: /healthz
+    domains:
+      - nizkhata-api.valorumlabs.com
     autoDeploy: true
     buildFilter:
       paths:
@@ -30,7 +33,6 @@ services:
         sync: false
       - key: GOOGLE_CLIENT_SECRET
         sync: false
-      # Optional: set to a custom domain (e.g. https://mcp.nizkhata.valorumlabs.com).
-      # Left unset, the service's onrender.com address is used.
+      # The custom domain. Unset, the service's onrender.com address is used.
       - key: PUBLIC_URL
-        sync: false
+        value: https://nizkhata-api.valorumlabs.com

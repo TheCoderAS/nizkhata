@@ -29,33 +29,59 @@ All `delete_*` tools are marked destructive, so assistants ask before running th
 
 ## Deploy on Render
 
+The connector is served at **https://nizkhata-api.valorumlabs.com**.
+
 ### 1. Google OAuth client
 
-This is a one-time step, done in Google Cloud console > APIs & Services > Credentials, in the `nizkhata` project.
+This is a one-time step. In Google Cloud console, go to APIs & Services > Credentials, in the `nizkhata` project.
 
-1. Open the **Web client** (the one Firebase created for Google sign-in), or create a new Web client.
-2. Under **Authorized redirect URIs**, add `https://<your-service>.onrender.com/oauth/google/callback`. If you use a custom domain, add that address instead.
+1. Open the **Web client** that Firebase created for Google sign-in.
+2. Under **Authorized redirect URIs**, add `https://nizkhata-api.valorumlabs.com/oauth/google/callback`.
 3. Copy the **Client ID** and the **Client secret**.
 
-### 2. Blueprint
+### 2. Web Service
 
-In Render, open **New > Blueprint** and pick this repository. Render reads `render.yaml` from the repository root.
+In Render, go to **New > Web Service** and connect this repository. On a paid workspace, **New > Blueprint** reads `render.yaml` and fills all of this in.
 
-When asked, fill in:
+| Setting | Value |
+| --- | --- |
+| Language | Docker |
+| Branch | `main` |
+| Root Directory | `connector` |
+| Dockerfile Path | `./Dockerfile` |
+| Instance type | Free, or Starter (see the note below) |
+| Health Check Path | `/healthz` (under Advanced) |
 
-- `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`, from step 1.
-- `PUBLIC_URL`: leave it empty to use the `onrender.com` address, or set a custom domain.
+Add these **environment variables**:
 
-Render generates `TOKEN_SECRET` itself.
+| Key | Value |
+| --- | --- |
+| `PUBLIC_URL` | `https://nizkhata-api.valorumlabs.com` |
+| `GOOGLE_CLIENT_ID` | from step 1 |
+| `GOOGLE_CLIENT_SECRET` | from step 1 |
+| `TOKEN_SECRET` | the output of `openssl rand -hex 32`. Keep it; changing it signs everyone out. |
+| `FIREBASE_API_KEY` | `AIzaSyBUNKeUYJ_3M8u3h4IJER7eflq2C8kd-AU` |
+| `FIREBASE_PROJECT_ID` | `nizkhata` |
+| `APP_TIMEZONE` | `Asia/Kolkata` |
 
-The free plan sleeps when idle, and the first call after a nap can time out in the assistant. The blueprint therefore uses `starter`.
+**Free plan:** the service sleeps after 15 idle minutes. The first request after that takes about a minute while it wakes, and the assistant may time out once; ask again and it works. Starter does not sleep.
 
-### 3. Connect an assistant
+### 3. Custom domain
 
-The server URL is `https://<your-service>.onrender.com/mcp`.
+1. In the service, go to **Settings > Custom Domains** and add `nizkhata-api.valorumlabs.com`.
+2. At your DNS provider, add a **CNAME** record:
+   - name `nizkhata-api`
+   - target `<your-service>.onrender.com`, the address Render shows
+   - proxy off, if you use Cloudflare
+3. Wait until Render shows the domain as verified and the certificate as issued.
+4. Check that `https://nizkhata-api.valorumlabs.com/healthz` answers `{"ok":true}`.
+
+### 4. Connect an assistant
+
+The server URL is `https://nizkhata-api.valorumlabs.com/mcp`.
 
 - **Claude:** go to Settings > Connectors > Add custom connector and paste the URL. Claude registers itself, then opens the Google sign-in.
-- **ChatGPT:** go to Settings > Apps & Connectors, turn on Developer mode, then Create and paste the URL. For authentication, choose OAuth.
+- **ChatGPT:** go to Settings > Apps & Connectors and turn on Developer mode. Then choose Create, paste the URL and pick OAuth for authentication.
 
 ## Environment
 
@@ -64,7 +90,7 @@ The server URL is `https://<your-service>.onrender.com/mcp`.
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | yes | |
 | `TOKEN_SECRET` (32+ characters) | yes | |
 | `FIREBASE_API_KEY` | yes | |
-| `PUBLIC_URL` | on Render, no | `RENDER_EXTERNAL_URL` |
+| `PUBLIC_URL` (set it to the custom domain) | on Render, no | `RENDER_EXTERNAL_URL` |
 | `FIREBASE_PROJECT_ID` | no | `nizkhata` |
 | `APP_TIMEZONE` (where a bare date falls) | no | `Asia/Kolkata` |
 | `PORT` | no | `8080` |
