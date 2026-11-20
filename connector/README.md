@@ -39,16 +39,31 @@ This is a one-time step. In Google Cloud console, go to APIs & Services > Creden
 2. Under **Authorized redirect URIs**, add `https://nizkhata-api.valorumlabs.com/oauth/google/callback`.
 3. Copy the **Client ID** and the **Client secret**.
 
-### 2. Web Service
+### 2. Docker Hub (private image)
 
-In Render, go to **New > Web Service** and connect this repository. On a paid workspace, **New > Blueprint** reads `render.yaml` and fills all of this in.
+GitHub Actions builds the image and pushes it to a private Docker Hub repository. The workflow is `.github/workflows/connector-image.yml`, and it runs on every merge to `main` that changes `connector/`.
+
+1. On Docker Hub, create a **private** repository named `nizkhata-connector`.
+2. Under Account settings > Personal access tokens, create two tokens:
+   - **Read & Write**, for GitHub;
+   - **Read-only**, for Render.
+3. In GitHub, go to Settings > Secrets and variables > Actions and add these secrets:
+   - `DOCKERHUB_USERNAME`
+   - `DOCKERHUB_TOKEN` (the Read & Write token)
+4. Run the **Connector image** workflow once from the Actions tab. This pushes `docker.io/<user>/nizkhata-connector:latest`.
+
+To use another repository name, set the repository variable `DOCKERHUB_REPOSITORY`, for example `myname/nizkhata-api`.
+
+### 3. Web Service
+
+In Render, first add a registry credential: Workspace Settings > Registry Credentials, with registry Docker Hub, your username, and the Read-only token.
+
+Then go to **New > Web Service > Existing Image**.
 
 | Setting | Value |
 | --- | --- |
-| Language | Docker |
-| Branch | `main` |
-| Root Directory | `connector` |
-| Dockerfile Path | `./Dockerfile` |
+| Image URL | `docker.io/<user>/nizkhata-connector:latest` |
+| Credential | the Docker Hub credential above |
 | Instance type | Free, or Starter (see the note below) |
 | Health Check Path | `/healthz` (under Advanced) |
 
@@ -64,9 +79,11 @@ Add these **environment variables**:
 | `FIREBASE_PROJECT_ID` | `nizkhata` |
 | `APP_TIMEZONE` | `Asia/Kolkata` |
 
+**Auto-deploy:** Render does not watch Docker Hub. Copy the service's **Deploy Hook** (Settings > Deploy Hook) into the GitHub secret `RENDER_DEPLOY_HOOK_URL`. After each push, the workflow then deploys that exact image, tagged `sha-<commit>`. Without the secret, the image is only pushed, and you deploy it from Render with Manual Deploy.
+
 **Free plan:** the service sleeps after 15 idle minutes. The first request after that takes about a minute while it wakes, and the assistant may time out once; ask again and it works. Starter does not sleep.
 
-### 3. Custom domain
+### 4. Custom domain
 
 1. In the service, go to **Settings > Custom Domains** and add `nizkhata-api.valorumlabs.com`.
 2. At your DNS provider, add a **CNAME** record:
@@ -76,7 +93,7 @@ Add these **environment variables**:
 3. Wait until Render shows the domain as verified and the certificate as issued.
 4. Check that `https://nizkhata-api.valorumlabs.com/healthz` answers `{"ok":true}`.
 
-### 4. Connect an assistant
+### 5. Connect an assistant
 
 The server URL is `https://nizkhata-api.valorumlabs.com/mcp`.
 
