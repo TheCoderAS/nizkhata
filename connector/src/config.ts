@@ -14,6 +14,8 @@ export interface Config {
   tokenSecret: string;
   /** How a bare date ("2026-11-20") is placed in time, as the app does on the phone. */
   timeZone: string;
+  /** ChatGPT's domain-verification token, served at /.well-known/openai-apps-challenge. */
+  openaiAppsChallenge: string;
   /** Overrides for tests: the Firestore and Identity Toolkit endpoints. */
   firestoreBaseUrl: string;
   identityBaseUrl: string;
@@ -32,6 +34,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const tokenSecret = need('TOKEN_SECRET');
   if (tokenSecret.length < 32) throw new Error('TOKEN_SECRET must be at least 32 characters');
   return {
+    openaiAppsChallenge: env.OPENAI_APPS_CHALLENGE?.trim() ?? '',
     // Render sets RENDER_EXTERNAL_URL itself; PUBLIC_URL wins (a custom domain).
     publicUrl: (env.PUBLIC_URL?.trim() || env.RENDER_EXTERNAL_URL?.trim() || need('PUBLIC_URL')).replace(/\/+$/, ''),
     port: Number(env.PORT ?? 8080),

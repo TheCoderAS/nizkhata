@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { Books, UserError, toTxn } from '../books.js';
 import { DELETE, newDocId, type Plain } from '../firestore.js';
 import { computeTotal, financialYearOf, needsCategory, needsDebt, parseWhen, type Line } from '../ledger.js';
-import { DESTRUCTIVE, READ, WRITE, dateArg, day, run, workspaceArg, type Register } from './common.js';
+import { DESTRUCTIVE, READ, WRITE, OVERWRITE, dateArg, day, run, workspaceArg, type Register } from './common.js';
 
 /** How a caller describes a line. A transfer is one line here; it is stored as the app's balancing pair. */
 export const lineInput = z.object({
@@ -220,7 +220,7 @@ export const registerTransactionTools: Register = (server, ctx) => {
         contact_id: z.string().nullable().optional(),
         lines: z.array(lineInput).min(1).optional(),
       },
-      annotations: WRITE,
+      annotations: OVERWRITE,
     },
     (a) =>
       run(async () => {

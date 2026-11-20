@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { UserError } from '../books.js';
 import type { Plain } from '../firestore.js';
 import { contactPosition, debtOutstanding } from '../ledger.js';
-import { DESTRUCTIVE, READ, WRITE, day, run, workspaceArg, type Register } from './common.js';
+import { DESTRUCTIVE, READ, WRITE, OVERWRITE, day, run, workspaceArg, type Register } from './common.js';
 
 /** The app's email shape: [{value, label}] with blanks dropped, plus the legacy single `email`. */
 function emailFields(emails: string[] | null | undefined): Plain {
@@ -134,7 +134,7 @@ export const registerContactTools: Register = (server, ctx) => {
         address: fields.address.nullable().optional(),
         notes: fields.notes.nullable().optional(),
       },
-      annotations: WRITE,
+      annotations: OVERWRITE,
     },
     (a) =>
       run(async () => {

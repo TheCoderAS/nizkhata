@@ -39,7 +39,7 @@ beforeAll(async () => {
   const cfg = loadConfig({
     PUBLIC_URL: base,
     FIREBASE_API_KEY: 'k', GOOGLE_CLIENT_ID: 'gcid', GOOGLE_CLIENT_SECRET: 'gsecret',
-    TOKEN_SECRET: 's'.repeat(40),
+    TOKEN_SECRET: 's'.repeat(40), OPENAI_APPS_CHALLENGE: 'chal-123',
   } as NodeJS.ProcessEnv);
   server.on('request', buildApp(cfg, upstream));
 });
@@ -130,6 +130,12 @@ describe('signing in', () => {
     ]);
     const deletes = (await client.listTools()).tools.filter((x) => x.name.startsWith('delete_'));
     expect(deletes.every((x) => x.annotations?.destructiveHint === true)).toBe(true);
+    // ChatGPT's rule: every hint explicit, and only additive writes non-destructive.
+    for (const t of (await client.listTools()).tools) {
+      for (const h of ['readOnlyHint', 'destructiveHint', 'openWorldHint'] as const) expect(typeof t.annotations?.[h], `${t.name} ${h}`).toBe('boolean');
+      if (/^(update|delete)_/.test(t.name)) expect(t.annotations?.destructiveHint, t.name).toBe(true);
+      if (/^(list|get)_/.test(t.name)) expect(t.annotations?.readOnlyHint, t.name).toBe(true);
+    }
     // The assistant shows Niz Khata's own icon, not the parent domain's.
     const info = client.getServerVersion();
     expect(info?.title).toBe('Niz Khata');
@@ -143,6 +149,9 @@ describe('signing in', () => {
       expect(r.status, path).toBe(200);
       expect(r.headers.get('content-type'), path).toContain(type);
     }
+    const chal = await fetch(base + '/.well-known/openai-apps-challenge');
+    expect(chal.headers.get('content-type')).toContain('text/plain');
+    expect(await chal.text()).toBe('chal-123');
     const home = await (await fetch(base + '/')).text();
     expect(home).toContain('rel="icon"');
     expect(home).toContain(`${base}/mcp`);

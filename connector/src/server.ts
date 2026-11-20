@@ -65,6 +65,11 @@ export function buildApp(cfg: Config, fetchImpl: typeof fetch = fetch): Express 
   const auth = new FirebaseAuth(cfg, fetchImpl);
 
   app.get('/healthz', (_req, res) => res.json({ ok: true }));
+  // ChatGPT's app review checks the domain by fetching this token.
+  app.get('/.well-known/openai-apps-challenge', (_req, res) => {
+    if (!cfg.openaiAppsChallenge) return res.status(404).type('text').send('Not configured');
+    res.type('text/plain').send(cfg.openaiAppsChallenge);
+  });
   app.use(express.static(PUBLIC_DIR, { index: false, maxAge: '7d' }));
   app.get('/', (_req, res) =>
     res.type('html').send(

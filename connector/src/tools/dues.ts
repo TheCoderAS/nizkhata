@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { UserError, strip, type Books } from '../books.js';
 import { newDocId, type Plain, type Write } from '../firestore.js';
 import { computeTotal, dueSettledAmount, dueStatusFromSettled, financialYearOf, parseWhen, type Line } from '../ledger.js';
-import { DESTRUCTIVE, READ, WRITE, dateArg, day, run, workspaceArg, type Register } from './common.js';
+import { DESTRUCTIVE, READ, WRITE, OVERWRITE, dateArg, day, run, workspaceArg, type Register } from './common.js';
 
 const direction = z
   .enum(['payable', 'receivable'])
@@ -175,7 +175,7 @@ export const registerDueTools: Register = (server, ctx) => {
         repeats: z.enum(['weekly', 'monthly', 'yearly']).nullable().optional(),
         status: z.enum(['open', 'cancelled']).optional(),
       },
-      annotations: WRITE,
+      annotations: OVERWRITE,
     },
     (a) =>
       run(async () => {

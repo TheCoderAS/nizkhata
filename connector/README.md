@@ -25,7 +25,9 @@ It runs as a Docker web service, for example on Render.
 | Dues | `list_dues` | `create_due`, `update_due`, `delete_due`, `record_due_payment` |
 | Debts | `list_debts` | `create_debt`, `update_debt`, `delete_debt`, `record_debt_repayment` |
 
-All `delete_*` tools are marked destructive, so assistants ask before running them.
+Every tool states all three hints explicitly. `list_*` and `get_*` are read-only. `create_*` and `record_*` only add, so they are not destructive. `update_*` (which changes what is there) and `delete_*` are marked destructive, so assistants ask before running them.
+
+Listing texts for the Claude and ChatGPT directories are in [LISTING.md](LISTING.md).
 
 ## Deploy on Render
 
@@ -111,6 +113,7 @@ The server URL is `https://nizkhata-api.valorumlabs.com/mcp`.
 | `FIREBASE_PROJECT_ID` | no | `nizkhata` |
 | `APP_TIMEZONE` (where a bare date falls) | no | `Asia/Kolkata` |
 | `PORT` | no | `8080` |
+| `OPENAI_APPS_CHALLENGE` (ChatGPT domain check, served at `/.well-known/openai-apps-challenge`) | for ChatGPT review | |
 
 ## Develop
 
