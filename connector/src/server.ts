@@ -17,6 +17,7 @@ import { registerTransactionTools } from './tools/transactions.js';
 import { registerWorkspaceTools } from './tools/workspaces.js';
 
 const INSTRUCTIONS = `Niz Khata is a money ledger: accounts, transactions, dues (bills to pay and money to receive on a date), debts (money lent and borrowed, per person), contacts, categories and budgets, kept in workspaces.
+If the person has more than one workspace, call list_workspaces, ask which one they mean, and pass that workspace_id on every call; switch only when they name another.
 Every amount is in its workspace's currency (list_workspaces). Amounts you send are always positive; the line type or direction decides which way money moves.
 To add a transaction you need an account_id (list_accounts) and, for income or expense, a category_id (list_categories). Look ids up instead of guessing them.
 Before deleting anything, or writing on the person's behalf, say what you are about to do.`;
