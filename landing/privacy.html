@@ -62,7 +62,7 @@
         <h3>What you enter</h3>
         <p>Your workspaces, accounts, transactions, categories, budgets, dues, debts, contacts, notes and shared ledger entries. Contacts are only what you type; the app never reads your phone's contact list. Changes are kept in each workspace's history so members can see who changed what.</p>
         <h3>From your phone</h3>
-        <p>For each phone you are signed in on: a push notification token, its time zone and its date format, so reminders reach it at the right local time. It is removed when you sign out there or delete your account.</p>
+        <p>For each phone you are signed in on: a push notification token, its time zone and its date format, so reminders and shared ledger notifications reach it, at the right local time. It is removed when you sign out there or delete your account.</p>
       </section>
       <section id="device" class="reveal"><h2><span class="no">03</span>What stays on your phone</h2>
         <ul>
@@ -74,7 +74,7 @@
       </section>
       <section id="where" class="reveal"><h2><span class="no">04</span>Where it is kept</h2>
         <p>In Google Cloud Firestore (Google Firebase), with sign-in by Firebase Authentication, encrypted in transit and at rest, under the <a href="https://firebase.google.com/terms/data-processing-terms">Firebase data processing terms</a>. The app downloads its typefaces from Google Fonts, which sees your device's network address when it does.</p>
-        <p>Our server (hosted on Render) also works on your books on a schedule: it adds the next copy of a repeating due, raises each month's credit card bill, and sends due reminders through Firebase Cloud Messaging. These changes appear in your workspace history as "Niz Khata". It keeps no copy of your records, only a short note of which reminders it sent, for 30 days, so none is sent twice.</p>
+        <p>Our server (hosted on Render) also works on your books on a schedule: it adds the next copy of a repeating due, raises each month's credit card bill, sends due reminders through Firebase Cloud Messaging, and tells the other person in a shared ledger the moment an entry between you is added, accepted or rejected. These changes appear in your workspace history as "Niz Khata". It keeps no copy of your records, only a short note of which reminders it sent, for 30 days, so none is sent twice.</p>
       </section>
       <section id="who-sees" class="reveal"><h2><span class="no">05</span>Who can see it</h2>
         <ul>
