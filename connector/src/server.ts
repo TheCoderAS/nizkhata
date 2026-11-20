@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url';
 import express, { type Express } from 'express';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
@@ -22,8 +23,27 @@ Every amount is in its workspace's currency (list_workspaces). Amounts you send 
 To add a transaction you need an account_id (list_accounts) and, for income or expense, a category_id (list_categories). Look ids up instead of guessing them.
 Before deleting anything, or writing on the person's behalf, say what you are about to do.`;
 
-export function buildMcpServer(ctx: () => Ctx): McpServer {
-  const server = new McpServer({ name: 'niz-khata', version: '1.0.0' }, { instructions: INSTRUCTIONS });
+/** The app icon, served from public/, so assistants show Niz Khata rather than the parent domain's. */
+const PUBLIC_DIR = fileURLToPath(new URL('../public', import.meta.url));
+
+export function icons(publicUrl: string) {
+  return [
+    { src: `${publicUrl}/icon-180.png`, mimeType: 'image/png', sizes: ['180x180'] },
+    { src: `${publicUrl}/icon-48.png`, mimeType: 'image/png', sizes: ['48x48'] },
+  ];
+}
+
+export function buildMcpServer(ctx: () => Ctx, publicUrl?: string): McpServer {
+  const server = new McpServer(
+    {
+      name: 'niz-khata',
+      title: 'Niz Khata',
+      version: '1.0.0',
+      websiteUrl: 'https://nizkhata.valorumlabs.com',
+      ...(publicUrl ? { icons: icons(publicUrl) } : {}),
+    },
+    { instructions: INSTRUCTIONS },
+  );
   for (const register of [
     registerWorkspaceTools,
     registerContactTools,
@@ -45,7 +65,17 @@ export function buildApp(cfg: Config, fetchImpl: typeof fetch = fetch): Express 
   const auth = new FirebaseAuth(cfg, fetchImpl);
 
   app.get('/healthz', (_req, res) => res.json({ ok: true }));
-  app.get('/', (_req, res) => res.type('text').send('Niz Khata connector. Add this server to Claude or ChatGPT: ' + `${cfg.publicUrl}/mcp`));
+  app.use(express.static(PUBLIC_DIR, { index: false, maxAge: '7d' }));
+  app.get('/', (_req, res) =>
+    res.type('html').send(
+      `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">` +
+        `<title>Niz Khata connector</title><link rel="icon" href="/favicon.ico" sizes="any"><link rel="icon" type="image/png" sizes="48x48" href="/icon-48.png">` +
+        `<link rel="apple-touch-icon" href="/icon-180.png"></head><body style="font-family:system-ui,sans-serif;max-width:36rem;margin:3rem auto;padding:0 1rem;line-height:1.5">` +
+        `<img src="/icon-180.png" alt="" width="64" height="64"><h1>Niz Khata connector</h1>` +
+        `<p>Add this server to Claude or ChatGPT as a custom connector:</p><p><code>${cfg.publicUrl}/mcp</code></p>` +
+        `<p><a href="https://nizkhata.valorumlabs.com">Niz Khata</a> by <a href="https://valorumlabs.com">Valorum Labs</a> · <a href="https://nizkhata.valorumlabs.com/privacy">Privacy</a></p></body></html>`,
+    ),
+  );
   app.use(oauthRouter(cfg, sealer, auth, fetchImpl));
 
   const unauthorized = (res: express.Response, message: string) => {
@@ -78,7 +108,7 @@ export function buildApp(cfg: Config, fetchImpl: typeof fetch = fetch): Express 
     };
     // Stateless: a fresh server and transport per request, as the SDK
     // recommends, so no person's state can leak into another's.
-    const server = buildMcpServer(() => ctx);
+    const server = buildMcpServer(() => ctx, cfg.publicUrl);
     const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
     res.on('close', () => {
       void transport.close();

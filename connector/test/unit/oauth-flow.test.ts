@@ -130,6 +130,21 @@ describe('signing in', () => {
     ]);
     const deletes = (await client.listTools()).tools.filter((x) => x.name.startsWith('delete_'));
     expect(deletes.every((x) => x.annotations?.destructiveHint === true)).toBe(true);
+    // The assistant shows Niz Khata's own icon, not the parent domain's.
+    const info = client.getServerVersion();
+    expect(info?.title).toBe('Niz Khata');
+    expect(info?.icons?.[0]?.src).toBe(`${base}/icon-180.png`);
     await client.close();
+  });
+
+  it('serves its own favicon and icons', async () => {
+    for (const [path, type] of [['/favicon.ico', 'image/'], ['/icon-48.png', 'image/png'], ['/icon-180.png', 'image/png']] as const) {
+      const r = await fetch(base + path);
+      expect(r.status, path).toBe(200);
+      expect(r.headers.get('content-type'), path).toContain(type);
+    }
+    const home = await (await fetch(base + '/')).text();
+    expect(home).toContain('rel="icon"');
+    expect(home).toContain(`${base}/mcp`);
   });
 });
