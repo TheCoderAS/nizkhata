@@ -118,31 +118,23 @@ jobs:
               )
               s = s.replace('</activity>', applink + '</activity>', 1)
               print('App Links intent-filter added')
-          # Due reminders: notification + boot permissions. No exact-alarm
-          # permission: Google Play allows USE_EXACT_ALARM only for alarm-clock
-          # and calendar apps, and reminders at fixed check-in times on a due's
-          # day need no to-the-second timing; they are scheduled inexact.
+          # Due reminders arrive as push notifications from the backend, so the
+          # app needs to show notifications but schedules no alarms and has
+          # nothing to re-register at boot.
           # USE_BIOMETRIC: the app-lock (local_auth) fingerprint/credential gate.
           for perm in ['android.permission.POST_NOTIFICATIONS',
-                       'android.permission.RECEIVE_BOOT_COMPLETED',
                        'android.permission.USE_BIOMETRIC',
                        'android.permission.VIBRATE']:
               if perm not in s:
                   s = re.sub(r'(<manifest[^>]*>)',
                              r'\1\n    <uses-permission android:name="%s"/>' % perm, s, count=1)
-          # flutter_local_notifications receivers (scheduled + reboot re-registration)
-          # and the home-screen widget provider.
-          if 'ScheduledNotificationReceiver' not in s:
+          # The home-screen widget provider, and the icon and channel Android
+          # shows a reminder push with while the app is in the background.
+          if 'DuesWidgetProvider' not in s:
               receivers = (
                   '\n'
-                  '        <receiver android:exported="false" android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver" />\n'
-                  '        <receiver android:exported="false" android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver">\n'
-                  '            <intent-filter>\n'
-                  '                <action android:name="android.intent.action.BOOT_COMPLETED"/>\n'
-                  '                <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>\n'
-                  '                <action android:name="android.intent.action.QUICKBOOT_POWERON"/>\n'
-                  '            </intent-filter>\n'
-                  '        </receiver>\n'
+                  '        <meta-data android:name="com.google.firebase.messaging.default_notification_icon" android:resource="@drawable/ic_stat_due" />\n'
+                  '        <meta-data android:name="com.google.firebase.messaging.default_notification_channel_id" android:value="due_reminders" />\n'
                   '        <receiver android:name=".DuesWidgetProvider" android:exported="false">\n'
                   '            <intent-filter>\n'
                   '                <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>\n'
@@ -153,7 +145,7 @@ jobs:
                   '    '
               )
               s = s.replace('</application>', receivers + '</application>', 1)
-              print('notification + widget receivers added')
+              print('push notification defaults + widget receivers added')
           open(p, 'w').write(s)
           PY
           # Belt to that braces: deny both backup transports outright.

@@ -90,6 +90,7 @@ export class Scheduler {
     try {
       const fs = await this.o.admin();
       const [workspaces, devices] = await Promise.all([fs.all('workspaces'), this.devices(fs)]);
+      await this.pruneLog(fs).catch((e) => this.log(`push log cleanup: ${(e as Error).message}`));
       for (const w of workspaces) {
         try {
           const r = await this.materialiseWorkspace(fs, w, devices);
@@ -271,6 +272,14 @@ export class Scheduler {
       }
     }
     return n;
+  }
+
+  /** The reminder log is kept 30 days (the privacy policy says so), then cleared. */
+  async pruneLog(fs: Firestore): Promise<number> {
+    const cutoff = new Date(this.now().getTime() - 30 * 86_400_000).toISOString().slice(0, 10);
+    const old = await fs.where('pushLog', 'date', cutoff, 'LESS_THAN', { limit: 400 });
+    if (old.length) await fs.commit(old.map((d) => ({ kind: 'delete' as const, collection: 'pushLog', id: String(d.id) })));
+    return old.length;
   }
 
   /** Log the reminder before sending it; false when another run already did. */

@@ -11,6 +11,7 @@ import '../core/currency.dart';
 import '../firebase_options.dart';
 import '../services/account_eraser.dart';
 import '../services/local_data.dart';
+import '../services/push_registration.dart';
 import '../data/permissions.dart';
 
 /// The fields a new workspace document starts with, less the server
@@ -108,6 +109,8 @@ class AuthController extends ChangeNotifier {
   }
 
   Future<void> signOut() async {
+    // Stop reminders to this phone while the record can still be removed.
+    await PushRegistration.unregister();
     try {
       await _google.signOut();
     } catch (_) {}
@@ -135,6 +138,7 @@ class AuthController extends ChangeNotifier {
     );
 
     final report = await AccountEraser(_db).eraseAccount(u.uid);
+    await PushRegistration.unregister();
     await clearLocalData();
     await u.delete();
     await signOut();

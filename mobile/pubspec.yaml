@@ -15,6 +15,9 @@ dependencies:
   # Firebase (native) — same backend/project as the web app.
   firebase_core: ^3.8.0
   firebase_auth: ^5.3.4
+  # Push notifications: due reminders are sent by the backend, not scheduled
+  # on the phone.
+  firebase_messaging: ^15.2.10
   cloud_firestore: ^5.5.1
   google_sign_in: ^6.2.2
 
@@ -39,8 +42,8 @@ dependencies:
 
   google_fonts: ^6.2.1
 
-  # Due reminders (local scheduled notifications; fire via AlarmManager even
-  # when the app is closed), home-screen widget data, and app shortcuts.
+  # Showing a reminder push while the app is open (and clearing reminders an
+  # older version scheduled), home-screen widget data, and app shortcuts.
   flutter_local_notifications: ^18.0.1
   timezone: ^0.10.0
   flutter_timezone: ^4.1.1

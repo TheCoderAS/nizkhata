@@ -61,23 +61,27 @@
         <p>Your name, email address and profile photo link, so the people you share with know it's you.</p>
         <h3>What you enter</h3>
         <p>Your workspaces, accounts, transactions, categories, budgets, dues, debts, contacts, notes and shared ledger entries. Contacts are only what you type; the app never reads your phone's contact list. Changes are kept in each workspace's history so members can see who changed what.</p>
+        <h3>From your phone</h3>
+        <p>For each phone you are signed in on: a push notification token, its time zone and its date format, so reminders reach it at the right local time. It is removed when you sign out there or delete your account.</p>
       </section>
       <section id="device" class="reveal"><h2><span class="no">03</span>What stays on your phone</h2>
         <ul>
           <li><strong>Bank statements you import</strong> are read on your phone. Only the transactions you choose to save are uploaded.</li>
           <li><strong>Statement passwords</strong> stay in your phone's encrypted, Keystore-backed storage and are never sent anywhere.</li>
           <li><strong>App lock</strong> uses Android's own fingerprint or screen-lock check. The app never sees either.</li>
-          <li><strong>Reminders and the home-screen widget</strong> are prepared on your phone.</li>
+          <li><strong>The home-screen widget</strong> is prepared on your phone.</li>
         </ul>
       </section>
       <section id="where" class="reveal"><h2><span class="no">04</span>Where it is kept</h2>
         <p>In Google Cloud Firestore (Google Firebase), with sign-in by Firebase Authentication, encrypted in transit and at rest, under the <a href="https://firebase.google.com/terms/data-processing-terms">Firebase data processing terms</a>. The app downloads its typefaces from Google Fonts, which sees your device's network address when it does.</p>
+        <p>Our server (hosted on Render) also works on your books on a schedule: it adds the next copy of a repeating due, raises each month's credit card bill, and sends due reminders through Firebase Cloud Messaging. These changes appear in your workspace history as "Niz Khata". It keeps no copy of your records, only a short note of which reminders it sent, for 30 days, so none is sent twice.</p>
       </section>
       <section id="who-sees" class="reveal"><h2><span class="no">05</span>Who can see it</h2>
         <ul>
           <li><strong>You</strong>, on any phone where you sign in.</li>
           <li><strong>People you invite to a workspace</strong>, within the role you give them.</li>
           <li><strong>The other person in a shared ledger</strong>: only the entries between you two, with your name and email.</li>
+          <li><strong>Our server</strong>, for the scheduled work above, and nothing else.</li>
           <li><strong>An AI assistant you connect</strong>, if you choose to. See below.</li>
         </ul>
         <p>Access is enforced by the database's security rules, not only by the app. We never sell, rent or share your data, or use it for advertising.</p>
@@ -95,8 +99,7 @@
       <section id="permissions" class="reveal"><h2><span class="no">07</span>Permissions</h2>
         <ul>
           <li><strong>Internet</strong>, to sync your records.</li>
-          <li><strong>Notifications</strong>, for reminders on the day a due falls.</li>
-          <li><strong>Run at startup</strong>, to set reminders again after a restart.</li>
+          <li><strong>Notifications</strong>, for the reminders our server sends on the day a due falls.</li>
           <li><strong>Biometric</strong>, for the optional app lock.</li>
           <li><strong>Vibrate</strong>, for reminder notifications.</li>
         </ul>

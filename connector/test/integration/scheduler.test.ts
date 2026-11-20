@@ -42,6 +42,8 @@ beforeAll(async () => {
     set('roles', 'ws_s_blind', { workspaceId: 'ws_s', name: 'No dues', isSystem: false, permissions: { 'dues.view': false } }),
     set('memberships', 'ws_s_sch', { workspaceId: 'ws_s', uid: 'sch', roleId: 'ws_s_owner', status: 'active' }),
     set('memberships', 'ws_s_blind', { workspaceId: 'ws_s', uid: 'blind', roleId: 'ws_s_blind', status: 'active' }),
+    set('pushLog', 'sch_2026-09-01_9', { uid: 'sch', date: '2026-09-01', slot: 9, count: 1 }),
+    set('pushLog', 'sch_2026-11-01_9', { uid: 'sch', date: '2026-11-01', slot: 9, count: 1 }),
     set('devices', 'sch_phone', { uid: 'sch', token: 'tok-1', timeZone: TZ, locale: 'en_IN', updatedAt: new Date() }),
     set('devices', 'sch_old', { uid: 'sch', token: 'dead-token', timeZone: TZ, locale: 'en_IN', updatedAt: new Date(0) }),
     set('devices', 'blind_phone', { uid: 'blind', token: 'tok-blind', timeZone: TZ, updatedAt: new Date() }),
@@ -82,6 +84,9 @@ describe('scheduled jobs', () => {
     expect(revs[0]).toMatchObject({ action: 'create', by: { uid: 'system', name: 'Niz Khata' }, workspaceId: 'ws_s' });
 
     expect((await scheduler().materialise()).created).toBe(0);
+    // Reminder log older than 30 days is gone; recent entries stay.
+    expect(await admin.get('pushLog', 'sch_2026-09-01_9')).toBeNull();
+    expect(await admin.get('pushLog', 'sch_2026-11-01_9')).not.toBeNull();
   });
 
   it('sends one reminder for the 12:00 slot, never twice, and forgets a dead device', async () => {
