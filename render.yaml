@@ -1,6 +1,7 @@
 # Render Blueprint: the Niz Khata connector (MCP server for Claude and ChatGPT).
-# New > Blueprint in Render (paid workspaces), or create the Web Service by hand
-# with the same settings (connector/README.md).
+# For a Blueprint (paid workspaces) built from this repository. The live
+# service instead runs the image that connector-image.yml pushes to a private
+# Docker Hub repository; see connector/README.md.
 # See connector/README.md for the one-time Google OAuth setup.
 services:
   - type: web
