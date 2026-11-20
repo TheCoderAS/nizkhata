@@ -19,6 +19,24 @@ import { dueSettledAmount, dueStatusFromSettled, makeRound, type Debt } from '..
 import type { Push } from './push.js';
 import { calOf, iso, missingDueInstances, nextDueDoc, statementDuePlans, type Cal } from './rules.js';
 
+/** What a run did, for /healthz: counts and error kinds only, never ids or names. */
+export interface RunReport {
+  at: string;
+  workspaces?: number;
+  created?: number;
+  updated?: number;
+  sent?: number;
+  errors: number;
+  firstError?: string;
+}
+
+/** An error, reduced to something safe to show publicly. */
+export function errorKind(e: unknown): string {
+  if (e instanceof FirestoreError) return `Firestore ${e.code}${e.status ? ` (${e.status})` : ''}`;
+  const m = (e as Error)?.message ?? String(e);
+  return m.replace(/[A-Za-z0-9_-]{15,}/g, '…').slice(0, 120);
+}
+
 export const SYSTEM: Actor = { uid: 'system', name: 'Niz Khata' };
 export const SLOTS = [9, 12, 15, 18, 21];
 
@@ -52,6 +70,8 @@ export class Scheduler {
   private readonly now: () => Date;
   private readonly log: (m: string) => void;
   private materialising = false;
+  lastDues: RunReport | null = null;
+  lastReminders: RunReport | null = null;
   private reminding = false;
   /** (person, day, slot) already handled by this process; the push log guards across restarts. */
   private readonly handled = new Set<string>();
@@ -91,19 +111,29 @@ export class Scheduler {
       const fs = await this.o.admin();
       const [workspaces, devices] = await Promise.all([fs.all('workspaces'), this.devices(fs)]);
       await this.pruneLog(fs).catch((e) => this.log(`push log cleanup: ${(e as Error).message}`));
+      let errors = 0;
+      let firstError: string | undefined;
       for (const w of workspaces) {
         try {
           const r = await this.materialiseWorkspace(fs, w, devices);
           created += r.created;
           updated += r.updated;
+          errors += r.errors;
+          firstError ??= r.firstError;
         } catch (e) {
+          errors++;
+          firstError ??= errorKind(e);
           this.log(`materialise ${w.id}: ${(e as Error).message}`);
         }
       }
+      this.lastDues = { at: this.now().toISOString(), workspaces: workspaces.length, created, updated, errors, ...(firstError ? { firstError } : {}) };
+    } catch (e) {
+      this.lastDues = { at: this.now().toISOString(), errors: 1, firstError: errorKind(e) };
+      throw e;
     } finally {
       this.materialising = false;
     }
-    if (created || updated) this.log(`scheduled jobs: ${created} dues created, ${updated} updated`);
+    this.log(`dues run: ${created} created, ${updated} updated, ${this.lastDues?.errors ?? 0} errors`);
     return { created, updated };
   }
 
@@ -121,6 +151,8 @@ export class Scheduler {
     const dues = await b.load('dues');
     let created = 0;
     let updated = 0;
+    let errors = 0;
+    let firstError: string | undefined;
 
     // Repeating dues, caught up to today: an instance created for a past date
     // spawns its own successor on the next pass, as successive syncs did.
@@ -170,11 +202,15 @@ export class Scheduler {
             updated++;
           }
         } catch (e) {
-          if (!conflict(e)) this.log(`statement bill ${p.dueId}: ${(e as Error).message}`);
+          if (!conflict(e)) {
+            errors++;
+            firstError ??= errorKind(e);
+            this.log(`statement bill ${p.dueId}: ${(e as Error).message}`);
+          }
         }
       }
     }
-    return { created, updated };
+    return { created, updated, errors, firstError };
   }
 
   // ---- reminders -----------------------------------------------------------
@@ -189,6 +225,8 @@ export class Scheduler {
       const fs = await this.o.admin();
       const devices = await this.devices(fs);
       const now = this.now();
+      let remindErrors = 0;
+      let remindFirst: string | undefined;
       const groups = new Map<string, Device[]>();
       for (const d of devices) {
         const key = `${d.uid}|${d.timeZone}`;
@@ -233,9 +271,15 @@ export class Scheduler {
           }
           this.handled.add(key);
         } catch (e) {
+          remindErrors++;
+          remindFirst ??= errorKind(e);
           this.log(`reminder ${key}: ${(e as Error).message}`);
         }
       }
+      this.lastReminders = { at: this.now().toISOString(), sent, errors: remindErrors, ...(remindFirst ? { firstError: remindFirst } : {}) };
+    } catch (e) {
+      this.lastReminders = { at: this.now().toISOString(), sent, errors: 1, firstError: errorKind(e) };
+      throw e;
     } finally {
       this.reminding = false;
     }

@@ -51,6 +51,7 @@ if (sa) {
   scheduler.start(cfg.remindEveryMinutes * 60_000, cfg.duesEveryMinutes * 60_000);
   const admin = async () => new Firestore(cfg.firestoreBaseUrl, await token());
   const shared = new SharedNotifier(admin, new Push(sa.project_id, token, fetch, cfg.fcmBaseUrl));
+  status.runs = () => ({ dues: scheduler.lastDues, reminders: scheduler.lastReminders, shared_ledger: shared.last });
   setInterval(() => void shared.run().catch((e) => console.log(`shared notify: ${(e as Error).message}`)), cfg.sharedEverySeconds * 1000);
   console.log(
     `Scheduled jobs on: reminders every ${cfg.remindEveryMinutes} min, dues every ${cfg.duesEveryMinutes} min, shared ledger every ${cfg.sharedEverySeconds} s`,

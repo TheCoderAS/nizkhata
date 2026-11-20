@@ -5,6 +5,8 @@ export const status: {
   version: string;
   jobs: 'off' | 'on' | 'error';
   jobsDetail?: string;
+  /** The last run of each job: counts and error kinds. */
+  runs?: () => Record<string, unknown>;
 } = {
   version: process.env.GIT_SHA?.slice(0, 7) || 'dev',
   jobs: 'off',

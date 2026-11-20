@@ -18,6 +18,7 @@
 
 import { Firestore, FirestoreError, SERVER_TIME, type Plain } from '../firestore.js';
 import type { Push } from './push.js';
+import { errorKind } from './scheduler.js';
 
 export interface SharedNote {
   key: string;
@@ -77,6 +78,7 @@ export function noteFor(e: Plain, locale = 'en_IN'): SharedNote | null {
 
 export class SharedNotifier {
   private busy = false;
+  last: { at: string; sent: number; errors: number; firstError?: string } | null = null;
 
   constructor(
     private readonly admin: () => Promise<Firestore>,
@@ -107,18 +109,26 @@ export class SharedNotifier {
         limit: 500,
       });
       let newest = cursor;
+      let errors = 0;
+      let firstError: string | undefined;
       for (const e of changed) {
         if (!(e.updatedAt instanceof Date) || e.updatedAt.getTime() < from.getTime()) continue;
         if (e.updatedAt > newest) newest = e.updatedAt;
         try {
           sent += await this.deliver(fs, e);
         } catch (err) {
+          errors++;
+          firstError ??= errorKind(err);
           this.log(`shared notify ${e.id}: ${(err as Error).message}`);
         }
       }
+      this.last = { at: now.toISOString(), sent, errors, ...(firstError ? { firstError } : {}) };
       if (newest > cursor) {
         await fs.commit([{ kind: 'update', collection: STATE.collection, id: STATE.id, data: { cursor: newest } }]);
       }
+    } catch (e) {
+      this.last = { at: this.now().toISOString(), sent, errors: 1, firstError: errorKind(e) };
+      throw e;
     } finally {
       this.busy = false;
     }
