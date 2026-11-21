@@ -8,10 +8,10 @@ import type { Config } from './config.js';
 import { status } from './status.js';
 import { installCompat } from './compat.js';
 import { Sealer } from './crypto.js';
-import { actorOf, authTimeOf, FirebaseAuth, SessionExpired } from './firebase.js';
+import { actorOf, FirebaseAuth, SessionExpired } from './firebase.js';
 import { Firestore } from './firestore.js';
 import { oauthRouter, type AccessPayload } from './oauth.js';
-import type { Ctx } from './tools/common.js';
+import { guardWrites, type Ctx } from './tools/common.js';
 import { registerCategoryTools } from './tools/categories.js';
 import { registerContactTools } from './tools/contacts.js';
 import { registerDebtTools } from './tools/debts.js';
@@ -129,7 +129,7 @@ export function buildApp(cfg: Config, fetchImpl: typeof fetch = fetch): Express 
       res.status(502).json({ error: 'upstream', error_description: 'Could not reach Firebase.' });
       return;
     }
-    const fs = new Firestore(cfg.firestoreBaseUrl, idToken, fetchImpl);
+    const fs = guardWrites(new Firestore(cfg.firestoreBaseUrl, idToken, fetchImpl));
     const actor = actorOf(p);
     const ctx: Ctx = {
       fs,
@@ -137,8 +137,6 @@ export function buildApp(cfg: Config, fetchImpl: typeof fetch = fetch): Express 
       email: (p.email ?? '').toLowerCase(),
       timeZone: cfg.timeZone,
       books: (workspaceId?: string) => Books.open(fs, actor, cfg.timeZone, workspaceId),
-      authTime: authTimeOf(idToken),
-      deleteSignIn: () => auth.deleteAccount(idToken),
     };
     // Stateless: a fresh server and transport per request, as the SDK
     // recommends, so no person's state can leak into another's.

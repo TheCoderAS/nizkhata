@@ -13,10 +13,24 @@ export interface Ctx {
   email: string;
   timeZone: string;
   books(workspaceId?: string): Promise<Books>;
-  /** When the person last signed in with Google (seconds), from their ID token. */
-  authTime?: number;
-  /** Delete the Firebase sign-in itself: the last step of deleting an account. */
-  deleteSignIn?: () => Promise<void>;
+}
+
+/**
+ * What the assistant may read but never change: who is in a workspace and what
+ * they may do, the workspace's settings, and the person's own account. Those
+ * are changed in the app only.
+ */
+export const READ_ONLY_COLLECTIONS = new Set(['workspaces', 'memberships', 'roles', 'invites', 'users', 'devices']);
+
+/** Make [fs] refuse any write to a read-only collection, whatever tool asks. */
+export function guardWrites(fs: Firestore): Firestore {
+  const commit = fs.commit.bind(fs);
+  fs.commit = async (writes) => {
+    const bad = writes.find((w) => READ_ONLY_COLLECTIONS.has(w.collection));
+    if (bad) throw new UserError(`The connector can't change ${bad.collection}. Members, roles, workspace settings and your account are changed in the Niz Khata app.`);
+    return commit(writes);
+  };
+  return fs;
 }
 
 export type Register = (server: McpServer, ctx: () => Ctx) => void;

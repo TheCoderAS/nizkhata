@@ -7,7 +7,7 @@ import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { Books } from '../../src/books.js';
 import { Firestore, type Plain } from '../../src/firestore.js';
 import { buildMcpServer } from '../../src/server.js';
-import type { Ctx } from '../../src/tools/common.js';
+import { guardWrites, type Ctx } from '../../src/tools/common.js';
 import { PERMISSIONS } from '../../src/tools/team.js';
 
 const PROJECT = process.env.GCLOUD_PROJECT ?? 'rules-test';
@@ -29,7 +29,7 @@ const admin = new Firestore(BASE, 'owner');
 const perms = (on: (p: string) => boolean) => Object.fromEntries(PERMISSIONS.map((p) => [p, on(p)]));
 
 async function asUser(uid: string, name: string) {
-  const fs = new Firestore(BASE, idToken(uid));
+  const fs = guardWrites(new Firestore(BASE, idToken(uid)));
   const actor = { uid, name };
   const ctx: Ctx = { fs, actor, email: `${uid}@example.com`, timeZone: TZ, books: (w?: string) => Books.open(fs, actor, TZ, w) };
   const [a, b] = InMemoryTransport.createLinkedPair();

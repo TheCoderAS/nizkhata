@@ -1,4 +1,4 @@
-// Members, roles, invites and workspaces, against the emulator and the real rules.
+// Members, roles, invites, workspace settings and the account: read only, against the emulator.
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
@@ -7,7 +7,7 @@ import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { Books } from '../../src/books.js';
 import { Firestore, type Plain } from '../../src/firestore.js';
 import { buildMcpServer } from '../../src/server.js';
-import type { Ctx } from '../../src/tools/common.js';
+import { guardWrites, type Ctx } from '../../src/tools/common.js';
 import { PERMISSIONS } from '../../src/tools/team.js';
 
 const PROJECT = process.env.GCLOUD_PROJECT ?? 'rules-test';
@@ -30,7 +30,7 @@ const admin = new Firestore(BASE, 'owner');
 const perms = (on: (p: string) => boolean) => Object.fromEntries(PERMISSIONS.map((p) => [p, on(p)]));
 
 async function asUser(uid: string, name: string) {
-  const fs = new Firestore(BASE, idToken(uid));
+  const fs = guardWrites(new Firestore(BASE, idToken(uid)));
   const actor = { uid, name };
   const ctx: Ctx = { fs, actor, email: `${uid}@example.com`, timeZone: TZ, books: (w?: string) => Books.open(fs, actor, TZ, w) };
   const [a, b] = InMemoryTransport.createLinkedPair();
@@ -68,91 +68,36 @@ afterAll(async () => {
   await viewer?.close();
 });
 
-describe('members', () => {
-  it('lists members with roles', async () => {
-    const r = await owner.call('list_members', { workspace_id: WS });
-    expect(r.members.find((m: any) => m.uid === 'o1')).toMatchObject({ role: 'Owner', is_owner: true, is_you: true });
-    expect(r.members.find((m: any) => m.uid === 'v1')).toMatchObject({ role: 'Viewer', is_owner: false });
+const WRITE_TOOLS = [
+  'invite_member', 'revoke_invite', 'change_member_role', 'remove_member', 'leave_workspace', 'link_member_contact',
+  'create_role', 'update_role', 'duplicate_role', 'delete_role', 'create_workspace', 'update_workspace', 'delete_workspace', 'delete_my_account',
+];
+
+describe('read only', () => {
+  it('lists members, roles and invites, and the account', async () => {
+    await admin.commit([
+      { kind: 'set', collection: 'invites', id: `${WS}_new@example.com`, data: { id: `${WS}_new@example.com`, workspaceId: WS, email: 'new@example.com', roleId: `${WS}_viewer`, status: 'pending', expiresAt: new Date(Date.now() + 86_400_000) } },
+      { kind: 'set', collection: 'users', id: 'o1', data: { uid: 'o1', email: 'o1@example.com', displayName: 'Ola P' } },
+    ]);
+    const m = await owner.call('list_members', { workspace_id: WS });
+    expect(m.members.find((x: any) => x.uid === 'o1')).toMatchObject({ role: 'Owner', is_owner: true, is_you: true });
+    expect(m.members.find((x: any) => x.uid === 'v1')).toMatchObject({ role: 'Viewer', is_owner: false });
+    const r = await owner.call('list_roles', { workspace_id: WS });
+    expect(r.roles.find((x: any) => x.name === 'Viewer').permissions).toContain('members.view');
+    expect((await owner.call('list_invites', { workspace_id: WS })).invites[0]).toMatchObject({ email: 'new@example.com', role: 'Viewer', status: 'pending' });
+    expect(await owner.call('get_my_account')).toMatchObject({ name: 'Ola P', email: 'o1@example.com', workspaces: [{ id: WS, you_own_it: true }] });
+    expect((await owner.call('list_workspaces'))[0]).toMatchObject({ id: WS, currency: 'INR', financial_year_starts_month: 4 });
   });
 
-  it('invites by email as the app does, and refuses the Owner role', async () => {
-    expect((await owner.call('invite_member', { workspace_id: WS, email: 'x@y.com', role_id: `${WS}_owner` })).error).toMatch(/Owner role/);
-    const r = await owner.call('invite_member', { workspace_id: WS, email: 'New@Example.com', role_id: `${WS}_viewer` });
-    expect(r.id).toBe(`${WS}_new@example.com`);
-    const inv = (await admin.get('invites', r.id)) as Plain;
-    expect(inv).toMatchObject({ email: 'new@example.com', status: 'pending', invitedBy: 'o1', roleId: `${WS}_viewer` });
-    expect((await owner.call('list_invites', { workspace_id: WS })).invites[0]).toMatchObject({ status: 'pending', role: 'Viewer' });
-    await owner.call('revoke_invite', { workspace_id: WS, invite_id: r.id });
-    expect(((await admin.get('invites', r.id)) as Plain).status).toBe('revoked');
+  it('has no tool that changes members, roles, the workspace or the account', async () => {
+    for (const t of WRITE_TOOLS) expect((await owner.call(t, { workspace_id: WS })).error, t).toBeTruthy();
   });
 
-  it('a viewer cannot invite', async () => {
-    expect((await viewer.call('invite_member', { workspace_id: WS, email: 'z@y.com', role_id: `${WS}_viewer` })).error).toBeTruthy();
-  });
-
-  it("links a member's own contact, and an owner's role can't change", async () => {
-    await viewer.call('link_member_contact', { workspace_id: WS, membership_id: `${WS}_v1`, contact_id: 'cv' });
-    expect(((await admin.get('memberships', `${WS}_v1`)) as Plain).linkedContactId).toBe('cv');
-    expect((await owner.call('change_member_role', { workspace_id: WS, membership_id: `${WS}_o1`, role_id: `${WS}_viewer` })).error).toMatch(/owner's role/);
-  });
-});
-
-describe('roles', () => {
-  it('creates, updates, duplicates and deletes a role with the guards', async () => {
-    const c = await owner.call('create_role', { workspace_id: WS, name: 'Bookkeeper', permissions: ['transactions.view', 'transactions.create'] });
-    const stored = (await admin.get('roles', c.id)) as Plain;
-    expect(stored).toMatchObject({ isSystem: false, name: 'Bookkeeper' });
-    expect((stored.permissions as Plain)['transactions.create']).toBe(true);
-    expect((stored.permissions as Plain)['transactions.delete']).toBe(false);
-
-    await owner.call('update_role', { workspace_id: WS, role_id: c.id, permissions: ['transactions.view'] });
-    expect((((await admin.get('roles', c.id)) as Plain).permissions as Plain)['transactions.create']).toBe(false);
-    expect((await owner.call('update_role', { workspace_id: WS, role_id: `${WS}_viewer`, name: 'Watcher' })).error).toMatch(/built-in/);
-
-    const d = await owner.call('duplicate_role', { workspace_id: WS, role_id: `${WS}_viewer` });
-    expect(d.name).toBe('Viewer (copy)');
-    expect((await owner.call('delete_role', { workspace_id: WS, role_id: `${WS}_viewer` })).error).toMatch(/Built-in/);
-
-    await owner.call('change_member_role', { workspace_id: WS, membership_id: `${WS}_v1`, role_id: c.id });
-    expect((await owner.call('delete_role', { workspace_id: WS, role_id: c.id })).error).toMatch(/assigned/);
-    await owner.call('change_member_role', { workspace_id: WS, membership_id: `${WS}_v1`, role_id: `${WS}_viewer` });
-    expect((await owner.call('delete_role', { workspace_id: WS, role_id: c.id })).deleted).toBe(true);
-    const roles = (await owner.call('list_roles', { workspace_id: WS })).roles.map((r: any) => r.name);
-    expect(roles).toContain('Viewer (copy)');
-    expect(roles).not.toContain('Bookkeeper');
-  });
-});
-
-describe('workspaces', () => {
-  it('creates a workspace like the app, then renames, then deletes it', async () => {
-    const r = await viewer.call('create_workspace', { name: 'Vik Home', currency: 'AUD', time_zone: 'Australia/Sydney' });
-    expect(r).toMatchObject({ created: true, fy_start_month: 7, workspaces_now: 2 });
-    const ws = (await admin.get('workspaces', r.id)) as Plain;
-    expect(ws).toMatchObject({ ownerId: 'v1', baseCurrency: 'AUD', timeZone: 'Australia/Sydney' });
-    expect((await admin.where('roles', 'workspaceId', r.id)).map((x) => x.name).sort()).toEqual(['Admin', 'Editor', 'Owner', 'Viewer']);
-    expect(await admin.where('categories', 'workspaceId', r.id)).toHaveLength(18);
-    expect((await admin.get('memberships', `${r.id}_v1`)) as Plain).toMatchObject({ status: 'active', uid: 'v1' });
-
-    // Works in it as the owner straight away.
-    const acct = await viewer.call('create_account', { workspace_id: r.id, name: 'Wallet', type: 'cash' });
-    expect(acct.error).toBeUndefined();
-
-    await viewer.call('update_workspace', { workspace_id: r.id, name: 'Vik Sydney', fy_start_month: 1 });
-    expect((await admin.get('workspaces', r.id)) as Plain).toMatchObject({ name: 'Vik Sydney', fyStartMonth: 1 });
-
-    expect((await viewer.call('delete_workspace', { workspace_id: r.id, confirm_name: 'nope' })).error).toMatch(/exactly/);
-    const del = await viewer.call('delete_workspace', { workspace_id: r.id, confirm_name: 'Vik Sydney' });
-    expect(del.deleted).toBe(true);
-    expect(await admin.get('workspaces', r.id)).toBeNull();
-    expect(await admin.where('categories', 'workspaceId', r.id)).toHaveLength(0);
-    expect(await admin.where('accounts', 'workspaceId', r.id)).toHaveLength(0);
-    expect(await admin.get('memberships', `${r.id}_v1`)).toBeNull();
-  });
-
-  it('a member who is not the owner cannot delete, but can leave; the owner cannot leave', async () => {
-    expect((await viewer.call('delete_workspace', { workspace_id: WS, confirm_name: 'Team' })).error).toMatch(/Only the owner/);
-    expect((await owner.call('leave_workspace', { workspace_id: WS })).error).toMatch(/owner can't leave/);
-    expect((await viewer.call('leave_workspace', { workspace_id: WS })).left).toBe(true);
-    expect(await admin.get('memberships', `${WS}_v1`)).toBeNull();
+  it('refuses such writes even if a tool tried one', async () => {
+    const fs = guardWrites(new Firestore(BASE, idToken('o1')));
+    for (const collection of ['workspaces', 'memberships', 'roles', 'invites', 'users', 'devices']) {
+      await expect(fs.commit([{ kind: 'update', collection, id: 'x', data: { a: 1 } }])).rejects.toThrow(/can't change/);
+    }
+    expect(((await admin.get('workspaces', WS)) as Plain).name).toBe('Team');
   });
 });

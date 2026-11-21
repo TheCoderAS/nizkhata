@@ -1,4 +1,4 @@
-// Settle up, statement import, the Reports tabs and deleting an account, against the emulator.
+// Settle up, statement import and the Reports tabs, against the emulator.
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
@@ -7,7 +7,7 @@ import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { Books } from '../../src/books.js';
 import { Firestore, type Plain } from '../../src/firestore.js';
 import { buildMcpServer } from '../../src/server.js';
-import type { Ctx } from '../../src/tools/common.js';
+import { guardWrites, type Ctx } from '../../src/tools/common.js';
 import { PERMISSIONS } from '../../src/tools/team.js';
 
 const PROJECT = process.env.GCLOUD_PROJECT ?? 'rules-test';
@@ -29,10 +29,10 @@ function idToken(uid: string): string {
 const admin = new Firestore(BASE, 'owner');
 const perms = (on: (p: string) => boolean) => Object.fromEntries(PERMISSIONS.map((p) => [p, on(p)]));
 
-async function asUser(uid: string, name: string, extra: Partial<Ctx> = {}) {
-  const fs = new Firestore(BASE, idToken(uid));
+async function asUser(uid: string, name: string) {
+  const fs = guardWrites(new Firestore(BASE, idToken(uid)));
   const actor = { uid, name };
-  const ctx: Ctx = { fs, actor, email: `${uid}@example.com`, timeZone: TZ, books: (w?: string) => Books.open(fs, actor, TZ, w), ...extra };
+  const ctx: Ctx = { fs, actor, email: `${uid}@example.com`, timeZone: TZ, books: (w?: string) => Books.open(fs, actor, TZ, w) };
   const [a, b] = InMemoryTransport.createLinkedPair();
   await buildMcpServer(() => ctx).connect(a);
   const client = new Client({ name: 'test', version: '1' });
@@ -145,35 +145,5 @@ describe('reports', () => {
   it('totals money with each contact', async () => {
     const r = await me.call('get_contact_report', { fy: '2026-27' });
     expect(r.contacts.find((c: any) => c.contact === 'Ravi')).toMatchObject({ received: expect.any(Number), paid: expect.any(Number) });
-  });
-});
-
-describe('delete my account', () => {
-  it('needs a fresh sign-in, then erases what they own and leaves what they joined', async () => {
-    await admin.commit([
-      set('workspaces', 'other', { name: 'Theirs', ownerId: 'y1', baseCurrency: 'INR', fyStartMonth: 4 }),
-      set('roles', 'other_owner', { workspaceId: 'other', name: 'Owner', isSystem: true, permissions: perms(() => true) }),
-      set('memberships', 'other_y1', { workspaceId: 'other', uid: 'y1', roleId: 'other_owner', status: 'active' }),
-      set('memberships', 'other_z1', { workspaceId: 'other', uid: 'z1', roleId: 'other_owner', status: 'active' }),
-      set('users', 'z1', { uid: 'z1' }),
-    ]);
-    const stale = await asUser('z1', 'Zed', { authTime: Math.floor(Date.now() / 1000) - 3600, deleteSignIn: async () => {} });
-    expect((await stale.call('delete_my_account', { confirm: 'DELETE' })).error).toMatch(/fresh sign-in/);
-    await stale.close();
-
-    let signInDeleted = false;
-    const z = await asUser('z1', 'Zed', { authTime: Math.floor(Date.now() / 1000), deleteSignIn: async () => { signInDeleted = true; } });
-    const ws = await z.call('create_workspace', { name: 'Zed Books', currency: 'INR' });
-    await z.call('create_account', { workspace_id: ws.id, name: 'Cash', type: 'cash' });
-    expect((await z.call('delete_my_account', { confirm: 'nope' })).error).toBeTruthy();
-    const r = await z.call('delete_my_account', { confirm: 'DELETE' });
-    expect(r).toMatchObject({ deleted: true, workspaces_deleted: 1, workspaces_left: 1 });
-    expect(signInDeleted).toBe(true);
-    expect(await admin.get('workspaces', ws.id)).toBeNull();
-    expect(await admin.where('accounts', 'workspaceId', ws.id)).toHaveLength(0);
-    expect(await admin.get('memberships', 'other_z1')).toBeNull();
-    expect(await admin.get('workspaces', 'other')).not.toBeNull();
-    expect(await admin.get('users', 'z1')).toBeNull();
-    await z.close();
   });
 });

@@ -1,25 +1,23 @@
 // The rest of what the app does: settle up with a contact, import a bank
-// statement, the Reports tabs (tax, net worth, by contact), and deleting the
-// whole account. Each follows the app's own code:
+// statement, and the Reports tabs (tax, net worth, by contact). Each follows
+// the app's own code:
 //   settle up       mobile/lib/data/settle_up.dart, contact_detail_screen.dart
 //   import          import_screen.dart, mutations.dart importTransactions,
 //                   statement_parser.dart importFingerprint, import_learning.dart
 //   reports         reports_screen.dart, derive.dart netWorthSeries
-//   delete account  services/account_eraser.dart eraseAccount
 // The app reads statement files on the phone; here the assistant reads the
 // statement and passes its rows.
 
 import { z } from 'zod';
 
 import { UserError, toTxn, type Books } from '../books.js';
-import { FirestoreError, newDocId, SERVER_TIME, type Plain, type Write } from '../firestore.js';
+import { newDocId, SERVER_TIME, type Plain, type Write } from '../firestore.js';
 import {
   accountDeltas, computeTotal, debtOutstanding, dueSettledAmount, dueStatusFromSettled, financialYearOf, localDate, parseWhen,
   type Debt, type Line, type Txn,
 } from '../ledger.js';
-import { DESTRUCTIVE, READ, WRITE, dateArg, run, workspaceArg, type Ctx, type Register } from './common.js';
+import { READ, WRITE, dateArg, run, workspaceArg, type Register } from './common.js';
 import { settlement } from './dues.js';
-import { eraseWorkspace } from './team.js';
 
 const TAX_HEAD_LABELS: Record<string, string> = {
   salary: 'Salary', bonus: 'Bonus', overtime: 'Overtime', reimbursement: 'Reimbursement', perquisite: 'Perquisite',
@@ -454,67 +452,4 @@ export const registerExtraTools: Register = (server, ctx) => {
         };
       }),
   );
-
-  // ---- leaving for good ----
-  server.registerTool(
-    'delete_my_account',
-    {
-      title: 'Delete my Niz Khata account',
-      description:
-        'Permanently delete the signed-in person\'s account: every workspace they own with everything in it (for all its members), their place in workspaces others own, their shared ledger entries, connections and invites, their devices and profile, and the sign-in itself. It cannot be undone. Only when the person asks for it in so many words; confirm must be "DELETE". It needs a sign-in from the last 5 minutes: if refused, the person reconnects the connector and asks again.',
-      inputSchema: { confirm: z.literal('DELETE') },
-      annotations: DESTRUCTIVE,
-    },
-    () =>
-      run(async () => {
-        const c = ctx();
-        if (!c.deleteSignIn || c.authTime === undefined) throw new UserError('Deleting the account is not available here. Use Profile > Delete account in the app.');
-        if (Date.now() / 1000 - c.authTime > 300) {
-          throw new UserError('For safety this needs a fresh sign-in. Disconnect and reconnect the Niz Khata connector, then ask again within 5 minutes. Nothing was deleted.');
-        }
-        const report = await eraseAccount(c);
-        await c.deleteSignIn();
-        return { deleted: true, ...report };
-      }),
-  );
 };
-
-/** AccountEraser.eraseAccount: owned workspaces deleted, others left, then shared, devices and profile. */
-export async function eraseAccount(c: Ctx) {
-  const fs = c.fs;
-  const uid = c.actor.uid;
-  const report = { workspaces_deleted: 0, workspaces_left: 0, documents_deleted: 0 };
-  const del = async (collection: string, ids: string[]) => {
-    for (let i = 0; i < ids.length; i += 400) await fs.commit(ids.slice(i, i + 400).map((id) => ({ kind: 'delete' as const, collection, id })));
-    return ids.length;
-  };
-  for (const m of await fs.where('memberships', 'uid', uid)) {
-    const wsId = String(m.workspaceId ?? '');
-    if (!wsId) continue;
-    const ws = await fs.get('workspaces', wsId).catch(() => null);
-    if (ws && ws.ownerId === uid) {
-      const b = await c.books(wsId);
-      report.documents_deleted += await eraseWorkspace(b);
-      report.workspaces_deleted++;
-    } else if (!ws) {
-      for (const col of ['transactions', 'dues', 'debts', 'budgets', 'contacts', 'accounts', 'invites', 'revisions', 'categories', 'roles']) {
-        try {
-          report.documents_deleted += await del(col, (await fs.where(col, 'workspaceId', wsId)).map((d) => String(d.id)));
-        } catch (e) {
-          if (!(e instanceof FirestoreError && e.status === 403)) throw e;
-        }
-      }
-      await del('memberships', [String(m.id)]);
-    } else {
-      await del('memberships', [String(m.id)]);
-      report.workspaces_left++;
-    }
-  }
-  const entries = await fs.where('sharedEntries', 'uids', uid, 'ARRAY_CONTAINS');
-  report.documents_deleted += await del('sharedEntries', entries.filter((e) => e.creatorUid === uid).map((e) => String(e.id)));
-  report.documents_deleted += await del('sharedConnections', (await fs.where('sharedConnections', 'uids', uid, 'ARRAY_CONTAINS')).map((d) => String(d.id)));
-  report.documents_deleted += await del('shareInvites', (await fs.where('shareInvites', 'fromUid', uid)).map((d) => String(d.id)));
-  report.documents_deleted += await del('devices', (await fs.where('devices', 'uid', uid)).map((d) => String(d.id)));
-  report.documents_deleted += await del('users', [uid]);
-  return report;
-}

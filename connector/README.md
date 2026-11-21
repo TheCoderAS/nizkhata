@@ -17,8 +17,8 @@ It runs as a Docker web service, for example on Render.
 
 | Area | Read | Write |
 | --- | --- | --- |
-| Workspaces | `list_workspaces` | `create_workspace`, `update_workspace`, `delete_workspace`, `leave_workspace` |
-| Members and roles | `list_members`, `list_roles`, `list_invites` | `invite_member`, `revoke_invite`, `change_member_role`, `remove_member`, `link_member_contact`, `create_role`, `update_role`, `duplicate_role`, `delete_role` |
+| Workspaces (settings) | `list_workspaces` | none |
+| Members and roles | `list_members`, `list_roles`, `list_invites` | none |
 | Accounts | `list_accounts` (with balances) | `create_account`, `update_account`, `delete_account` |
 | Reports | `get_summary` (income, expense, by category, per account, trend), `get_tax_summary`, `get_net_worth`, `get_contact_report` | |
 | History | `list_activity` | `restore_deleted` |
@@ -29,9 +29,9 @@ It runs as a Docker web service, for example on Render.
 | Budgets | `list_budgets` (spent and left this period) | `create_budget`, `update_budget`, `delete_budget` |
 | Dues | `list_dues` | `create_due`, `update_due`, `delete_due`, `record_due_payment`, `stop_repeating_due` |
 | Debts | `list_debts` | `create_debt`, `update_debt`, `delete_debt`, `record_debt_repayment` |
-| Account | | `delete_my_account` (needs a sign-in from the last 5 minutes and confirm `DELETE`) |
+| Your account | `get_my_account` | none |
 
-The tools cover everything the app does with the books. What stays on the phone is what belongs to the phone: app lock, theme, the home screen widget, and making PDF or CSV files. For those reports the tools return the same figures as data, and the assistant can lay them out.
+The tools cover everything the app does with the books. Members, roles, invites, workspace settings and the person's own account are **read only**: no tool changes them, and `guardWrites` (`src/tools/common.ts`) refuses any write to `workspaces`, `memberships`, `roles`, `invites`, `users` or `devices` from a tool call. They are changed in the app. Bank and card accounts are books, so they can be added and edited. What stays on the phone is what belongs to the phone: app lock, theme, the home screen widget, and making PDF or CSV files. For those reports the tools return the same figures as data, and the assistant can lay them out.
 
 Every tool states all three hints explicitly. `list_*` and `get_*` are read-only. `create_*` and `record_*` only add, so they are not destructive. `update_*` (which changes what is there) and `delete_*` are marked destructive, so assistants ask before running them.
 
