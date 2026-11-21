@@ -262,7 +262,7 @@ describe('debts', () => {
 
 describe('dues', () => {
   it('part paid, edited, then settled, with payments kept in step', async () => {
-    const due = await me.call('create_due', { title: 'School fees', direction: 'payable', amount: 18000, due_date: '2026-12-05', category_id: 'food' });
+    const due = await me.call('create_due', { title: 'School fees', account_id: 'bank', lines: [{ type: 'expense', amount: 18000, category_id: 'food' }], due_date: '2026-12-05' });
     expect(await doc('dues', due.id)).toMatchObject({
       direction: 'payable', title: 'School fees', amount: 18000, status: 'open', occurrence: 1, categoryId: 'food',
       lines: [expect.objectContaining({ type: 'expense', amount: 18000, categoryId: 'food' })],
@@ -271,7 +271,7 @@ describe('dues', () => {
     expect(p1).toMatchObject({ due_status: 'partial', left: 13000 });
     expect(await doc('transactions', p1.transaction_id)).toMatchObject({ dueId: due.id, totalAmount: -5000, note: 'School fees' });
 
-    const up = await me.call('update_due', { due_id: due.id, amount: 20000, title: 'School fees, term 2' });
+    const up = await me.call('update_due', { due_id: due.id, lines: [{ type: 'expense', amount: 20000, category_id: 'food' }], title: 'School fees, term 2' });
     expect(up.payments_updated).toBe(1);
     expect(await doc('transactions', p1.transaction_id)).toMatchObject({ totalAmount: -5000, note: 'School fees, term 2' });
 
@@ -282,7 +282,7 @@ describe('dues', () => {
   });
 
   it('cancels, reopens and deletes', async () => {
-    const due = await me.call('create_due', { title: 'Gym', direction: 'payable', amount: 1500, due_date: today, repeats: 'monthly' });
+    const due = await me.call('create_due', { title: 'Gym', account_id: 'bank', lines: [{ type: 'expense', amount: 1500, category_id: 'food' }], due_date: today, repeats: 'monthly' });
     await me.call('update_due', { due_id: due.id, status: 'cancelled' });
     expect((await me.call('record_due_payment', { due_id: due.id, account_id: 'bank' })).error).toMatch(/cancelled/);
     expect((await me.call('delete_due', { due_id: due.id })).deleted).toBe(true);

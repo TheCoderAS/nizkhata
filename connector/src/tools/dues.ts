@@ -4,26 +4,28 @@ import { UserError, strip, type Books } from '../books.js';
 import { newDocId, type Plain, type Write } from '../firestore.js';
 import { computeTotal, dueSettledAmount, dueStatusFromSettled, financialYearOf, parseWhen, type Line } from '../ledger.js';
 import { DESTRUCTIVE, READ, WRITE, OVERWRITE, dateArg, day, run, workspaceArg, type Register } from './common.js';
+import { buildLines, lineInput, type LineInput } from './transactions.js';
 
 const direction = z
   .enum(['payable', 'receivable'])
   .describe('payable: you pay it (rent, a bill). receivable: someone pays you.');
 
 /** A due's single line, as the due form stores one: expense for payable, income for receivable. */
-function dueLine(dir: string, amount: number, categoryId: string | undefined): Line {
-  return {
-    lineId: `l0_${Date.now() * 1000}`,
-    type: dir === 'payable' ? 'expense' : 'income',
-    amount,
-    ...(categoryId ? { categoryId } : {}),
-  };
-}
-
-async function checkCategory(b: Books, categoryId: string | undefined, dir: string) {
-  if (!categoryId) return;
-  const c = await b.getOne('categories', categoryId);
-  const wanted = dir === 'payable' ? 'expense' : 'income';
-  if (c.kind !== wanted) throw new UserError(`"${c.name}" is an ${c.kind} category; a ${dir} due needs an ${wanted} one.`);
+/**
+ * A due split over several lines, built as the app's due form does: the same
+ * typed lines as a transaction; its amount is the lines' total and whether it
+ * is payable or receivable follows from that total's sign.
+ */
+async function dueFromLines(b: Books, inputs: LineInput[], accountId: string | undefined, contactId: string | undefined) {
+  if (!accountId) throw new UserError('A due with lines needs account_id, the account it will be paid from or into.');
+  const lines = await buildLines(b, inputs, accountId, contactId);
+  const debtsById = new Map((await b.debts()).map((d) => [d.id, d]));
+  const signed = computeTotal(lines, debtsById, b.round);
+  if (Math.abs(signed) <= 0.005) throw new UserError('These lines add up to nothing, so there is nothing due.');
+  const direction = signed < 0 ? 'payable' : 'receivable';
+  // The first categorised line doubles as the due's category, as in the app.
+  const categoryId = lines.find((l) => l.categoryId)?.categoryId ?? null;
+  return { lines, direction, amount: b.round(Math.abs(signed)), categoryId };
 }
 
 /** buildDueSettlement (mobile/lib/data/due_settlement.dart). */
@@ -108,17 +110,16 @@ export const registerDueTools: Register = (server, ctx) => {
     'create_due',
     {
       title: 'Add a due',
-      description: 'Add a bill to pay or money to receive on a date, optionally repeating.',
+      description:
+        'Add a bill to pay or money to receive on a date, optionally repeating. Its money is given exactly like create_transaction: an account and one or more lines (an expense or income line with its category for a simple due; several lines to split it). Whether it is payable or receivable, and its amount, follow from the lines.',
       inputSchema: {
         ...workspaceArg,
         title: z.string().min(1),
-        direction,
-        amount: z.number().positive(),
         due_date: dateArg('When it is due'),
-        contact_id: z.string().optional(),
-        account_id: z.string().optional().describe('The account it is usually paid from or into'),
-        category_id: z.string().optional(),
+        account_id: z.string().describe('The account it will be paid from or into (list_accounts)'),
         note: z.string().optional(),
+        contact_id: z.string().optional().describe('Who it is with (list_contacts); required for lend/borrow/repayment lines'),
+        lines: z.array(lineInput).min(1).describe('One line for a simple due; several to split it. Same as create_transaction lines.'),
         repeats: z.enum(['weekly', 'monthly', 'yearly']).optional(),
       },
       annotations: WRITE,
@@ -128,13 +129,11 @@ export const registerDueTools: Register = (server, ctx) => {
         const b = await ctx().books(a.workspace_id);
         const tz = b.timeZone;
         if (a.contact_id) await b.getOne('contacts', a.contact_id);
-        if (a.account_id) await b.getOne('accounts', a.account_id);
-        await checkCategory(b, a.category_id, a.direction);
-        const amount = b.round(a.amount);
+        const { direction: dir, amount, categoryId, lines } = await dueFromLines(b, a.lines, a.account_id, a.contact_id);
         const dueDate = parseWhen(a.due_date, tz);
         // The due form's payload, with createDue's status.
         const data: Plain = {
-          direction: a.direction,
+          direction: dir,
           title: a.title.trim(),
           titlePattern: null,
           notePattern: null,
@@ -143,16 +142,16 @@ export const registerDueTools: Register = (server, ctx) => {
           dueDate,
           contactId: a.contact_id ?? null,
           accountId: a.account_id ?? null,
-          categoryId: a.category_id ?? null,
+          categoryId,
           note: a.note?.trim() || null,
-          lines: [dueLine(a.direction, amount, a.category_id)],
+          lines: lines.map((l) => strip(l as unknown as Plain)),
           recurrence: a.repeats ?? null,
           recurrenceId: null,
           status: 'open',
         };
         const { id, writes } = b.createWrites('dues', data);
         await b.commit(writes, 'add dues');
-        return { created: true, id, title: data.title, amount, due_date: day(dueDate, tz) };
+        return { created: true, id, title: data.title, direction: dir, amount, lines: lines.length, due_date: day(dueDate, tz) };
       }),
   );
 
@@ -161,17 +160,16 @@ export const registerDueTools: Register = (server, ctx) => {
     {
       title: 'Update a due',
       description:
-        'Change a due. Fields not given keep their value; pass null to clear an optional one. status "cancelled" withdraws it, "open" brings a cancelled one back. Payments already recorded against it are updated to match, as in the app.',
+        'Change a due, as update_transaction changes a transaction: fields not given keep their value, giving lines replaces all of them, null clears note or contact_id. status "cancelled" withdraws it, "open" brings a cancelled one back. Payments already recorded against it are updated to match, as in the app.',
       inputSchema: {
         ...workspaceArg,
         due_id: z.string(),
         title: z.string().min(1).optional(),
-        amount: z.number().positive().optional(),
         due_date: dateArg('When it is due').optional(),
-        contact_id: z.string().nullable().optional(),
-        account_id: z.string().nullable().optional(),
-        category_id: z.string().nullable().optional(),
+        account_id: z.string().optional(),
         note: z.string().nullable().optional(),
+        contact_id: z.string().nullable().optional(),
+        lines: z.array(lineInput).min(1).optional().describe('Replaces all of its lines, as in update_transaction; its amount and payable/receivable follow.'),
         repeats: z.enum(['weekly', 'monthly', 'yearly']).nullable().optional(),
         status: z.enum(['open', 'cancelled']).optional(),
       },
@@ -186,7 +184,6 @@ export const registerDueTools: Register = (server, ctx) => {
         const lines = ((due.lines as Plain[] | undefined) ?? []) as unknown as Line[];
         if (a.contact_id) await b.getOne('contacts', a.contact_id);
         if (a.account_id) await b.getOne('accounts', a.account_id);
-        if (a.category_id) await checkCategory(b, a.category_id, dir);
         const data: Plain = {};
         if (a.title !== undefined) data.title = a.title.trim();
         if (a.due_date !== undefined) data.dueDate = parseWhen(a.due_date, tz);
@@ -198,14 +195,14 @@ export const registerDueTools: Register = (server, ctx) => {
           data.recurrenceId = a.repeats ? (due.recurrenceId ?? a.due_id) : null;
         }
         if (a.status !== undefined) data.status = a.status;
-        const touchesLines = a.amount !== undefined || a.category_id !== undefined;
-        if (touchesLines) {
-          if (lines.length > 1) throw new UserError('This due is split into several lines; change its amount or category in the app.');
-          const amount = a.amount !== undefined ? b.round(a.amount) : Number(due.amount);
-          const categoryId = a.category_id !== undefined ? (a.category_id ?? undefined) : (lines[0]?.categoryId ?? (due.categoryId as string | undefined));
-          data.amount = amount;
-          data.categoryId = categoryId ?? null;
-          data.lines = [{ ...dueLine(dir, amount, categoryId), ...(lines[0] ? { lineId: lines[0].lineId } : {}) }];
+        if (a.lines) {
+          const accountId = a.account_id ?? ((due.accountId as string | undefined) ?? undefined);
+          const contactId = a.contact_id !== undefined ? (a.contact_id ?? undefined) : ((due.contactId as string | undefined) ?? undefined);
+          const built = await dueFromLines(b, a.lines, accountId, contactId);
+          data.lines = built.lines.map((l) => strip(l as unknown as Plain));
+          data.amount = built.amount;
+          data.direction = built.direction;
+          data.categoryId = built.categoryId;
         }
         if (!Object.keys(data).length) throw new UserError('Nothing to change.');
         const writes: Write[] = b.updateWrites('dues', a.due_id, data);
