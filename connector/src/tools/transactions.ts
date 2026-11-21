@@ -6,6 +6,14 @@ import { computeTotal, financialYearOf, needsCategory, needsDebt, parseWhen, typ
 import { DESTRUCTIVE, READ, WRITE, OVERWRITE, dateArg, day, run, workspaceArg, type Register } from './common.js';
 
 /** How a caller describes a line. A transfer is one line here; it is stored as the app's balancing pair. */
+/** Tax heads, as the app's tax block offers them (mobile/lib/widgets/txn_lines_editor.dart kTaxHeads). */
+export const TAX_HEADS = [
+  'salary', 'bonus', 'overtime', 'reimbursement', 'perquisite', 'commission', 'professional_fees',
+  'rent', 'interest', 'dividend', 'capital_gains', 'business', 'other', 'exempt',
+] as const;
+/** Heads that only mean something under Indian income tax. */
+const INDIA_ONLY_HEADS = new Set(['perquisite']);
+
 export const lineInput = z.object({
   type: z
     .enum(['expense', 'income', 'transfer', 'fee', 'tax', 'interest_income', 'interest_expense', 'lend', 'borrow', 'repayment'])
@@ -18,6 +26,14 @@ export const lineInput = z.object({
   to_account_id: z.string().optional().describe('For transfer: the account the money goes to'),
   debt_id: z.string().optional(),
   note: z.string().optional(),
+  tax: z
+    .object({
+      head: z.enum(TAX_HEADS).describe('What kind of income it is for tax'),
+      tds_amount: z.number().min(0).optional().describe('Tax deducted at source on this line'),
+      tax_inclusive: z.boolean().optional().describe('True when amount already includes the tax'),
+    })
+    .optional()
+    .describe('Income and interest_income lines only: marks the line taxable, as the tax block in the app does.'),
 });
 export type LineInput = z.infer<typeof lineInput>;
 
@@ -70,6 +86,18 @@ export async function buildLines(
       if (d.contactId !== contactId) throw new UserError(`Line ${n}: that debt belongs to someone else.`);
       line.debtId = l.debt_id;
     }
+    if (l.tax) {
+      // The app's tax block: income lines only; a perquisite only in Indian books.
+      if (l.type !== 'income' && l.type !== 'interest_income') {
+        throw new UserError(`Line ${n}: tax applies to income and interest_income lines only.`);
+      }
+      if (INDIA_ONLY_HEADS.has(l.tax.head) && b.ws.currency !== 'INR') {
+        throw new UserError(`Line ${n}: the "${l.tax.head}" tax head is for books kept in INR.`);
+      }
+      const tds = b.round(l.tax.tds_amount ?? 0);
+      if (tds > amount) throw new UserError(`Line ${n}: the TDS (${tds}) cannot be more than the line (${amount}).`);
+      line.tax = { taxable: true, head: l.tax.head, tdsAmount: tds, taxInclusive: l.tax.tax_inclusive ?? false };
+    }
     if (l.note) line.note = l.note;
     out.push(line);
   });
@@ -84,6 +112,13 @@ const txnFields = {
   contact_id: z.string().optional().describe('Who it was with (list_contacts); required for lend/borrow/repayment lines'),
   lines: z.array(lineInput).min(1).describe('One line for a simple entry; several to split one payment'),
 };
+
+/** A line's tax block for output, in the connector's own names; nothing when it has none. */
+export function taxOut(l: { tax?: Record<string, unknown> }) {
+  const t = l.tax;
+  if (!t || t.taxable !== true) return {};
+  return { tax: { head: t.head ?? 'other', tds_amount: Number(t.tdsAmount ?? 0), tax_inclusive: t.taxInclusive === true } };
+}
 
 export const registerTransactionTools: Register = (server, ctx) => {
   server.registerTool(
@@ -143,6 +178,7 @@ export const registerTransactionTools: Register = (server, ctx) => {
                 type: l.type === 'transfer_out' ? 'transfer' : l.type,
                 amount: l.amount,
                 category: l.categoryId ? catName.get(l.categoryId) : undefined,
+                ...taxOut(l),
                 to_account:
                   l.type === 'transfer_out'
                     ? accountName.get(t.lines.find((p) => p.type === 'transfer_in' && Math.abs(p.amount - l.amount) < 0.005)?.toAccountId ?? '')
