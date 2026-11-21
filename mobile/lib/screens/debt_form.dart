@@ -12,6 +12,7 @@ import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
 import '../widgets/discard_guard.dart';
 import '../widgets/common.dart';
+import '../core/ws_time.dart';
 
 const _kPurposeLabels = <String, String>{
   'loan': 'Loan',
@@ -130,7 +131,7 @@ class _DebtFormState extends State<_DebtForm> {
           },
           openingAmount: amount,
           accountId: _accountId,
-          date: DateTime.now(),
+          date: WsTime.now(),
           financialYearOf: financialYearOf,
         );
       }

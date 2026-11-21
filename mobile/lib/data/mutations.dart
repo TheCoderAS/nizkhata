@@ -10,6 +10,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 
 import 'models.dart';
 import '../services/account_eraser.dart';
+import '../core/ws_time.dart';
 
 const externalAccount = '__external__';
 
@@ -280,6 +281,32 @@ class Mutations {
       _auditedUpdate('dues', ws, id, data);
   Future<void> deleteDue(String ws, String id) => _auditedDelete('dues', ws, id);
 
+  /// End a repeating series from [due] onward: it and the later instances
+  /// already made stop repeating, so the server makes no more. The dues that
+  /// exist are kept. Returns how many changed.
+  Future<int> stopRepeating(String ws, Due due, List<Due> all) async {
+    final series = due.recurrenceId ?? due.id;
+    final affected = all
+        .where((d) =>
+            d.recurrence != null && d.recurrence!.isNotEmpty &&
+            (d.recurrenceId ?? d.id) == series &&
+            !d.dueDate.isBefore(due.dueDate))
+        .toList();
+    if (affected.isEmpty) return 0;
+    final batch = _db.batch();
+    for (final d in affected) {
+      batch.update(_db.collection('dues').doc(d.id), {
+        'recurrence': FieldValue.delete(),
+        'updatedBy': by.toMap(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      _appendRevision(batch,
+          workspaceId: ws, entityType: 'dues', entityId: d.id, action: 'update', changedFields: ['recurrence']);
+    }
+    await batch.commit();
+    return affected.length;
+  }
+
   // ---- debts ----
   Future<void> updateDebt(String ws, String id, Map<String, dynamic> data) =>
       _auditedUpdate('debts', ws, id, data);
@@ -302,7 +329,7 @@ class Mutations {
     return {
       'id': id,
       'workspaceId': ws,
-      'date': Timestamp.fromDate(date),
+      'date': Timestamp.fromDate(WsTime.toStore(date)),
       'accountId': accountId,
       'totalAmount': totalAmount,
       'hasSplit': lines.length > 1,
@@ -420,7 +447,7 @@ class Mutations {
   }) async {
     final batch = _db.batch();
     batch.update(_db.collection('transactions').doc(id), {
-      'date': Timestamp.fromDate(date),
+      'date': Timestamp.fromDate(WsTime.toStore(date)),
       'accountId': accountId,
       'totalAmount': totalAmount,
       'hasSplit': lines.length > 1,
@@ -582,7 +609,7 @@ class Mutations {
       final external = accountId == null;
       final direction = debtData['direction'] as String;
       final lineType = direction == 'owe' ? 'borrow' : 'lend';
-      final when = date ?? DateTime.now();
+      final when = date ?? WsTime.now();
       final line = <String, dynamic>{
         'lineId': 'open_${when.microsecondsSinceEpoch}',
         'type': lineType,
@@ -594,7 +621,7 @@ class Mutations {
       batch.set(_db.collection('transactions').doc(txnId), {
         'id': txnId,
         'workspaceId': ws,
-        'date': Timestamp.fromDate(when),
+        'date': Timestamp.fromDate(WsTime.toStore(when)),
         'accountId': accountId ?? externalAccount,
         'contactId': debtData['contactId'],
         'totalAmount': external ? 0 : (direction == 'owe' ? 1 : -1) * openingAmount,

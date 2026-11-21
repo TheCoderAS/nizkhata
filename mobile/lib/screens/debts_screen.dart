@@ -17,6 +17,7 @@ import '../widgets/row_actions.dart';
 import '../widgets/undo_delete.dart';
 import 'debt_detail.dart';
 import 'debt_form.dart';
+import '../core/ws_time.dart';
 
 const _kPurposeLabels = <String, String>{
   'loan': 'Loan',
@@ -453,7 +454,7 @@ class _DebtPaymentSheetState extends State<_DebtPaymentSheet> {
     if (amount <= 0) return;
 
     final debt = widget.debt;
-    final now = DateTime.now();
+    final now = WsTime.now();
     final lid = now.microsecondsSinceEpoch;
     final m = Mutations(Actor.fromUser(user));
     // Read before the write: afterwards the cached balance already includes it.

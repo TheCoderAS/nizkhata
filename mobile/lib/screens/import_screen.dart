@@ -21,6 +21,7 @@ import '../services/statement_parser.dart';
 import '../state/auth_controller.dart';
 import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
+import '../core/ws_time.dart';
 
 /// Statement import — upload → analyse (password prompt for encrypted files) →
 /// map columns → review rows in a table with checkboxes and per-row edits →
@@ -1254,7 +1255,7 @@ class _ImportScreenState extends State<ImportScreen> {
   Future<void> _editRow(_ReviewRow row) async {
     final data = context.read<DataController>();
     final d = row.draft;
-    var date = d.date ?? DateTime.now();
+    var date = d.date ?? WsTime.now();
     var isCredit = (d.amount ?? -1) >= 0;
     final descCtl = TextEditingController(text: d.description);
     final amtCtl = TextEditingController(text: d.amount?.abs().toStringAsFixed(MoneyContext.decimals) ?? '');

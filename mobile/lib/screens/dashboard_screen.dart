@@ -16,6 +16,7 @@ import '../state/workspace_controller.dart';
 import '../widgets/common.dart';
 import '../widgets/segmented_tabs.dart';
 import 'transaction_detail.dart';
+import '../core/ws_time.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -25,8 +26,8 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   PeriodKind period = PeriodKind.month;
-  DateTime _customStart = DateTime(DateTime.now().year, DateTime.now().month, 1);
-  DateTime _customEnd = DateTime.now();
+  DateTime _customStart = DateTime(WsTime.now().year, WsTime.now().month, 1);
+  DateTime _customEnd = WsTime.now();
 
   @override
   Widget build(BuildContext context) {
@@ -35,7 +36,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final currency = ws.currency;
     final fyStart = ws.fyStartMonth;
     final canViewTxns = ws.can('transactions.view');
-    final now = DateTime.now();
+    final now = WsTime.now();
     final range = period == PeriodKind.custom
         ? (
             start: DateTime(_customStart.year, _customStart.month, _customStart.day),
@@ -623,7 +624,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
     );
     if (ok != true || !mounted) return;
-    final micros = DateTime.now().microsecondsSinceEpoch;
+    final micros = WsTime.now().microsecondsSinceEpoch;
     var i = 0;
     final lines = [
       for (final l in s.template.lines) (l.toMap()..['lineId'] = 'rec_${micros}_l${i++}'),

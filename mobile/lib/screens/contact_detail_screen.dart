@@ -21,6 +21,7 @@ import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
 import '../widgets/common.dart';
 import 'transaction_detail.dart';
+import '../core/ws_time.dart';
 
 const _purposeLabels = <String, String>{
   'loan': 'Loans',
@@ -279,7 +280,7 @@ class ContactDetailScreen extends StatelessWidget {
     final user = context.read<AuthController>().user;
     if (wsId == null || user == null) return;
     // Rebuild fresh (data may have moved since the button rendered).
-    final seed = DateTime.now().microsecondsSinceEpoch;
+    final seed = WsTime.now().microsecondsSinceEpoch;
     final plan = buildSettleUpPlan(contactId, data.debts, data.transactions, lineIdSeed: seed);
     if (plan.isEmpty) return;
     final accounts = data.accounts;
@@ -334,7 +335,7 @@ class ContactDetailScreen extends StatelessWidget {
     );
     if (ok != true || accountId == null || !context.mounted) return;
     try {
-      final now = DateTime.now();
+      final now = WsTime.now();
       final contactName = data.contactsById[contactId]?.name ?? '';
       await Mutations(Actor.fromUser(user)).createTransaction(
         wsId,

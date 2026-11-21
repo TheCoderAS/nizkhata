@@ -56,6 +56,10 @@ void main() {
       final inr = newWorkspaceFields(id: 'w', name: 'n', ownerId: 'u', currency: 'INR');
       expect(inr['baseCurrency'], 'INR');
       expect(inr['fyStartMonth'], 4);
+      // Every workspace is made with a time zone; India unless chosen.
+      expect(inr['timeZone'], 'Asia/Kolkata');
+      expect(newWorkspaceFields(id: 'w', name: 'n', ownerId: 'u', currency: 'THB', timeZone: 'Asia/Bangkok')['timeZone'],
+          'Asia/Bangkok');
     });
 
     test('stores the code in its standard form', () {
@@ -186,14 +190,14 @@ void main() {
     Future<List<String>> pumpScreen(
       WidgetTester tester, {
       String initial = 'USD',
-      Future<void> Function(String)? onConfirm,
+      Future<void> Function(String, String)? onConfirm,
     }) async {
       final confirmed = <String>[];
       phoneSize(tester);
       await tester.pumpWidget(app(ChooseCurrencyView(
         firstName: 'Asha',
         initialCurrency: initial,
-        onConfirm: onConfirm ?? (c) async => confirmed.add(c),
+        onConfirm: onConfirm ?? (c, z) async => confirmed.add('$c $z'),
         onSignOut: () async {},
       )));
       await tester.pumpAndSettle();
@@ -204,7 +208,9 @@ void main() {
       await pumpScreen(tester);
       expect(find.text('Welcome, Asha'), findsOneWidget);
       expect(find.text('US dollar'), findsOneWidget);
-      expect(find.textContaining("can't be changed later"), findsOneWidget);
+      // Both lasting choices say so: the currency and the time zone.
+      expect(find.textContaining("can't be changed later"), findsNWidgets(2));
+      expect(find.textContaining('keeps all its figures in this currency'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
 
@@ -220,22 +226,26 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('EUR'), findsOneWidget);
 
+      await tester.ensureVisible(find.text('Create my workspace'));
       await tester.tap(find.text('Create my workspace'));
       await tester.pump();
-      expect(confirmed, ['EUR']);
+      // The time zone defaults to India unless the person picks another.
+      expect(confirmed, ['EUR Asia/Kolkata']);
     });
 
     testWidgets('keeps the person on the screen, able to retry, when creation fails', (tester) async {
       var attempts = 0;
-      await pumpScreen(tester, onConfirm: (_) async {
+      await pumpScreen(tester, onConfirm: (_, __) async {
         attempts++;
         throw Exception('offline');
       });
+      await tester.ensureVisible(find.text('Create my workspace'));
       await tester.tap(find.text('Create my workspace'));
       await tester.pumpAndSettle();
       expect(attempts, 1);
       expect(find.textContaining("Couldn't set up your workspace"), findsOneWidget);
 
+      await tester.ensureVisible(find.text('Create my workspace'));
       await tester.tap(find.text('Create my workspace'));
       await tester.pumpAndSettle();
       expect(attempts, 2);
@@ -270,7 +280,9 @@ void main() {
     testWidgets('starts from the current workspace\'s currency and returns the choice', (tester) async {
       final results = await pumpDialog(tester, initial: 'AED');
       expect(find.text('UAE dirham'), findsOneWidget);
-      expect(find.textContaining("can't be changed later"), findsOneWidget);
+      // Both lasting choices say so: the currency and the time zone.
+      expect(find.textContaining("can't be changed later"), findsNWidgets(2));
+      expect(find.textContaining('keeps all its figures in this currency'), findsOneWidget);
       expect(tester.takeException(), isNull);
 
       // No name, no workspace.
@@ -297,7 +309,7 @@ void main() {
 
       await tester.tap(find.text('Create'));
       await tester.pumpAndSettle();
-      expect(results.single, (name: 'Travel', currency: 'JPY'));
+      expect(results.single, (name: 'Travel', currency: 'JPY', timeZone: 'Asia/Kolkata'));
     });
 
     testWidgets('fits a phone with the keyboard up', (tester) async {

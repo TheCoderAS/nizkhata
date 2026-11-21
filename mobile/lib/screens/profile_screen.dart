@@ -17,6 +17,8 @@ import '../state/theme_controller.dart';
 import '../state/workspace_controller.dart';
 import '../widgets/common.dart';
 import '../widgets/currency_picker.dart';
+import '../core/ws_time.dart';
+import '../widgets/time_zone_field.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -168,12 +170,14 @@ class ProfileScreen extends StatelessWidget {
       useRootNavigator: true,
       // A second workspace is usually kept in the same country as the first,
       // so start from the currency in use now. Still only a preselection.
-      builder: (_) => NewWorkspaceDialog(initialCurrency: ws.currency),
+      builder: (_) => NewWorkspaceDialog(
+          initialCurrency: ws.currency, initialTimeZone: ws.activeWorkspace?.timeZone ?? WsTime.defaultZone),
     );
     if (request == null) return;
     final name = request.name;
     try {
-      final id = await auth.createPersonalWorkspace(user, name: name, currency: request.currency);
+      final id = await auth.createPersonalWorkspace(user,
+          name: name, currency: request.currency, timeZone: request.timeZone);
       await ws.switchWorkspace(id);
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Created "$name"')));
@@ -277,7 +281,7 @@ class ProfileScreen extends StatelessWidget {
 }
 
 /// What the new-workspace dialog hands back: a name and the chosen currency.
-typedef NewWorkspaceRequest = ({String name, String currency});
+typedef NewWorkspaceRequest = ({String name, String currency, String timeZone});
 
 /// Name the new workspace and choose its currency. The currency is permanent,
 /// so it is asked here in full rather than copied silently from the workspace
@@ -404,7 +408,8 @@ class _DeleteAccountDialogState extends State<DeleteAccountDialog> {
 
 class NewWorkspaceDialog extends StatefulWidget {
   final String initialCurrency;
-  const NewWorkspaceDialog({super.key, required this.initialCurrency});
+  final String initialTimeZone;
+  const NewWorkspaceDialog({super.key, required this.initialCurrency, this.initialTimeZone = WsTime.defaultZone});
 
   @override
   State<NewWorkspaceDialog> createState() => _NewWorkspaceDialogState();
@@ -416,6 +421,7 @@ class _NewWorkspaceDialogState extends State<NewWorkspaceDialog> {
   // no longer offers; it cannot seed a new one, so start from the rupee.
   late String _currency =
       kCurrencies.any((c) => c.code == widget.initialCurrency) ? widget.initialCurrency : 'INR';
+  late String _timeZone = widget.initialTimeZone;
 
   @override
   void dispose() {
@@ -427,7 +433,7 @@ class _NewWorkspaceDialogState extends State<NewWorkspaceDialog> {
 
   void _submit() {
     if (!_valid) return;
-    Navigator.pop<NewWorkspaceRequest>(context, (name: _name.text.trim(), currency: _currency));
+    Navigator.pop<NewWorkspaceRequest>(context, (name: _name.text.trim(), currency: _currency, timeZone: _timeZone));
   }
 
   @override
@@ -454,6 +460,11 @@ class _NewWorkspaceDialogState extends State<NewWorkspaceDialog> {
             CurrencyField(value: _currency, onChanged: (c) => setState(() => _currency = c)),
             const SizedBox(height: 10),
             const CurrencyLockNote(),
+            const SizedBox(height: 16),
+            const SectionLabel('Time zone'),
+            TimeZoneField(value: _timeZone, onChanged: (z) => setState(() => _timeZone = z)),
+            const SizedBox(height: 10),
+            const TimeZoneLockNote(),
           ],
         ),
       ),

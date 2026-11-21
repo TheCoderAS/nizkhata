@@ -15,6 +15,7 @@ import '../widgets/token_assist.dart';
 import '../widgets/txn_lines_editor.dart';
 import '../widgets/discard_guard.dart';
 import '../widgets/common.dart';
+import '../core/ws_time.dart';
 
 /// Create/edit due sheet — a due is authored exactly like a transaction: the
 /// same multi-line editor (typed lines, categories, tax info), plus a due date
@@ -66,7 +67,7 @@ class _DueFormState extends State<_DueForm> {
   // stored and behaves exactly as before.
   late final _title =
       TextEditingController(text: widget.existing?.titlePattern ?? widget.existing?.title ?? '');
-  late DateTime _dueDate = widget.existing?.dueDate ?? widget.initialDate ?? DateTime.now();
+  late DateTime _dueDate = widget.existing?.dueDate ?? widget.initialDate ?? WsTime.now();
   late String _recurrence = widget.existing?.recurrence ?? '';
   late String? _contactId = widget.existing?.contactId;
   late String? _accountId = widget.existing?.accountId;
@@ -166,7 +167,7 @@ class _DueFormState extends State<_DueForm> {
       'notePattern': hasTokens(notePattern) ? notePattern : null,
       'occurrence': occurrence,
       'amount': roundMoney(signedTotal.abs()),
-      'dueDate': Timestamp.fromDate(_dueDate),
+      'dueDate': Timestamp.fromDate(WsTime.toStore(_dueDate)),
       'contactId': _contactId,
       'accountId': _accountId,
       'categoryId': firstCategory,

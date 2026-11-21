@@ -9,6 +9,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../data/models.dart';
 import 'title_tokens.dart';
+import '../core/ws_time.dart';
 
 /// The next occurrence after [from] for a frequency, clamping month-length
 /// overflow (Jan 31 + 1 month → Feb 28/29, and it stays a valid date).
@@ -94,7 +95,7 @@ Map<String, dynamic> nextDueDoc(DueInstance inst, {int fyStartMonth = 4}) {
     'direction': t.direction,
     'title': render(t.titlePattern, t.title) ?? '',
     'amount': t.amount,
-    'dueDate': Timestamp.fromDate(inst.dueDate),
+    'dueDate': Timestamp.fromDate(WsTime.toStore(inst.dueDate)),
     'contactId': t.contactId,
     'accountId': t.accountId,
     'categoryId': t.categoryId,

@@ -14,6 +14,7 @@ import '../widgets/token_assist.dart';
 import '../widgets/txn_lines_editor.dart';
 import '../widgets/discard_guard.dart';
 import '../widgets/common.dart';
+import '../core/ws_time.dart';
 
 /// THE transaction sheet — create and edit. One form for everything: a header
 /// (date / account / contact / note) plus a dynamic list of typed lines with
@@ -60,7 +61,7 @@ class _TransactionFormState extends State<_TransactionForm> {
         for (final r in _lines) lineDraftFingerprint(r)
       ].join('|');
 
-  DateTime _date = DateTime.now();
+  DateTime _date = WsTime.now();
   String? _accountId;
   String? _contactId;
   String _recurrence = '';
@@ -123,7 +124,7 @@ class _TransactionFormState extends State<_TransactionForm> {
       return;
     }
 
-    final micros = DateTime.now().microsecondsSinceEpoch;
+    final micros = WsTime.now().microsecondsSinceEpoch;
     final lines = lineMapsFromDrafts(_lines, micros);
 
     // Header contact wins; otherwise fall back to a debt line's contact.

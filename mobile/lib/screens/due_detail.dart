@@ -5,6 +5,8 @@ import 'package:share_plus/share_plus.dart';
 import '../core/format.dart';
 import '../data/derive.dart';
 import '../data/models.dart';
+import '../data/mutations.dart';
+import '../state/auth_controller.dart';
 import '../services/khata_pdf.dart';
 import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
@@ -77,6 +79,7 @@ class _DueDetail extends StatelessWidget {
             DetailRow('Direction', due.direction == 'receivable' ? 'Receivable' : 'Payable'),
             DetailRow('Status', status),
             DetailRow('Due date', formatDate(due.dueDate)),
+            if ((due.recurrence ?? '').isNotEmpty) DetailRow('Repeats', _repeatLabel(due.recurrence!)),
             DetailRow('Amount', formatMoney(due.amount, currency)),
             DetailRow('Settled', formatMoney(settled, currency)),
             DetailRow('Remaining', formatMoney(remaining > 0 ? remaining : 0, currency)),
@@ -115,6 +118,18 @@ class _DueDetail extends StatelessWidget {
                 ),
               ),
             ],
+            if (canManage && (due.recurrence ?? '').isNotEmpty) ...[
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  key: const Key('stop-repeating'),
+                  onPressed: () => _stopRepeating(context, data, ws),
+                  icon: const Icon(Icons.event_busy_outlined, size: 18),
+                  label: const Text('Stop repeating'),
+                ),
+              ),
+            ],
             const SizedBox(height: 12),
             const Divider(height: 1),
             const SizedBox(height: 12),
@@ -136,6 +151,38 @@ class _DueDetail extends StatelessWidget {
     );
   }
 
+
+  static String _repeatLabel(String r) =>
+      switch (r) { 'weekly' => 'Every week', 'yearly' => 'Every year', _ => 'Every month' };
+
+  /// Ask, then end the series from this due onward. Dues already made stay.
+  Future<void> _stopRepeating(BuildContext context, DataController data, WorkspaceController ws) async {
+    final user = context.read<AuthController>().user;
+    final wsId = ws.activeWorkspaceId;
+    if (user == null || wsId == null) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      useRootNavigator: true,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Stop repeating?'),
+        content: Text(
+            'No more "${due.title}" dues will be made after this one. Dues already made stay in your list; pay, cancel or delete them as usual.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Stop repeating')),
+        ],
+      ),
+    );
+    if (ok != true || !context.mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    Navigator.of(context).pop();
+    try {
+      await Mutations(Actor.fromUser(user)).stopRepeating(wsId, due, data.dues);
+      messenger.showSnackBar(SnackBar(content: Text('"${due.title}" no longer repeats')));
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text("Couldn't stop it repeating: $e")));
+    }
+  }
 
   Widget _txnTile(BuildContext context, DataController data, Txn t, String currency) {
     final cs = Theme.of(context).colorScheme;

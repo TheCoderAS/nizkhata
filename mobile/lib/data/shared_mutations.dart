@@ -37,6 +37,7 @@ import '../core/currency.dart';
 import 'derive.dart';
 import 'models.dart';
 import 'mutations.dart' show Actor, externalAccount;
+import '../core/ws_time.dart';
 
 // ---- ids -------------------------------------------------------------------
 
@@ -65,7 +66,7 @@ List<String> _strList(dynamic v) {
 }
 
 DateTime _toDate(dynamic v) {
-  if (v is Timestamp) return v.toDate();
+  if (v is Timestamp) return WsTime.fromStore(v.toDate());
   if (v is DateTime) return v;
   return DateTime.fromMillisecondsSinceEpoch(0);
 }
@@ -518,7 +519,7 @@ class SharedMutations {
     batch.set(_db.collection('transactions').doc(id), {
       'id': id,
       'workspaceId': ctx.workspaceId,
-      'date': Timestamp.fromDate(date),
+      'date': Timestamp.fromDate(WsTime.toStore(date)),
       'accountId': accountId,
       'contactId': contactId,
       'sharedEntryId': sharedEntryId,
@@ -618,7 +619,7 @@ class SharedMutations {
       batch.set(_db.collection('transactions').doc(id), {
         'id': id,
         'workspaceId': workspaceId,
-        'date': Timestamp.fromDate(date),
+        'date': Timestamp.fromDate(WsTime.toStore(date)),
         'accountId': accountId,
         'totalAmount': -myShare,
         'hasSplit': false,
@@ -657,7 +658,7 @@ class SharedMutations {
         'description': description,
         'amount': p.share,
         'currency': currency,
-        'date': Timestamp.fromDate(date),
+        'date': Timestamp.fromDate(WsTime.toStore(date)),
         'status': 'pending',
         'pendingForUids': [p.counterpartyUid],
         'createdBy': by.toMap(),
@@ -782,7 +783,7 @@ class SharedMutations {
       'description': description,
       'amount': amount,
       'currency': currency,
-      'date': Timestamp.fromDate(date),
+      'date': Timestamp.fromDate(WsTime.toStore(date)),
       'status': 'pending',
       'pendingForUids': [counterpartyUid],
       'createdBy': by.toMap(),
@@ -894,7 +895,7 @@ class SharedMutations {
       batch.set(_db.collection('transactions').doc(reflectionTxnId), {
         'id': reflectionTxnId,
         'workspaceId': workspaceId,
-        'date': Timestamp.fromDate(date),
+        'date': Timestamp.fromDate(WsTime.toStore(date)),
         'accountId': accountId,
         'sharedEntryId': entry.id,
         'totalAmount': -entry.amount,
@@ -963,7 +964,7 @@ class SharedMutations {
       // The same claim, so the same currency. Written out even for an old
       // entry that had none, where it was INR all along.
       'currency': entry.currency,
-      'date': Timestamp.fromDate(entry.date),
+      'date': Timestamp.fromDate(WsTime.toStore(entry.date)),
       'status': 'pending',
       'pendingForUids': [entry.counterpartyUid],
       'createdBy': by.toMap(),

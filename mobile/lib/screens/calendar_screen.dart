@@ -10,6 +10,7 @@ import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
 import 'due_form.dart';
 import 'split_transaction_form.dart';
+import '../core/ws_time.dart';
 
 /// Per-day due totals for one month.
 typedef _MonthDues = ({
@@ -47,7 +48,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
   static const _initialPage = 1200;
   static const _pageCount = 2401;
 
-  final DateTime _baseMonth = DateTime(DateTime.now().year, DateTime.now().month);
+  final DateTime _baseMonth = DateTime(WsTime.now().year, WsTime.now().month);
   late final PageController _pager = PageController(initialPage: _initialPage);
   late DateTime _month = _baseMonth;
 
@@ -97,7 +98,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
     final ws = context.watch<WorkspaceController>();
     final currency = ws.currency;
     final cs = Theme.of(context).colorScheme;
-    final today = DateTime.now();
+    final today = WsTime.now();
 
     // Totals for the month currently on screen (drives the footer legend).
     final visible = _duesFor(data, _month);

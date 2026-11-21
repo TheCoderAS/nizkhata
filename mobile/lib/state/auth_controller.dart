@@ -13,6 +13,7 @@ import '../services/account_eraser.dart';
 import '../services/local_data.dart';
 import '../services/push_registration.dart';
 import '../data/permissions.dart';
+import '../core/ws_time.dart';
 
 /// The fields a new workspace document starts with, less the server
 /// timestamp. Kept apart from the Firestore write so the one thing that can
@@ -26,6 +27,7 @@ Map<String, dynamic> newWorkspaceFields({
   required String name,
   required String ownerId,
   required String currency,
+  String timeZone = WsTime.defaultZone,
 }) {
   final code = currency.trim().toUpperCase();
   if (!kCurrencies.any((c) => c.code == code)) {
@@ -37,6 +39,8 @@ Map<String, dynamic> newWorkspaceFields({
     'ownerId': ownerId,
     'baseCurrency': code,
     'fyStartMonth': currencySpec(code).defaultFyStartMonth,
+    // Fixed for good, like the currency: every date in the books is a day here.
+    'timeZone': timeZone.trim().isEmpty ? WsTime.defaultZone : timeZone.trim(),
   };
 }
 
@@ -174,10 +178,10 @@ class AuthController extends ChangeNotifier {
 
   /// Make the first workspace of someone who has none, in the currency they
   /// chose, and let the router carry them on into the app.
-  Future<void> createFirstWorkspace(String currency) async {
+  Future<void> createFirstWorkspace(String currency, [String timeZone = WsTime.defaultZone]) async {
     final u = user;
     if (u == null) return;
-    final id = await createPersonalWorkspace(u, currency: currency);
+    final id = await createPersonalWorkspace(u, currency: currency, timeZone: timeZone);
     // The workspace exists now, so nothing after this may send them back to
     // make another. The app picks its active workspace without lastWorkspaceId,
     // so losing that write costs nothing; a retried creation would cost a
@@ -266,13 +270,15 @@ class AuthController extends ChangeNotifier {
   ///
   /// The currency is required, with no default, because it can never be
   /// changed afterwards: every caller must have asked the person.
-  Future<String> createPersonalWorkspace(User u, {String? name, required String currency}) async {
+  Future<String> createPersonalWorkspace(User u,
+      {String? name, required String currency, String timeZone = WsTime.defaultZone}) async {
     final wsRef = _db.collection('workspaces').doc();
     final workspaceId = wsRef.id;
     final wsName =
         (name != null && name.trim().isNotEmpty) ? name.trim() : defaultWorkspaceName(u.displayName);
     // Built before any write, so a bad code fails with nothing half made.
-    final fields = newWorkspaceFields(id: workspaceId, name: wsName, ownerId: u.uid, currency: currency);
+    final fields =
+        newWorkspaceFields(id: workspaceId, name: wsName, ownerId: u.uid, currency: currency, timeZone: timeZone);
     await wsRef.set({...fields, 'createdAt': FieldValue.serverTimestamp()});
 
     final batch = _db.batch();

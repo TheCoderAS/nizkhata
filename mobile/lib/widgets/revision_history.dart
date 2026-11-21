@@ -5,6 +5,7 @@
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import '../core/ws_time.dart';
 
 class _Rev {
   final String action;
@@ -19,7 +20,7 @@ class _Rev {
     return _Rev(
       action: (m['action'] ?? '') as String,
       byName: (by?['name'] ?? 'Unknown') as String,
-      at: ts is Timestamp ? ts.toDate() : null,
+      at: ts is Timestamp ? WsTime.fromStore(ts.toDate()) : null,
       changedFields: ((m['changedFields'] as List?)?.cast<String>()) ?? const [],
     );
   }
@@ -57,7 +58,7 @@ class RevisionHistory extends StatelessWidget {
 
         String when(DateTime? d) {
           if (d == null) return '';
-          final now = DateTime.now();
+          final now = WsTime.now();
           final local = d.toLocal();
           final sameDay = local.year == now.year && local.month == now.month && local.day == now.day;
           final hh = local.hour.toString().padLeft(2, '0');
