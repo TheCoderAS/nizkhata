@@ -33,7 +33,14 @@ export class Push {
           data: { route: m.route },
           android: {
             priority: 'HIGH',
-            notification: { channel_id: m.channel, ...(m.tag ? { tag: m.tag } : {}), click_action: 'FLUTTER_NOTIFICATION_CLICK' },
+            notification: {
+              channel_id: m.channel,
+              ...(m.tag ? { tag: m.tag } : {}),
+              click_action: 'FLUTTER_NOTIFICATION_CLICK',
+              // The status-bar silhouette and the brand indigo that tints it.
+              icon: 'ic_stat_due',
+              color: '#4F46E5',
+            },
           },
         },
       }),
