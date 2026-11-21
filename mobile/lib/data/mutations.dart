@@ -702,7 +702,11 @@ class Mutations {
 
   String inviteId(String ws, String email) => '${ws}_${email.toLowerCase()}';
 
-  Future<String> createInvite(String ws, String email, String roleId, String invitedBy) async {
+  /// [workspaceName], [invitedByName] and [roleName] are copied onto the
+  /// invite because the invited person cannot read the workspace, its roles or
+  /// its members until they have joined; the invitation shows them.
+  Future<String> createInvite(String ws, String email, String roleId, String invitedBy,
+      {String? workspaceName, String? invitedByName, String? roleName}) async {
     final id = inviteId(ws, email);
     final expiresAt = Timestamp.fromDate(DateTime.now().add(const Duration(days: 14)));
     await _db.collection('invites').doc(id).set({
@@ -712,6 +716,9 @@ class Mutations {
       'roleId': roleId,
       'status': 'pending',
       'invitedBy': invitedBy,
+      if (workspaceName != null && workspaceName.isNotEmpty) 'workspaceName': workspaceName,
+      if (invitedByName != null && invitedByName.isNotEmpty) 'invitedByName': invitedByName,
+      if (roleName != null && roleName.isNotEmpty) 'roleName': roleName,
       'createdAt': FieldValue.serverTimestamp(),
       'expiresAt': expiresAt,
     });

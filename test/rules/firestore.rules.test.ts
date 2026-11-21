@@ -14,7 +14,7 @@ import {
   type RulesTestEnvironment,
 } from "@firebase/rules-unit-testing";
 import { readFileSync } from "node:fs";
-import { doc, getDoc, setDoc, updateDoc, deleteDoc } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs, query, setDoc, updateDoc, deleteDoc, where, writeBatch } from "firebase/firestore";
 import { afterAll, beforeAll, beforeEach, describe, it } from "vitest";
 
 const PROJECT_ID = "rules-test";
@@ -203,6 +203,73 @@ describe("FIX 1 — no open membership self-join", () => {
         roleId: `${WS}_owner`, status: "active",
       }),
     );
+  });
+});
+
+describe("answering a workspace invite, as the app does", () => {
+  async function seedInvite(status = "pending") {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), "invites", `${WS}_guest@x.com`), {
+        id: `${WS}_guest@x.com`, workspaceId: WS, email: "guest@x.com",
+        roleId: `${WS}_viewer`, status, invitedBy: "owner",
+        workspaceName: "Home", invitedByName: "Owner", roleName: "Viewer",
+      });
+    });
+  }
+  const guest = () =>
+    env.authenticatedContext("guest", { email: "guest@x.com", email_verified: true }).firestore();
+
+  it("lists their own pending invites", async () => {
+    await seedInvite();
+    await assertSucceeds(
+      getDocs(query(collection(guest(), "invites"), where("email", "==", "guest@x.com"), where("status", "==", "pending"))),
+    );
+  });
+
+  it("joins: membership and accepted invite in one batch", async () => {
+    await seedInvite();
+    const db = guest();
+    const batch = writeBatch(db);
+    batch.set(doc(db, "memberships", `${WS}_guest`), {
+      id: `${WS}_guest`, workspaceId: WS, uid: "guest", roleId: `${WS}_viewer`,
+      status: "active", email: "guest@x.com", displayName: "Guest",
+    });
+    batch.update(doc(db, "invites", `${WS}_guest@x.com`), { status: "accepted" });
+    await assertSucceeds(batch.commit());
+    // A member now: the workspace is readable.
+    await assertSucceeds(getDoc(doc(db, "workspaces", WS)));
+  });
+
+  it("declines their own pending invite", async () => {
+    await seedInvite();
+    await assertSucceeds(updateDoc(doc(guest(), "invites", `${WS}_guest@x.com`), { status: "declined" }));
+  });
+
+  it("cannot change anything else on the invite, nor answer one twice", async () => {
+    await seedInvite();
+    await assertFails(
+      updateDoc(doc(guest(), "invites", `${WS}_guest@x.com`), { status: "accepted", roleId: `${WS}_owner` }),
+    );
+    await assertFails(updateDoc(doc(guest(), "invites", `${WS}_guest@x.com`), { status: "revoked" }));
+    await seedInvite("revoked");
+    await assertFails(updateDoc(doc(guest(), "invites", `${WS}_guest@x.com`), { status: "accepted" }));
+  });
+
+  it("cannot join through a declined or revoked invite", async () => {
+    for (const status of ["declined", "revoked"]) {
+      await seedInvite(status);
+      await assertFails(
+        setDoc(doc(guest(), "memberships", `${WS}_guest`), {
+          id: `${WS}_guest`, workspaceId: WS, uid: "guest", roleId: `${WS}_viewer`, status: "active",
+        }),
+      );
+    }
+  });
+
+  it("someone else cannot answer it", async () => {
+    await seedInvite();
+    const other = env.authenticatedContext("other", { email: "other@x.com", email_verified: true }).firestore();
+    await assertFails(updateDoc(doc(other, "invites", `${WS}_guest@x.com`), { status: "declined" }));
   });
 });
 

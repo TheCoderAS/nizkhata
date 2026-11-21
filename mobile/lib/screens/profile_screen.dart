@@ -19,6 +19,7 @@ import '../widgets/common.dart';
 import '../widgets/currency_picker.dart';
 import '../core/ws_time.dart';
 import '../widgets/time_zone_field.dart';
+import '../widgets/workspace_invites_card.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -76,6 +77,15 @@ class ProfileScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
+          if (user != null)
+            WorkspaceInvitesCard(
+              user: user,
+              memberOf: {for (final m in ws.memberships) m.workspaceId},
+              onJoined: (id) async {
+                await auth.joinedWorkspace(id);
+                await ws.switchWorkspace(id);
+              },
+            ),
           SectionCard(
             title: 'Workspaces',
             child: Column(

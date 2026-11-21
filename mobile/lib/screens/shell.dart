@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
+import '../widgets/attention_bell.dart';
 import '../widgets/common.dart';
 import '../widgets/floating_nav_bar.dart';
 import '../core/ws_time.dart';
@@ -72,6 +73,7 @@ class _AppShellState extends State<AppShell> {
         appBar: AppBar(
           title: Text(title),
           centerTitle: false,
+          actions: const [AttentionBell(), SizedBox(width: 4)],
         ),
         // One listener over the whole body, so every tab's action button
         // steps aside while its list is scrolling and no screen has to know.
