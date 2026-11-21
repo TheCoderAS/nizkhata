@@ -42,13 +42,25 @@ class PushRegistration {
   static Future<DocumentReference<Map<String, dynamic>>> _doc(String uid) async =>
       FirebaseFirestore.instance.collection('devices').doc('${uid}_${await _installId()}');
 
-  /// Call whenever the signed-in user changes (null when signed out).
+  static bool _synced = false;
+
+  /// Call whenever the signed-in user is known (null when signed out).
   static Future<void> sync(String? uid) async {
-    if (uid == _uid) return;
+    if (uid == _uid && _synced) return;
+    _synced = true;
     _uid = uid;
     await _refresh?.cancel();
     _refresh = null;
-    if (uid == null) return;
+    if (uid == null) {
+      // Signed out: this phone must get nobody's notifications. If the
+      // sign-out cleanup could not reach the server (offline), dropping the
+      // token here makes every later send to it fail, and the server then
+      // forgets it. A new sign-in gets a fresh token.
+      try {
+        await FirebaseMessaging.instance.deleteToken();
+      } catch (_) {}
+      return;
+    }
     try {
       final messaging = FirebaseMessaging.instance;
       await messaging.requestPermission();

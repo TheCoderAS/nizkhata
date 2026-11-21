@@ -11,6 +11,7 @@
 // updating, clearing the reminders older versions scheduled on the phone so
 // nobody gets each one twice.
 
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -97,6 +98,8 @@ class DueReminders {
   static Future<void> _showForeground(RemoteMessage m) async {
     final n = m.notification;
     if (n == null) return;
+    // Never someone's reminder on a phone nobody is signed in to.
+    if (FirebaseAuth.instance.currentUser == null) return;
     final route = (m.data['route'] as String?) ?? '';
     final channel = n.android?.channelId == _sharedChannel.id ? _sharedChannel : _channel;
     await _plugin.show(

@@ -96,13 +96,13 @@ describe('scheduled jobs', () => {
     const mine = sent.filter((x) => x.token === 'tok-1');
     expect(mine).toHaveLength(1);
     expect(mine[0]!.body).toMatchObject({
-      notification: { title: 'You have 3 dues to clear today', body: "Tap to see what's due" },
-      data: { route: '/dues-day?date=2026-11-20' },
-      android: { notification: { channel_id: 'due_reminders', tag: 'dues_2026-11-20' } },
+      notification: { title: 'Sched: 3 dues to clear today', body: "Tap to see what's due" },
+      data: { route: '/dues-day?date=2026-11-20&ws=ws_s' },
+      android: { notification: { channel_id: 'due_reminders', tag: 'dues_ws_s_2026-11-20' } },
     });
     expect(sent.some((x) => x.token === 'tok-blind')).toBe(false); // no dues.view, no reminder
     expect(await admin.get('devices', 'sch_old')).toBeNull();
-    expect(await admin.get('pushLog', 'sch_2026-11-20_12')).toMatchObject({ uid: 'sch', count: 3, slot: 12 });
+    expect(await admin.get('pushLog', 'sch_ws_s_2026-11-20_12')).toMatchObject({ uid: 'sch', count: 3, slot: 12 });
 
     // The same process again, and a fresh one after a restart: nothing more.
     const before = sent.length;
@@ -158,5 +158,36 @@ describe('scheduled jobs', () => {
     expect(sent.filter((x) => x.token === 'ny-phone')).toEqual([]);
     await scheduler(new Date('2026-11-20T14:05:00Z')).remind(); // 09:05 in New York
     expect(sent.filter((x) => x.token === 'ny-phone')).toHaveLength(1);
+  });
+
+  it('one reminder per workspace, each named and opening its own workspace', async () => {
+    await admin.commit([
+      set('workspaces', 'ws_t', { name: 'Trip', ownerId: 'sch', baseCurrency: 'INR', fyStartMonth: 4 }),
+      set('roles', 'ws_t_owner', { workspaceId: 'ws_t', name: 'Owner', isSystem: true, permissions: { 'dues.view': true } }),
+      set('memberships', 'ws_t_sch', { workspaceId: 'ws_t', uid: 'sch', roleId: 'ws_t_owner', status: 'active' }),
+      set('dues', 'trip_hotel', { workspaceId: 'ws_t', direction: 'payable', title: 'Hotel', amount: 9000, dueDate: day(2026, 11, 22), status: 'open' }),
+    ]);
+    sent.length = 0;
+    await scheduler(new Date('2026-11-22T04:00:00Z')).remind(); // 09:30 on the 22nd in Kolkata
+    expect(sent.filter((x) => x.token === 'tok-1').map((x) => [x.body.notification.title, x.body.data.route])).toEqual([
+      ['Trip: a due to clear today', '/dues-day?date=2026-11-22&ws=ws_t'],
+    ]);
+  });
+
+  it('a phone that changed hands notifies only whoever signed in last', async () => {
+    // "sch" signed out while offline, so his record stayed; then "pat" signed in on the same phone.
+    await admin.commit([
+      set('workspaces', 'ws_p', { name: 'Pat home', ownerId: 'pat', baseCurrency: 'INR', fyStartMonth: 4 }),
+      set('roles', 'ws_p_owner', { workspaceId: 'ws_p', name: 'Owner', isSystem: true, permissions: { 'dues.view': true } }),
+      set('memberships', 'ws_p_pat', { workspaceId: 'ws_p', uid: 'pat', roleId: 'ws_p_owner', status: 'active' }),
+      set('dues', 'pat_rent', { workspaceId: 'ws_p', direction: 'payable', title: 'Rent', amount: 1, dueDate: day(2026, 11, 23), status: 'open' }),
+      set('dues', 'sch_bill', { workspaceId: 'ws_s', direction: 'payable', title: 'Bill', amount: 1, dueDate: day(2026, 11, 23), status: 'open' }),
+      set('devices', 'pat_phone', { uid: 'pat', token: 'tok-1', timeZone: TZ, updatedAt: new Date() }),
+    ]);
+    sent.length = 0;
+    await scheduler(new Date('2026-11-23T04:00:00Z')).remind();
+    const toPhone = sent.filter((x) => x.token === 'tok-1').map((x) => x.body.notification.title);
+    expect(toPhone).toEqual(['Pat home: a due to clear today']); // nothing of sch's
+    expect(await admin.get('devices', 'sch_phone')).toBeNull(); // the stale record is gone
   });
 });

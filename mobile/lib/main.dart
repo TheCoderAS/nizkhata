@@ -57,8 +57,9 @@ class NizkhataApp extends StatelessWidget {
             final c = ws ?? WorkspaceController();
             WidgetsBinding.instance.addPostFrameCallback((_) {
               c.setUid(auth.user?.uid);
-              // Where to send this person's due reminders.
-              PushRegistration.sync(auth.user?.uid);
+              // Where to send this person's notifications, once sign-in has
+              // loaded (before then "nobody" only means "not known yet").
+              if (!auth.loading) PushRegistration.sync(auth.user?.uid);
             });
             return c;
           },
@@ -109,11 +110,11 @@ class _RootState extends State<_Root> with WidgetsBindingObserver {
     });
     // Notification taps route into the app (works warm and, via the pending
     // route, cold-started from a tap).
-    DueReminders.onOpenRoute = (route) => router.push(route);
+    DueReminders.onOpenRoute = _openNotification;
     DueReminders.init().then((_) {
       final pending = DueReminders.takePendingRoute();
       if (pending != null) {
-        WidgetsBinding.instance.addPostFrameCallback((_) => router.push(pending));
+        WidgetsBinding.instance.addPostFrameCallback((_) => _openNotification(pending));
       }
     });
 
@@ -143,6 +144,21 @@ class _RootState extends State<_Root> with WidgetsBindingObserver {
     _data!.addListener(_scheduleSync);
     _ws!.addListener(_scheduleSync);
     _scheduleSync();
+  }
+
+  /// Open a notification's route. A reminder names its workspace (`ws=`):
+  /// switch to it first, if this person is still a member, so the day shown
+  /// is that workspace's dues and not whichever one happened to be open.
+  Future<void> _openNotification(String route) async {
+    final uri = Uri.tryParse(route);
+    if (uri == null) return;
+    final wsId = uri.queryParameters['ws'];
+    final ws = _ws ?? context.read<WorkspaceController>();
+    if (wsId != null && wsId != ws.activeWorkspaceId && ws.memberships.any((m) => m.workspaceId == wsId)) {
+      await ws.switchWorkspace(wsId);
+    }
+    final rest = Map<String, String>.from(uri.queryParameters)..remove('ws');
+    router.push(uri.replace(queryParameters: rest.isEmpty ? null : rest).toString());
   }
 
   static const _quickActions = QuickActions();

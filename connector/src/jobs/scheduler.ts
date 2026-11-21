@@ -81,8 +81,14 @@ export class Scheduler {
     this.log = o.log ?? ((m) => console.log(m));
   }
 
+  /**
+   * The phones to notify: one record per push token, the most recent
+   * sign-in's. A phone that changed hands while its old record could not be
+   * removed (signed out offline) carries the same token under two people;
+   * only whoever signed in last is notified, and the stale record is removed.
+   */
   private async devices(fs: Firestore): Promise<Device[]> {
-    return (await fs.all('devices'))
+    const all = (await fs.all('devices'))
       .filter((d) => typeof d.uid === 'string' && typeof d.token === 'string' && d.token)
       .map((d) => ({
         id: String(d.id),
@@ -92,6 +98,20 @@ export class Scheduler {
         locale: typeof d.locale === 'string' && d.locale ? d.locale : 'en_IN',
         updatedAt: d.updatedAt instanceof Date ? d.updatedAt.getTime() : 0,
       }));
+    const byToken = new Map<string, Device>();
+    const stale: Device[] = [];
+    for (const d of all) {
+      const cur = byToken.get(d.token);
+      if (!cur) byToken.set(d.token, d);
+      else if (d.updatedAt > cur.updatedAt) {
+        stale.push(cur);
+        byToken.set(d.token, d);
+      } else stale.push(d);
+    }
+    if (stale.length) {
+      await fs.commit(stale.map((d) => ({ kind: 'delete' as const, collection: 'devices', id: d.id }))).catch(() => undefined);
+    }
+    return [...byToken.values()];
   }
 
   /** Where a workspace's calendar is: its owner's phone, else the default. */
@@ -262,9 +282,9 @@ export class Scheduler {
 
       for (const [uid, phones] of byUser) {
         try {
-          // Each workspace's dues are counted on its own calendar and its own
-          // clock: "today" and the 9:00 slot are the workspace's.
-          const perZone = new Map<string, { today: Cal; slot: number; n: number }>();
+          // One reminder per workspace, named, on its own calendar and clock:
+          // "today" and the 9:00 slot are the workspace's. Tapping it opens
+          // that workspace's day.
           for (const m of await fs.where('memberships', 'uid', uid)) {
             const wsId = String(m.workspaceId ?? '');
             if (!wsId) continue;
@@ -274,22 +294,18 @@ export class Scheduler {
             const slot = SLOTS.filter((h) => h <= localHour(now, tz)).at(-1);
             if (slot === undefined) continue;
             const today = calOf(now, tz);
-            if (this.handled.has(this.reminderKey(uid, today, slot, tz))) continue;
+            const key = this.reminderKey(uid, wsId, today, slot);
+            if (this.handled.has(key)) continue;
             const n = await this.countDueToday(fs, m, wsId, w, today, tz, duesOf, txnsOf);
-            const cur = perZone.get(tz) ?? { today, slot, n: 0 };
-            cur.n += n;
-            perZone.set(tz, cur);
-          }
-          for (const [tz, { today, slot, n }] of perZone) {
-            const key = this.reminderKey(uid, today, slot, tz);
             if (n > 0 && (await this.claim(fs, key, uid, today, slot, n))) {
+              const name = String(w.name ?? '').trim() || 'Niz Khata';
               for (const d of phones) {
                 const r = await push.send(d.token, {
-                  title: n === 1 ? 'You have a due to clear today' : `You have ${n} dues to clear today`,
+                  title: `${name}: ${n === 1 ? 'a due to clear today' : `${n} dues to clear today`}`,
                   body: "Tap to see what's due",
-                  route: `/dues-day?date=${iso(today)}`,
+                  route: `/dues-day?date=${iso(today)}&ws=${encodeURIComponent(wsId)}`,
                   channel: 'due_reminders',
-                  tag: `dues_${iso(today)}`,
+                  tag: `dues_${wsId}_${iso(today)}`,
                 });
                 if (r === 'sent') sent++;
                 if (r === 'gone') await fs.commit([{ kind: 'delete', collection: 'devices', id: d.id }]).catch(() => undefined);
@@ -313,9 +329,9 @@ export class Scheduler {
     return { sent };
   }
 
-  /** One reminder per person, day and slot; per time zone too when theirs differ. */
-  private reminderKey(uid: string, today: Cal, slot: number, tz: string): string {
-    return `${uid}_${iso(today)}_${slot}${tz === 'Asia/Kolkata' ? '' : `_${tz.replace(/\//g, '-')}`}`;
+  /** One reminder per person, workspace, day and slot. */
+  private reminderKey(uid: string, wsId: string, today: Cal, slot: number): string {
+    return `${uid}_${wsId}_${iso(today)}_${slot}`;
   }
 
   /** Unsettled dues on [today] in one workspace that membership [m] may see. */
