@@ -242,7 +242,7 @@ describe('shared ledger', () => {
 
 describe('repeating dues and time zones', () => {
   it('stop_repeating_due ends a series from that due onward and keeps what exists', async () => {
-    const first = await asha.call('create_due', { title: 'Netflix', direction: 'payable', amount: 649, due_date: '2026-10-05', repeats: 'monthly' });
+    const first = await asha.call('create_due', { workspace_id: 'wa', title: 'Netflix', account_id: 'wa_bank', lines: [{ type: 'expense', amount: 649, category_id: 'wa_fun' }], due_date: '2026-10-05', repeats: 'monthly' });
     const nov = `rec_${first.id}_20261105`;
     const dec = `rec_${first.id}_20261205`;
     await admin.commit([
@@ -297,7 +297,6 @@ describe('dues split over several lines', () => {
     expect((t.lines as Plain[]).map((l) => [l.type, l.amount])).toEqual([['expense', 7500], ['fee', 750]]);
 
     // A single amount cannot be set on a split due; giving its lines again can.
-    expect((await asha.call('update_due', { workspace_id: 'wa', due_id: r.id, amount: 20000 })).error).toMatch(/give all its lines again/);
     const u = await asha.call('update_due', {
       workspace_id: 'wa',
       due_id: r.id,
@@ -318,10 +317,9 @@ describe('dues split over several lines', () => {
     });
     expect(r).toMatchObject({ direction: 'receivable', amount: 36000 });
     expect((await asha.call('create_due', { workspace_id: 'wa', title: 'x', due_date: '2026-12-10', lines: [{ type: 'income', amount: 1, category_id: 'wa_pay' }] })).error).toMatch(/needs account_id/);
-    expect((await asha.call('create_due', { workspace_id: 'wa', title: 'x', due_date: '2026-12-10', account_id: 'wa_bank', amount: 5, lines: [{ type: 'income', amount: 1, category_id: 'wa_pay' }] })).error).toMatch(/leave out amount/);
-    expect((await asha.call('create_due', { workspace_id: 'wa', title: 'x', due_date: '2026-12-10', account_id: 'wa_bank', direction: 'payable', lines: [{ type: 'income', amount: 1, category_id: 'wa_pay' }] })).error).toMatch(/receivable due, not a payable/);
-    expect((await asha.call('create_due', { workspace_id: 'wa', title: 'x', due_date: '2026-12-10' })).error).toMatch(/Give direction and amount, or lines/);
-    // The single-amount form still works as before.
-    expect((await asha.call('create_due', { workspace_id: 'wa', title: 'Gym', direction: 'payable', amount: 1500, due_date: '2026-12-05' })).amount).toBe(1500);
+    // Lines that cancel out leave nothing due.
+    expect((await asha.call('create_due', { workspace_id: 'wa', title: 'x', due_date: '2026-12-10', account_id: 'wa_bank', lines: [{ type: 'income', amount: 5, category_id: 'wa_pay' }, { type: 'expense', amount: 5, category_id: 'wa_food' }] })).error).toMatch(/add up to nothing/);
+    // A simple due is one line, as a simple transaction is.
+    expect((await asha.call('create_due', { workspace_id: 'wa', title: 'Gym', account_id: 'wa_bank', lines: [{ type: 'expense', amount: 1500, category_id: 'wa_fun' }], due_date: '2026-12-05' })).amount).toBe(1500);
   });
 });
