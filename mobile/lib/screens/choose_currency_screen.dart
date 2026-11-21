@@ -11,6 +11,8 @@ import 'package:provider/provider.dart';
 
 import '../core/theme.dart';
 import '../state/auth_controller.dart';
+import '../state/workspace_controller.dart';
+import '../widgets/workspace_invites_card.dart';
 import '../widgets/common.dart';
 import '../widgets/currency_picker.dart';
 import '../core/ws_time.dart';
@@ -22,7 +24,18 @@ class ChooseCurrencyScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final auth = context.read<AuthController>();
+    final user = auth.user;
     return ChooseCurrencyView(
+      invites: user == null
+          ? null
+          : WorkspaceInvitesCard(
+              user: user,
+              memberOf: const {},
+              onJoined: (id) async {
+                await context.read<WorkspaceController>().switchWorkspace(id);
+                await auth.joinedWorkspace(id);
+              },
+            ),
       firstName: (auth.user?.displayName ?? '').trim().split(' ').first,
       initialCurrency: suggestedCurrency(WidgetsBinding.instance.platformDispatcher.locale),
       onConfirm: auth.createFirstWorkspace,
@@ -41,12 +54,17 @@ class ChooseCurrencyView extends StatefulWidget {
   final Future<void> Function(String currency, String timeZone) onConfirm;
   final Future<void> Function() onSignOut;
 
+  /// Invitations to join someone else's workspace, shown above the choice so
+  /// an invited person can join instead of starting books of their own.
+  final Widget? invites;
+
   const ChooseCurrencyView({
     super.key,
     required this.firstName,
     required this.initialCurrency,
     required this.onConfirm,
     required this.onSignOut,
+    this.invites,
   });
 
   @override
@@ -110,6 +128,7 @@ class _ChooseCurrencyViewState extends State<ChooseCurrencyView> {
                     style: TextStyle(fontSize: 15, color: cs.onSurfaceVariant),
                   ),
                   const SizedBox(height: 24),
+                  if (widget.invites != null) widget.invites!,
                   const SectionLabel('Currency'),
                   CurrencyField(
                     value: _currency,
@@ -156,3 +175,4 @@ class _ChooseCurrencyViewState extends State<ChooseCurrencyView> {
     );
   }
 }
+

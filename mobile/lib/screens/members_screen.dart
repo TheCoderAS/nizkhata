@@ -395,12 +395,21 @@ class _InviteDialogState extends State<_InviteDialog> {
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     if (_roleId == null) return;
-    final ws = context.read<WorkspaceController>().activeWorkspaceId;
+    final wsC = context.read<WorkspaceController>();
+    final ws = wsC.activeWorkspaceId;
     final user = context.read<AuthController>().user;
     if (ws == null || user == null) return;
     setState(() => _busy = true);
     try {
-      await Mutations(Actor.fromUser(user)).createInvite(ws, _email.text.trim(), _roleId!, user.uid);
+      await Mutations(Actor.fromUser(user)).createInvite(
+        ws,
+        _email.text.trim(),
+        _roleId!,
+        user.uid,
+        workspaceName: wsC.activeWorkspace?.name,
+        invitedByName: Actor.fromUser(user).name,
+        roleName: wsC.rolesById[_roleId]?.name,
+      );
       if (mounted) {
         Navigator.of(context).pop();
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Invite sent')));

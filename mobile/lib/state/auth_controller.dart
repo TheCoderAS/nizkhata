@@ -193,6 +193,20 @@ class AuthController extends ChangeNotifier {
     } catch (_) {}
   }
 
+  /// Joined a workspace from an invite. On a first sign-in that is their
+  /// workspace now, so the router moves on instead of asking for a currency.
+  Future<void> joinedWorkspace(String workspaceId) async {
+    final u = user;
+    if (u == null) return;
+    if (needsWorkspace) {
+      needsWorkspace = false;
+      notifyListeners();
+    }
+    try {
+      await _db.collection('users').doc(u.uid).set({'lastWorkspaceId': workspaceId}, SetOptions(merge: true));
+    } catch (_) {}
+  }
+
   Future<void> _upsertUser(User u) async {
     final ref = _db.collection('users').doc(u.uid);
     final email = (u.email ?? '').toLowerCase();

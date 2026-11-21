@@ -319,14 +319,15 @@ service cloud.firestore {
         || (isSignedIn() && resource.data.email == authEmail());
       allow create: if can(inWs(), 'members.invite')
         && request.resource.data.id == id;
-      // an inviter can manage; the invitee may flip their own invite to accepted.
+      // an inviter can manage; the invitee may answer their own pending
+      // invite, accepting or declining it, and change nothing else.
       allow update: if (can(exWs(), 'members.invite') && wsImmutable())
         || (
           isSignedIn()
           && resource.data.email == authEmail()
-          && request.resource.data.status == 'accepted'
-          && wsImmutable()
-          && request.resource.data.roleId == resource.data.roleId
+          && resource.data.status == 'pending'
+          && request.resource.data.status in ['accepted', 'declined']
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
         );
       allow delete: if can(exWs(), 'members.invite');
     }
