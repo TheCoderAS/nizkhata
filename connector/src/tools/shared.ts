@@ -19,7 +19,7 @@ import { z } from 'zod';
 import { UserError, strip, type Books } from '../books.js';
 import { newDocId, SERVER_TIME, type Plain, type Write } from '../firestore.js';
 import { financialYearOf, makeRound, parseWhen } from '../ledger.js';
-import { READ, WRITE, run, workspaceArg, type Ctx, type Register } from './common.js';
+import { DESTRUCTIVE, OVERWRITE, READ, WRITE, run, workspaceArg, type Ctx, type Register } from './common.js';
 
 const EXTERNAL_ACCOUNT = '__external__';
 
@@ -446,6 +446,258 @@ export const registerSharedTools: Register = (server, ctx) => {
         }
         await b.commit(r.writes, 'add shared entries');
         return { accepted: true, entry_id, kind: e.kind, amount, currency };
+      }),
+  );
+
+  // ---- invites and connections ----
+  server.registerTool(
+    'invite_shared_partner',
+    {
+      title: 'Invite someone to share a ledger',
+      description:
+        'Invite another person by email to keep a shared ledger with you. They are connected the next time they sign in to Niz Khata (or call accept_share_invites from their own assistant). The invite lasts 30 days.',
+      inputSchema: { email: z.string().email() },
+      annotations: WRITE,
+    },
+    ({ email }) =>
+      run(async () => {
+        const c = ctx();
+        const to = email.trim().toLowerCase();
+        if (to === c.email) throw new UserError("That's your own email.");
+        const id = `${c.actor.uid}_${to}`;
+        await c.fs.commit([
+          {
+            kind: 'set',
+            collection: 'shareInvites',
+            id,
+            data: {
+              id, fromUid: c.actor.uid, fromName: c.actor.name, fromEmail: c.email, toEmail: to, status: 'pending',
+              createdAt: SERVER_TIME, expiresAt: new Date(Date.now() + 30 * 86_400_000),
+            },
+          },
+        ]);
+        return { invited: true, id, email: to, expires_in_days: 30 };
+      }),
+  );
+
+  server.registerTool(
+    'list_share_invites',
+    {
+      title: 'Shared ledger invites',
+      description: 'Invitations to share a ledger: the ones you sent and the ones sent to you.',
+      inputSchema: {},
+      annotations: READ,
+    },
+    () =>
+      run(async () => {
+        const c = ctx();
+        const [sent, received] = await Promise.all([
+          c.fs.where('shareInvites', 'fromUid', c.actor.uid),
+          c.email ? c.fs.where('shareInvites', 'toEmail', c.email) : Promise.resolve([] as Plain[]),
+        ]);
+        const out = (i: Plain) => ({
+          id: i.id,
+          status: i.status,
+          ...(i.expiresAt instanceof Date ? { expires: i.expiresAt.toISOString().slice(0, 10), expired: i.expiresAt.getTime() < Date.now() } : {}),
+        });
+        return {
+          sent: sent.map((i) => ({ ...out(i), to: i.toEmail })),
+          received: received.map((i) => ({ ...out(i), from: i.fromName || i.fromEmail, from_email: i.fromEmail })),
+        };
+      }),
+  );
+
+  server.registerTool(
+    'revoke_share_invite',
+    {
+      title: 'Revoke a shared ledger invite',
+      description: 'Withdraw an invitation you sent.',
+      inputSchema: { invite_id: z.string() },
+      annotations: OVERWRITE,
+    },
+    ({ invite_id }) =>
+      run(async () => {
+        const c = ctx();
+        const inv = await c.fs.get('shareInvites', invite_id).catch(() => null);
+        if (!inv || inv.fromUid !== c.actor.uid) throw new UserError(`No invite ${invite_id} sent by you.`);
+        await c.fs.commit([{ kind: 'update', collection: 'shareInvites', id: invite_id, data: { status: 'revoked' } }]);
+        return { revoked: true, id: invite_id };
+      }),
+  );
+
+  server.registerTool(
+    'accept_share_invites',
+    {
+      title: 'Accept shared ledger invites',
+      description: 'Connect with everyone who invited your email to share a ledger, as the app does when you sign in.',
+      inputSchema: {},
+      annotations: WRITE,
+    },
+    () =>
+      run(async () => {
+        const c = ctx();
+        if (!c.email) throw new UserError('Your Google account gave no email, so there is nothing to match invites to.');
+        const pending = (await c.fs.whereEqual('shareInvites', { toEmail: c.email, status: 'pending' })).filter(
+          (i) => !(i.expiresAt instanceof Date && i.expiresAt.getTime() < Date.now()) && i.fromUid,
+        );
+        const me = c.actor.uid;
+        const meName = c.actor.name?.trim() || c.email || me.slice(0, 8);
+        const joined: string[] = [];
+        for (const inv of pending) {
+          const from = String(inv.fromUid);
+          const pair = [from, me].sort();
+          const connId = pair.join('_');
+          await c.fs.commit([
+            {
+              kind: 'set',
+              collection: 'sharedConnections',
+              id: connId,
+              data: {
+                id: connId, uids: pair, names: { [from]: inv.fromName ?? '', [me]: meName },
+                emails: { [from]: inv.fromEmail ?? '', [me]: c.email }, status: 'active', createdAt: SERVER_TIME,
+              },
+            },
+            { kind: 'update', collection: 'shareInvites', id: String(inv.id), data: { status: 'accepted' } },
+          ]);
+          joined.push(String(inv.fromName || inv.fromEmail));
+        }
+        return { connected_with: joined, count: joined.length };
+      }),
+  );
+
+  // ---- after a rejection, on the creator's side ----
+  async function ownRejected(c: Ctx, entryId: string) {
+    const e = await c.fs.get('sharedEntries', entryId).catch(() => null);
+    if (!e || !((e.uids as string[]) ?? []).includes(c.actor.uid)) throw new UserError(`No shared entry ${entryId}.`);
+    if (e.creatorUid !== c.actor.uid) throw new UserError('Only the person who added this entry can do that.');
+    return e;
+  }
+  async function reflectionOf(b: Books, entryId: string) {
+    const hit = await b.fs.whereEqual('transactions', { workspaceId: b.ws.id, sharedEntryId: entryId }, { limit: 1 }).catch(() => []);
+    return hit[0];
+  }
+
+  server.registerTool(
+    'resolve_shared_conflict',
+    {
+      title: 'Settle a rejected shared expense',
+      description:
+        'For an expense of yours the other person rejected (conflict in list_shared): "absorb" turns the amount into your own expense, "remove" deletes it from your books. Either way the conflict clears. Use the workspace the expense was recorded in.',
+      inputSchema: {
+        ...workspaceArg,
+        entry_id: z.string(),
+        mode: z.enum(['absorb', 'remove']),
+        my_category_id: z.string().optional().describe('For absorb: the expense category (defaults to the first expense category, as the app does).'),
+      },
+      annotations: DESTRUCTIVE,
+    },
+    ({ workspace_id, entry_id, mode, my_category_id }) =>
+      run(async () => {
+        const c = ctx();
+        const e = await ownRejected(c, entry_id);
+        if (e.status !== 'rejected') throw new UserError(`This entry is ${e.status}, not rejected.`);
+        const b = await c.books(workspace_id);
+        sameCurrency(entryCurrency(e.currency), b.ws.currency);
+        const refl = await reflectionOf(b, entry_id);
+        const writes: Write[] = [];
+        const date = e.date instanceof Date ? e.date : new Date();
+        if (refl) {
+          const reflId = String(refl.id);
+          if (mode === 'absorb') {
+            let categoryId = my_category_id;
+            if (categoryId) {
+              const cat = await b.getOne('categories', categoryId);
+              if (cat.kind !== 'expense') throw new UserError(`${cat.name} is not an expense category.`);
+            } else {
+              categoryId = (await b.load('categories')).find((x) => x.kind === 'expense')?.id as string | undefined;
+            }
+            const accountId = refl.accountId && refl.accountId !== EXTERNAL_ACCOUNT
+              ? String(refl.accountId)
+              : String((await b.load('accounts'))[0]?.id ?? '');
+            const amount = Number(e.amount);
+            writes.push(
+              {
+                kind: 'set',
+                collection: 'transactions',
+                id: reflId,
+                data: {
+                  ...b.txnDoc(reflId, {
+                    date,
+                    accountId,
+                    totalAmount: -amount,
+                    note: `${e.description} (absorbed)`,
+                    lines: [strip({ lineId: `absorb_${entry_id}`, type: 'expense', amount, categoryId, note: 'Absorbed shared share' }) as never],
+                  }),
+                  sharedEntryId: entry_id,
+                  financialYear: financialYearOf(date, b.ws.fyStartMonth, b.timeZone),
+                },
+              },
+              b.revision('transactions', reflId, 'update'),
+            );
+          } else {
+            writes.push(...b.deleteWrites('transactions', reflId, refl));
+          }
+        }
+        writes.push({ kind: 'update', collection: 'sharedEntries', id: entry_id, data: { resolved: true, updatedBy: c.actor, updatedAt: SERVER_TIME } });
+        await b.commit(writes, 'resolve shared entries');
+        return { resolved: true, entry_id, mode, ...(refl ? {} : { note: 'No matching transaction was in this workspace; only the conflict was cleared.' }) };
+      }),
+  );
+
+  server.registerTool(
+    'rebill_shared_entry',
+    {
+      title: 'Ask again for a rejected expense',
+      description: 'Send a rejected expense of yours to the other person again as a new pending entry. The money already in your books stays linked to it.',
+      inputSchema: { ...workspaceArg, entry_id: z.string() },
+      annotations: WRITE,
+    },
+    ({ workspace_id, entry_id }) =>
+      run(async () => {
+        const c = ctx();
+        const e = await ownRejected(c, entry_id);
+        if (e.status !== 'rejected') throw new UserError(`This entry is ${e.status}, not rejected.`);
+        const b = await c.books(workspace_id);
+        const refl = await reflectionOf(b, entry_id);
+        const id = newDocId();
+        const stamp = { updatedBy: c.actor, updatedAt: SERVER_TIME };
+        const writes: Write[] = [
+          {
+            kind: 'set',
+            collection: 'sharedEntries',
+            id,
+            data: {
+              id, connectionId: e.connectionId, kind: e.kind, uids: e.uids, creatorUid: e.creatorUid, counterpartyUid: e.counterpartyUid,
+              names: e.names, payerUid: e.payerUid, description: e.description, amount: e.amount, currency: entryCurrency(e.currency),
+              date: e.date, status: 'pending', pendingForUids: [e.counterpartyUid], createdBy: c.actor, createdAt: SERVER_TIME, ...stamp,
+            },
+          },
+          { kind: 'update', collection: 'sharedEntries', id: entry_id, data: { resolved: true, ...stamp } },
+        ];
+        if (refl) writes.push({ kind: 'update', collection: 'transactions', id: String(refl.id), data: { sharedEntryId: id, ...stamp } });
+        await b.commit(writes, 'add shared entries');
+        return { rebilled: true, new_entry_id: id, status: 'waiting for them to accept' };
+      }),
+  );
+
+  server.registerTool(
+    'withdraw_shared_entry',
+    {
+      title: 'Withdraw a shared entry',
+      description: 'Delete a shared entry you added, and the transaction it put in your books. The other person no longer sees it.',
+      inputSchema: { ...workspaceArg, entry_id: z.string() },
+      annotations: DESTRUCTIVE,
+    },
+    ({ workspace_id, entry_id }) =>
+      run(async () => {
+        const c = ctx();
+        await ownRejected(c, entry_id);
+        const b = await c.books(workspace_id);
+        const refl = await reflectionOf(b, entry_id);
+        const writes: Write[] = [{ kind: 'delete', collection: 'sharedEntries', id: entry_id }];
+        if (refl) writes.push(...b.deleteWrites('transactions', String(refl.id), refl));
+        await b.commit(writes, 'withdraw shared entries');
+        return { withdrawn: true, entry_id, removed_transaction: refl ? refl.id : null };
       }),
   );
 };
