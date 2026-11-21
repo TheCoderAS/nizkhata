@@ -6,6 +6,7 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import { Books } from './books.js';
 import type { Config } from './config.js';
 import { status } from './status.js';
+import { installCompat } from './compat.js';
 import { Sealer } from './crypto.js';
 import { actorOf, FirebaseAuth, SessionExpired } from './firebase.js';
 import { Firestore } from './firestore.js';
@@ -66,6 +67,8 @@ export function buildMcpServer(ctx: () => Ctx, publicUrl?: string): McpServer {
   ]) {
     register(server, ctx);
   }
+  // Chats that started before an update keep working, or are told exactly how.
+  installCompat(server);
   return server;
 }
 

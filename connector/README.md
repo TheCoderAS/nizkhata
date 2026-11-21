@@ -33,6 +33,15 @@ Every tool states all three hints explicitly. `list_*` and `get_*` are read-only
 
 Listing texts for the Claude and ChatGPT directories are in [LISTING.md](LISTING.md).
 
+### Chats that started before an update
+
+An assistant loads the tool list when a conversation starts, so after an update an open chat may still call a tool the old way. `src/compat.ts` handles this:
+
+- Old inputs that still mean one thing are translated before validation. For example, a due given as one amount and a direction becomes one line. New chats still see only the current schema.
+- Anything else is refused with the tool's current inputs spelled out, so the assistant can retry correctly in the same chat. This covers a removed field, a missing new required input and a tool that no longer exists. Unknown fields are refused rather than silently dropped.
+
+When you change a tool's inputs, add an adapter there if the old shape still has a clear meaning.
+
 ## Deploy on Render
 
 The connector is served at **https://nizkhata-api.valorumlabs.com**.
