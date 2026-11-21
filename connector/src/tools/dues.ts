@@ -4,6 +4,7 @@ import { UserError, strip, type Books } from '../books.js';
 import { newDocId, type Plain, type Write } from '../firestore.js';
 import { computeTotal, dueSettledAmount, dueStatusFromSettled, financialYearOf, parseWhen, type Line } from '../ledger.js';
 import { DESTRUCTIVE, READ, WRITE, OVERWRITE, dateArg, day, run, workspaceArg, type Register } from './common.js';
+import { buildLines, lineInput, type LineInput } from './transactions.js';
 
 const direction = z
   .enum(['payable', 'receivable'])
@@ -17,6 +18,23 @@ function dueLine(dir: string, amount: number, categoryId: string | undefined): L
     amount,
     ...(categoryId ? { categoryId } : {}),
   };
+}
+
+/**
+ * A due split over several lines, built as the app's due form does: the same
+ * typed lines as a transaction; its amount is the lines' total and whether it
+ * is payable or receivable follows from that total's sign.
+ */
+async function dueFromLines(b: Books, inputs: LineInput[], accountId: string | undefined, contactId: string | undefined) {
+  if (!accountId) throw new UserError('A due with lines needs account_id, the account it will be paid from or into.');
+  const lines = await buildLines(b, inputs, accountId, contactId);
+  const debtsById = new Map((await b.debts()).map((d) => [d.id, d]));
+  const signed = computeTotal(lines, debtsById, b.round);
+  if (Math.abs(signed) <= 0.005) throw new UserError('These lines add up to nothing, so there is nothing due.');
+  const direction = signed < 0 ? 'payable' : 'receivable';
+  // The first categorised line doubles as the due's category, as in the app.
+  const categoryId = lines.find((l) => l.categoryId)?.categoryId ?? null;
+  return { lines, direction, amount: b.round(Math.abs(signed)), categoryId };
 }
 
 async function checkCategory(b: Books, categoryId: string | undefined, dir: string) {
@@ -108,12 +126,18 @@ export const registerDueTools: Register = (server, ctx) => {
     'create_due',
     {
       title: 'Add a due',
-      description: 'Add a bill to pay or money to receive on a date, optionally repeating.',
+      description:
+        'Add a bill to pay or money to receive on a date, optionally repeating. For one amount give direction, amount and category_id. To split it over several lines (e.g. rent plus maintenance plus a fee, or a bill paid by transfer to a card) give lines instead, with account_id: the total and whether it is payable or receivable come from the lines.',
       inputSchema: {
         ...workspaceArg,
         title: z.string().min(1),
-        direction,
-        amount: z.number().positive(),
+        direction: direction.optional().describe('payable or receivable. Required without lines; with lines it follows from them.'),
+        amount: z.number().positive().optional().describe('Required without lines.'),
+        lines: z
+          .array(lineInput)
+          .min(1)
+          .optional()
+          .describe('Split the due over several lines, exactly like create_transaction lines. Leave amount and category_id out.'),
         due_date: dateArg('When it is due'),
         contact_id: z.string().optional(),
         account_id: z.string().optional().describe('The account it is usually paid from or into'),
@@ -129,12 +153,31 @@ export const registerDueTools: Register = (server, ctx) => {
         const tz = b.timeZone;
         if (a.contact_id) await b.getOne('contacts', a.contact_id);
         if (a.account_id) await b.getOne('accounts', a.account_id);
-        await checkCategory(b, a.category_id, a.direction);
-        const amount = b.round(a.amount);
+        let dir: string;
+        let amount: number;
+        let categoryId: string | null;
+        let lines: Line[];
+        if (a.lines) {
+          if (a.amount !== undefined || a.category_id !== undefined) {
+            throw new UserError('With lines, leave out amount and category_id: each line carries its own.');
+          }
+          const built = await dueFromLines(b, a.lines, a.account_id, a.contact_id);
+          if (a.direction && a.direction !== built.direction) {
+            throw new UserError(`These lines make a ${built.direction} due, not a ${a.direction} one.`);
+          }
+          ({ direction: dir, amount, categoryId, lines } = built);
+        } else {
+          if (!a.direction || a.amount === undefined) throw new UserError('Give direction and amount, or lines.');
+          await checkCategory(b, a.category_id, a.direction);
+          dir = a.direction;
+          amount = b.round(a.amount);
+          categoryId = a.category_id ?? null;
+          lines = [dueLine(dir, amount, a.category_id)];
+        }
         const dueDate = parseWhen(a.due_date, tz);
         // The due form's payload, with createDue's status.
         const data: Plain = {
-          direction: a.direction,
+          direction: dir,
           title: a.title.trim(),
           titlePattern: null,
           notePattern: null,
@@ -143,16 +186,16 @@ export const registerDueTools: Register = (server, ctx) => {
           dueDate,
           contactId: a.contact_id ?? null,
           accountId: a.account_id ?? null,
-          categoryId: a.category_id ?? null,
+          categoryId,
           note: a.note?.trim() || null,
-          lines: [dueLine(a.direction, amount, a.category_id)],
+          lines: lines.map((l) => strip(l as unknown as Plain)),
           recurrence: a.repeats ?? null,
           recurrenceId: null,
           status: 'open',
         };
         const { id, writes } = b.createWrites('dues', data);
         await b.commit(writes, 'add dues');
-        return { created: true, id, title: data.title, amount, due_date: day(dueDate, tz) };
+        return { created: true, id, title: data.title, direction: dir, amount, lines: lines.length, due_date: day(dueDate, tz) };
       }),
   );
 
@@ -174,6 +217,11 @@ export const registerDueTools: Register = (server, ctx) => {
         note: z.string().nullable().optional(),
         repeats: z.enum(['weekly', 'monthly', 'yearly']).nullable().optional(),
         status: z.enum(['open', 'cancelled']).optional(),
+        lines: z
+          .array(lineInput)
+          .min(1)
+          .optional()
+          .describe('Replace all of the due\'s lines (like create_transaction lines); its amount and payable/receivable follow. Leave amount and category_id out.'),
       },
       annotations: OVERWRITE,
     },
@@ -199,8 +247,17 @@ export const registerDueTools: Register = (server, ctx) => {
         }
         if (a.status !== undefined) data.status = a.status;
         const touchesLines = a.amount !== undefined || a.category_id !== undefined;
-        if (touchesLines) {
-          if (lines.length > 1) throw new UserError('This due is split into several lines; change its amount or category in the app.');
+        if (a.lines) {
+          if (touchesLines) throw new UserError('With lines, leave out amount and category_id: each line carries its own.');
+          const accountId = a.account_id !== undefined ? (a.account_id ?? undefined) : ((due.accountId as string | undefined) ?? undefined);
+          const contactId = a.contact_id !== undefined ? (a.contact_id ?? undefined) : ((due.contactId as string | undefined) ?? undefined);
+          const built = await dueFromLines(b, a.lines, accountId, contactId);
+          data.lines = built.lines.map((l) => strip(l as unknown as Plain));
+          data.amount = built.amount;
+          data.direction = built.direction;
+          data.categoryId = built.categoryId;
+        } else if (touchesLines) {
+          if (lines.length > 1) throw new UserError('This due is split into several lines; to change its amount or category, give all its lines again with lines.');
           const amount = a.amount !== undefined ? b.round(a.amount) : Number(due.amount);
           const categoryId = a.category_id !== undefined ? (a.category_id ?? undefined) : (lines[0]?.categoryId ?? (due.categoryId as string | undefined));
           data.amount = amount;

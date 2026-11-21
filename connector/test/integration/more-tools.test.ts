@@ -274,3 +274,54 @@ describe('repeating dues and time zones', () => {
     expect(((await doc('transactions', i.id)).date as Date).toISOString()).toBe('2026-11-19T18:30:00.000Z');
   });
 });
+
+describe('dues split over several lines', () => {
+  it('creates, part-pays and edits a split due as the app does', async () => {
+    const r = await asha.call('create_due', {
+      workspace_id: 'wa',
+      title: 'Flat: rent and maintenance', due_date: '2026-12-01', account_id: 'wa_bank',
+      lines: [
+        { type: 'expense', amount: 15000, category_id: 'wa_food' },
+        { type: 'fee', amount: 1500, category_id: 'wa_fun' },
+      ],
+    });
+    expect(r).toMatchObject({ created: true, direction: 'payable', amount: 16500, lines: 2 });
+    const d = await doc('dues', r.id);
+    expect(d).toMatchObject({ direction: 'payable', amount: 16500, categoryId: 'wa_food', accountId: 'wa_bank', status: 'open' });
+    expect((d.lines as Plain[]).map((l) => [l.type, l.amount])).toEqual([['expense', 15000], ['fee', 1500]]);
+
+    // A part payment carries both lines, scaled to what was paid.
+    const p = await asha.call('record_due_payment', { workspace_id: 'wa', due_id: r.id, account_id: 'wa_bank', amount: 8250 });
+    expect(p).toMatchObject({ due_status: 'partial', left: 8250 });
+    const t = await doc('transactions', p.transaction_id);
+    expect((t.lines as Plain[]).map((l) => [l.type, l.amount])).toEqual([['expense', 7500], ['fee', 750]]);
+
+    // A single amount cannot be set on a split due; giving its lines again can.
+    expect((await asha.call('update_due', { workspace_id: 'wa', due_id: r.id, amount: 20000 })).error).toMatch(/give all its lines again/);
+    const u = await asha.call('update_due', {
+      workspace_id: 'wa',
+      due_id: r.id,
+      lines: [{ type: 'expense', amount: 16000, category_id: 'wa_food' }, { type: 'fee', amount: 2000, category_id: 'wa_fun' }],
+    });
+    expect(u.updated).toBe(true);
+    expect(await doc('dues', r.id)).toMatchObject({ amount: 18000, direction: 'payable' });
+    // The payment already made is kept in step, still 8,250, split the new way.
+    const t2 = await doc('transactions', p.transaction_id);
+    expect(t2.totalAmount).toBe(-8250);
+  });
+
+  it('works out receivable from income lines, and refuses what does not add up', async () => {
+    const r = await asha.call('create_due', {
+      workspace_id: 'wa',
+      title: 'Freelance invoice', due_date: '2026-12-10', account_id: 'wa_bank',
+      lines: [{ type: 'income', amount: 40000, category_id: 'wa_pay' }, { type: 'tax', amount: 4000, category_id: 'wa_food' }],
+    });
+    expect(r).toMatchObject({ direction: 'receivable', amount: 36000 });
+    expect((await asha.call('create_due', { workspace_id: 'wa', title: 'x', due_date: '2026-12-10', lines: [{ type: 'income', amount: 1, category_id: 'wa_pay' }] })).error).toMatch(/needs account_id/);
+    expect((await asha.call('create_due', { workspace_id: 'wa', title: 'x', due_date: '2026-12-10', account_id: 'wa_bank', amount: 5, lines: [{ type: 'income', amount: 1, category_id: 'wa_pay' }] })).error).toMatch(/leave out amount/);
+    expect((await asha.call('create_due', { workspace_id: 'wa', title: 'x', due_date: '2026-12-10', account_id: 'wa_bank', direction: 'payable', lines: [{ type: 'income', amount: 1, category_id: 'wa_pay' }] })).error).toMatch(/receivable due, not a payable/);
+    expect((await asha.call('create_due', { workspace_id: 'wa', title: 'x', due_date: '2026-12-10' })).error).toMatch(/Give direction and amount, or lines/);
+    // The single-amount form still works as before.
+    expect((await asha.call('create_due', { workspace_id: 'wa', title: 'Gym', direction: 'payable', amount: 1500, due_date: '2026-12-05' })).amount).toBe(1500);
+  });
+});
