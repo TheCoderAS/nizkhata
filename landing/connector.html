@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Niz Khata for Claude: talk to your books</title>
+  <meta name="description" content="Connect Niz Khata to Claude and keep your money ledger by chat: add expenses, check budgets, track dues and debts, and get a monthly summary, as you, in your own workspaces." />
+  <link rel="canonical" href="https://nizkhata.valorumlabs.com/connector" />
+  <meta property="og:site_name" content="Niz Khata" />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://nizkhata.valorumlabs.com/connector" />
+  <meta property="og:title" content="Niz Khata for Claude: talk to your books" />
+  <meta property="og:description" content="Add expenses, check budgets, track dues and debts, all by chat. Connect Niz Khata to Claude in a minute." />
+  <meta property="og:image" content="https://nizkhata.valorumlabs.com/og-image.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="Niz Khata: every entry, written down. Free on Android, by Valorum Labs" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:image" content="https://nizkhata.valorumlabs.com/og-image.png" />
+  <meta name="theme-color" content="#0B0F1C" />
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+  <link rel="icon" type="image/png" sizes="48x48" href="/favicon-48.png" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/site.css" />
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "HowTo",
+    "name": "Connect Niz Khata to Claude",
+    "description": "Add the Niz Khata connector to Claude and manage your money ledger by chat.",
+    "step": [
+      { "@type": "HowToStep", "name": "Open Connectors", "text": "In Claude, open Settings, then Connectors, and choose Add custom connector." },
+      { "@type": "HowToStep", "name": "Paste the address", "text": "Name it Niz Khata and paste https://nizkhata-api.valorumlabs.com/mcp as the server URL." },
+      { "@type": "HowToStep", "name": "Sign in", "text": "Choose Connect and sign in with the same Google account you use in the Niz Khata app." },
+      { "@type": "HowToStep", "name": "Ask", "text": "Start a chat and ask, for example: how much did I spend on food this month?" }
+    ]
+  }
+  </script>
+</head>
+<body>
+  <div class="paper" aria-hidden="true"></div>
+  <div class="aurora" aria-hidden="true"><i></i><i></i><i></i></div>
+  <div class="progress" aria-hidden="true"></div>
+  <header class="topnav">
+    <div class="wrap">
+      <a class="brand" href="/"><img src="/favicon-48.png" alt="" />Niz Khata</a>
+      <a class="btn btn-sm" href="#connect">Connect to Claude</a>
+    </div>
+  </header>
+
+  <div class="wrap page-head hero2">
+    <div>
+      <span class="kicker">Niz Khata for Claude</span>
+      <h1 class="split" aria-label="Talk to your books."><span class="w"><span style="animation-delay:0.05s">Talk</span></span> <span class="w"><span style="animation-delay:0.13s">to</span></span> <span class="w"><span style="animation-delay:0.21s">your</span></span> <span class="serif"><span class="w"><span style="animation-delay:0.29s">books.</span></span></span></h1>
+      <p class="lede reveal">Connect Niz Khata to Claude and keep your ledger by chat. Say what happened; Claude writes it down, in the right account and category, exactly as the app would.</p>
+      <div class="cta-row reveal">
+        <a class="btn btn-lg" href="#connect">Connect in a minute</a>
+        <a class="btn btn-ghost" href="#can">What it can do</a>
+      </div>
+    </div>
+
+    <div class="chat reveal" aria-label="An example conversation">
+      <div class="msg you">Paid 1,250 for groceries at Fresh Mart from HDFC, and Ravi paid back 5,000 of the bike loan.</div>
+      <div class="msg ai">
+        <div class="tool"><span class="dot"></span>create_transaction</div>
+        <div class="tool"><span class="dot"></span>record_debt_repayment</div>
+        <p>Done. <strong>₹1,250</strong> groceries on HDFC Savings, under Food. Ravi's repayment of <strong>₹5,000</strong> is in; he has <strong>₹11,000</strong> left on the bike loan.</p>
+      </div>
+      <div class="msg you">How am I doing this month?</div>
+      <div class="msg ai">
+        <div class="tool"><span class="dot"></span>get_summary</div>
+        <p>November so far: income <strong>₹92,000</strong>, spending <strong>₹41,380</strong>. Food is at <strong>₹7,600 of ₹10,000</strong>. Three dues fall this week; the Visa card bill of ₹18,240 on the 30th is the biggest.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <h2 class="sec reveal" id="can">Everything in your khata, <span class="serif">by chat.</span></h2>
+    <div class="cards six stagger reveal">
+      <div class="card"><span class="ic">🧾</span><h3>Add and fix entries</h3><p>Expenses, income, splits and transfers between your accounts. Recategorise many at once.</p></div>
+      <div class="card"><span class="ic">📊</span><h3>Ask how you're doing</h3><p>Income, spending by category, money in and out of each account, for any month or the financial year.</p></div>
+      <div class="card"><span class="ic">📅</span><h3>Dues, on time</h3><p>Bills to pay and money to receive, part payments, repeating dues, and stopping a series.</p></div>
+      <div class="card"><span class="ic">🤝</span><h3>Lent and borrowed</h3><p>Money with each person: what is still owed either way, and repayments as they come.</p></div>
+      <div class="card"><span class="ic">💳</span><h3>Accounts and cards</h3><p>Add a bank account or a credit card with its statement and due day; the card bill appears on its own.</p></div>
+      <div class="card"><span class="ic">👥</span><h3>Shared ledgers</h3><p>Split an expense with someone you share with, settle up, or accept what they added.</p></div>
+    </div>
+    <div class="more reveal">
+      <span class="chip">Budgets</span><span class="chip">Contacts</span><span class="chip">Categories</span><span class="chip">Workspace history</span><span class="chip">Restore something deleted</span><span class="chip">Several workspaces</span>
+    </div>
+
+    <h2 class="sec reveal" id="connect">Connect in <span class="serif">four steps.</span></h2>
+    <div class="steps stagger reveal">
+      <div class="card"><span class="step-no">1</span><h3>Open Connectors</h3><p>On <a href="https://claude.ai" rel="noopener">claude.ai</a> or the Claude desktop app, open <strong>Settings</strong>, then <strong>Connectors</strong>, and choose <strong>Add custom connector</strong>.</p></div>
+      <div class="card"><span class="step-no">2</span><h3>Paste the address</h3><p>Name it <strong>Niz Khata</strong> and paste the server URL below.</p></div>
+      <div class="card"><span class="step-no">3</span><h3>Sign in with Google</h3><p>Choose <strong>Connect</strong> and sign in with the same Google account you use in the app.</p></div>
+      <div class="card"><span class="step-no">4</span><h3>Ask away</h3><p>Start a chat, make sure Niz Khata is switched on in the tools menu, and say what you need.</p></div>
+    </div>
+
+    <div class="url reveal">
+      <div>
+        <span class="label">Server URL</span>
+        <code id="mcp-url">https://nizkhata-api.valorumlabs.com/mcp</code>
+      </div>
+      <button class="btn btn-sm" id="copy" type="button">Copy</button>
+    </div>
+    <p class="note reveal">You need a Niz Khata account first: <a href="/download">get the app</a> and sign in once. Using ChatGPT? Turn on Developer mode in its settings and add the same address as a connector, with OAuth.</p>
+
+    <h2 class="sec reveal">Try <span class="serif">saying.</span></h2>
+    <div class="prompts stagger reveal">
+      <div class="p">"Add 450 for lunch from HDFC, category Food."</div>
+      <div class="p">"What bills are due this week?"</div>
+      <div class="p">"Set a 6,000 monthly budget for groceries."</div>
+      <div class="p">"I lent Kabir 16,000 for his bike. He paid back 5,000 today."</div>
+      <div class="p">"Add my HDFC Regalia card: limit 1,50,000, statement on the 25th, due on the 12th."</div>
+      <div class="p">"Split dinner of 3,000 with Ravi, I paid from SBI."</div>
+      <div class="p">"Move all my Swiggy and Zomato entries to Dining out."</div>
+      <div class="p">"I deleted the rent entry by mistake. Bring it back."</div>
+    </div>
+
+    <div class="vault2 reveal">
+      <div>
+        <span class="kicker" style="color:var(--in)">Safe by design</span>
+        <h2 class="sec" style="margin:12px 0 0">It acts as you. <span class="serif">Only you.</span></h2>
+      </div>
+      <ul class="ticks">
+        <li><strong>Your access, nothing more.</strong> Claude works in your workspaces, within the role you have there. The same security rules as the app apply to every request.</li>
+        <li><strong>It records money, never moves it.</strong> No bank connection, no payments, no transfers of real money.</li>
+        <li><strong>Asks before deleting.</strong> Anything destructive is confirmed first, and deleted records can be restored.</li>
+        <li><strong>Every change is in your history</strong>, under your name, just like an entry made on your phone.</li>
+        <li><strong>Nothing kept on our side.</strong> The connector passes requests through and stores none of your records. What Claude reads is handled under Anthropic's privacy policy.</li>
+        <li><strong>Disconnect any time</strong> in Claude's settings. An unused connection signs itself out after 90 days.</li>
+      </ul>
+    </div>
+
+    <h2 class="sec reveal">Questions</h2>
+    <div class="faq reveal">
+      <details><summary>Does it cost anything?</summary><p>The Niz Khata connector is free. Custom connectors depend on your Claude plan and settings; if you don't see "Add custom connector", check Claude's help for your plan.</p></details>
+      <details><summary>I have more than one workspace.</summary><p>Claude asks which one you mean the first time, then stays with it for the conversation until you name another.</p></details>
+      <details><summary>Can my family members use it?</summary><p>Yes, each with their own Google account. Each person sees and changes only what their role in a workspace allows.</p></details>
+      <details><summary>Which currencies and dates does it use?</summary><p>Each workspace's own currency and time zone, the same ones you see in the app. Amounts are never converted.</p></details>
+      <details><summary>Where can I read more about privacy?</summary><p>See the <a href="/privacy#assistants">AI assistants section</a> of our privacy policy, or write to <a href="mailto:hello@valorumlabs.com">hello@valorumlabs.com</a>.</p></details>
+    </div>
+
+    <div class="final2 reveal">
+      <h2 class="sec" style="margin:0">Your khata, <span class="serif">one sentence away.</span></h2>
+      <div class="cta-row" style="justify-content:center">
+        <a class="btn btn-lg" href="#connect">Connect to Claude</a>
+        <a class="btn btn-ghost" href="/download">Get the app</a>
+      </div>
+    </div>
+  </div>
+
+  <style>
+    .hero2 { display: grid; grid-template-columns: 1.05fr .95fr; gap: 44px; align-items: center; }
+    .cta-row { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 28px; }
+    .chat { border-radius: 28px; border: 1px solid var(--line); padding: 22px; display: grid; gap: 12px;
+      background: radial-gradient(120% 140% at 100% 0%, rgba(124,58,237,.22), transparent 55%), linear-gradient(160deg, #141B33, #0E1324);
+      box-shadow: 0 30px 80px rgba(0,0,0,.35); }
+    .msg { max-width: 92%; padding: 12px 14px; border-radius: 18px; font-size: 14.5px; line-height: 1.5; }
+    .msg.you { justify-self: end; background: linear-gradient(135deg, var(--brand), var(--brand-to)); color: #fff; border-bottom-right-radius: 6px; }
+    .msg.ai { justify-self: start; background: rgba(255,255,255,.06); border: 1px solid var(--line); border-bottom-left-radius: 6px; color: #D7DBE8; }
+    .msg.ai p { margin-top: 8px; }
+    .msg.ai strong { color: var(--text); }
+    .tool { display: inline-flex; align-items: center; gap: 8px; margin: 0 6px 4px 0; padding: 3px 10px; border-radius: 999px; font: 600 12px ui-monospace, SFMono-Regular, Menlo, monospace;
+      color: var(--in); background: rgba(16,185,129,.12); border: 1px solid rgba(16,185,129,.28); }
+    .tool .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--in); box-shadow: 0 0 10px var(--in); animation: pulse 2s ease-in-out infinite; }
+    @keyframes pulse { 50% { opacity: .35; } }
+    .chat .msg { opacity: 0; transform: translateY(10px); animation: pop .6s cubic-bezier(.2,.8,.2,1) forwards; }
+    .chat .msg:nth-child(1) { animation-delay: .5s; } .chat .msg:nth-child(2) { animation-delay: 1.3s; }
+    .chat .msg:nth-child(3) { animation-delay: 2.3s; } .chat .msg:nth-child(4) { animation-delay: 3.1s; }
+    @keyframes pop { to { opacity: 1; transform: none; } }
+    .sec { font-size: clamp(30px, 4vw, 46px); letter-spacing: -1.2px; margin: 84px 0 24px; line-height: 1.1; }
+    .cards.six { grid-template-columns: repeat(3, 1fr); }
+    .card .ic { font-size: 26px; }
+    .more { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+    .steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+    .url { margin-top: 18px; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 18px 20px; border-radius: 18px;
+      background: rgba(79,70,229,.12); border: 1px solid rgba(165,180,252,.25); }
+    .url .label { display: block; font-size: 12px; text-transform: uppercase; letter-spacing: 1.4px; color: var(--muted); }
+    .url code { font: 600 clamp(14px, 2.2vw, 18px) ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--text); word-break: break-all; }
+    .note { color: var(--muted); font-size: 14px; margin-top: 14px; }
+    .prompts { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+    .prompts .p { padding: 16px 18px; border-radius: 16px; background: var(--card); border: 1px solid var(--line); color: #D7DBE8; font-size: 15px; }
+    .vault2 { margin-top: 84px; display: grid; grid-template-columns: .8fr 1.2fr; gap: 36px; padding: 34px; border-radius: 28px; border: 1px solid var(--line);
+      background: radial-gradient(120% 140% at 0% 0%, rgba(16,185,129,.16), transparent 55%), linear-gradient(160deg, rgba(255,255,255,.05), rgba(255,255,255,.02)); }
+    .ticks { list-style: none; display: grid; gap: 12px; }
+    .ticks li { padding-left: 28px; position: relative; color: #C9CEDD; font-size: 15px; }
+    .ticks li::before { content: ""; position: absolute; left: 2px; top: .5em; width: 12px; height: 7px; border-left: 2px solid var(--in); border-bottom: 2px solid var(--in); transform: rotate(-45deg); }
+    .ticks strong { color: var(--text); }
+    .faq { display: grid; gap: 10px; }
+    .faq details { border-radius: 16px; border: 1px solid var(--line); background: var(--card); padding: 14px 18px; }
+    .faq summary { cursor: pointer; font-weight: 600; }
+    .faq p { color: var(--muted); margin-top: 8px; font-size: 15px; }
+    .final2 { margin: 90px 0 20px; text-align: center; padding: 44px 20px; border-radius: 28px; border: 1px solid var(--line);
+      background: radial-gradient(80% 120% at 50% 0%, rgba(79,70,229,.25), transparent 60%); }
+    @media (max-width: 900px) {
+      .hero2 { grid-template-columns: 1fr; }
+      .cards.six, .steps, .prompts, .vault2 { grid-template-columns: 1fr; }
+      .vault2 { padding: 24px 18px; }
+      .url { flex-direction: column; align-items: stretch; }
+    }
+  </style>
+
+  <footer class="site-foot">
+    <div class="wrap">
+      <span>© 2026 <a href="https://valorumlabs.com">Valorum Labs</a> · <a href="/">Niz Khata</a></span>
+      <nav aria-label="Footer"><a href="/download">Download</a><a href="/connector" aria-current="page">Claude connector</a><a href="/privacy">Privacy</a><a href="/terms">Terms</a><a href="/delete-account">Delete account</a><a href="mailto:hello@valorumlabs.com">Contact</a></nav>
+    </div>
+  </footer>
+  <script>
+    document.getElementById('copy').addEventListener('click', async (e) => {
+      const text = document.getElementById('mcp-url').textContent.trim();
+      try { await navigator.clipboard.writeText(text); e.target.textContent = 'Copied'; }
+      catch { const r = document.createRange(); r.selectNodeContents(document.getElementById('mcp-url')); const s = getSelection(); s.removeAllRanges(); s.addRange(r); e.target.textContent = 'Selected'; }
+      setTimeout(() => (e.target.textContent = 'Copy'), 1800);
+    });
+  </script>
+  <script src="/site.js" defer></script>
+</body>
+</html>
