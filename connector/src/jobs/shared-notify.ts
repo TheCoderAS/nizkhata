@@ -138,7 +138,15 @@ export class SharedNotifier {
   private async deliver(fs: Firestore, e: Plain): Promise<number> {
     const plain = noteFor(e);
     if (!plain) return 0;
-    const devices = (await fs.where('devices', 'uid', plain.to)).filter((d) => typeof d.token === 'string' && d.token);
+    const mine = (await fs.where('devices', 'uid', plain.to)).filter((d) => typeof d.token === 'string' && d.token);
+    // Only phones where this person is the latest sign-in: a token also
+    // registered, more recently, by someone else belongs to them now.
+    const devices: Plain[] = [];
+    for (const d of mine) {
+      const same = await fs.where('devices', 'token', d.token);
+      const newest = same.reduce((a, b) => ((b.updatedAt as Date | undefined)?.getTime?.() ?? 0) > ((a.updatedAt as Date | undefined)?.getTime?.() ?? 0) ? b : a, d);
+      if (newest.uid === plain.to) devices.push(d);
+    }
     if (!devices.length) return 0;
     // Claim it first: whoever logs (entry, status) sends it, nobody else.
     try {
