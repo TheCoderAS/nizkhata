@@ -11,7 +11,7 @@ import { Sealer } from './crypto.js';
 import { actorOf, FirebaseAuth, SessionExpired } from './firebase.js';
 import { Firestore } from './firestore.js';
 import { oauthRouter, type AccessPayload } from './oauth.js';
-import type { Ctx } from './tools/common.js';
+import { guardWrites, type Ctx } from './tools/common.js';
 import { registerCategoryTools } from './tools/categories.js';
 import { registerContactTools } from './tools/contacts.js';
 import { registerDebtTools } from './tools/debts.js';
@@ -23,6 +23,8 @@ import { registerReportTools } from './tools/reports.js';
 import { registerRecategoriseTools } from './tools/recategorise.js';
 import { registerHistoryTools } from './tools/history.js';
 import { registerSharedTools } from './tools/shared.js';
+import { registerTeamTools } from './tools/team.js';
+import { registerExtraTools } from './tools/extras.js';
 
 const INSTRUCTIONS = `Niz Khata is a money ledger: accounts, transactions, dues (bills to pay and money to receive on a date), debts (money lent and borrowed, per person), contacts, categories and budgets, kept in workspaces, plus shared ledgers kept with other Niz Khata users. It records money; it never moves real money or connects to a bank.
 If the person has more than one workspace, call list_workspaces, ask which one they mean, and pass that workspace_id on every call; switch only when they name another.
@@ -64,6 +66,8 @@ export function buildMcpServer(ctx: () => Ctx, publicUrl?: string): McpServer {
     registerRecategoriseTools,
     registerHistoryTools,
     registerSharedTools,
+    registerTeamTools,
+    registerExtraTools,
   ]) {
     register(server, ctx);
   }
@@ -125,7 +129,7 @@ export function buildApp(cfg: Config, fetchImpl: typeof fetch = fetch): Express 
       res.status(502).json({ error: 'upstream', error_description: 'Could not reach Firebase.' });
       return;
     }
-    const fs = new Firestore(cfg.firestoreBaseUrl, idToken, fetchImpl);
+    const fs = guardWrites(new Firestore(cfg.firestoreBaseUrl, idToken, fetchImpl));
     const actor = actorOf(p);
     const ctx: Ctx = {
       fs,

@@ -13,7 +13,7 @@ import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { Books } from '../../src/books.js';
 import { Firestore, type Plain } from '../../src/firestore.js';
 import { buildMcpServer } from '../../src/server.js';
-import type { Ctx } from '../../src/tools/common.js';
+import { guardWrites, type Ctx } from '../../src/tools/common.js';
 
 const PROJECT = process.env.GCLOUD_PROJECT ?? 'rules-test';
 const HOST = process.env.FIRESTORE_EMULATOR_HOST ?? '127.0.0.1:8080';
@@ -60,7 +60,7 @@ async function seed() {
 }
 
 async function asUser(uid: string, name: string) {
-  const fs = new Firestore(BASE, idToken(uid));
+  const fs = guardWrites(new Firestore(BASE, idToken(uid)));
   const actor = { uid, name };
   const ctx: Ctx = { fs, actor, email: `${uid}@example.com`, timeZone: TZ, books: (w?: string) => Books.open(fs, actor, TZ, w) };
   const [a, b] = InMemoryTransport.createLinkedPair();
@@ -128,7 +128,7 @@ describe('contacts', () => {
     const d = await doc('contacts', id);
     expect(d).toMatchObject({
       workspaceId: WS, name: 'Kabir Mehta', type: 'person', relationship: 'external',
-      emails: [{ value: 'kabir@example.com', label: 'Other' }], email: 'kabir@example.com',
+      emails: [{ value: 'kabir@example.com', label: 'Personal' }], email: 'kabir@example.com',
       createdBy: { uid: 'u1', name: 'Asha' }, updatedBy: { uid: 'u1', name: 'Asha' },
     });
     expect(d.createdAt).toBeInstanceOf(Date);

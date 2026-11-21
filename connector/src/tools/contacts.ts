@@ -6,9 +6,14 @@ import { contactPosition, debtOutstanding } from '../ledger.js';
 import { DESTRUCTIVE, READ, WRITE, OVERWRITE, day, run, workspaceArg, type Register } from './common.js';
 
 /** The app's email shape: [{value, label}] with blanks dropped, plus the legacy single `email`. */
-function emailFields(emails: string[] | null | undefined): Plain {
+type EmailIn = string | { value: string; label?: 'Personal' | 'Work' | 'Other' };
+
+/** The app's emails: each a value and a label (Personal, Work or Other); a bare address is Personal, as the form starts. */
+function emailFields(emails: EmailIn[] | null | undefined): Plain {
   if (emails === undefined) return {};
-  const clean = (emails ?? []).map((e) => e.trim()).filter(Boolean).map((value) => ({ value, label: 'Other' }));
+  const clean = (emails ?? [])
+    .map((e) => (typeof e === 'string' ? { value: e.trim(), label: 'Personal' } : { value: e.value.trim(), label: e.label ?? 'Personal' }))
+    .filter((e) => e.value);
   return { emails: clean, email: clean.length ? clean[0]!.value : null };
 }
 
@@ -16,7 +21,9 @@ const fields = {
   type: z.enum(['person', 'business']).describe('person (default) or business'),
   relationship: z.enum(['external', 'family']).describe('external (default) or family'),
   phone: z.string(),
-  emails: z.array(z.string()),
+  emails: z.array(
+    z.union([z.string(), z.object({ value: z.string(), label: z.enum(['Personal', 'Work', 'Other']).optional() })]),
+  ).describe('Addresses, plain or with a label (Personal, Work, Other), as in the app'),
   address: z.string(),
   notes: z.string(),
 };
@@ -68,7 +75,7 @@ export const registerContactTools: Register = (server, ctx) => {
           currency: b.ws.currency,
           contact: {
             id: c.id, name: c.name, type: c.type, relationship: c.relationship, phone: c.phone,
-            emails: ((c.emails as Plain[] | undefined) ?? []).map((e) => e.value), address: c.address, notes: c.notes,
+            emails: ((c.emails as Plain[] | undefined) ?? []).map((e) => ({ value: e.value, label: e.label ?? 'Other' })), address: c.address, notes: c.notes,
           },
           position: { net: p.net, total_in: p.totalIn, total_out: p.totalOut },
           debts: debts

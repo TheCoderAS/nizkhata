@@ -24,11 +24,11 @@ These are drafts for the Claude Connectors Directory and the ChatGPT app directo
   >
   > Ask things like "how much did I spend on food this month?", "add 450 for lunch from my HDFC account", "Ravi paid back 5,000 of the bike loan", "what bills are due this week?" or "set a 6,000 monthly budget for groceries".
   >
-  > What it covers: accounts and balances; transactions, including splits and transfers between your accounts; categories and budgets; dues (bills to pay and money to receive on a date, with part payments); debts with each person, including repayments; and contacts.
+  > What it covers: everything the app does with your books. Accounts and balances; transactions, including splits, transfers, tax details and repeating entries; importing a bank statement; categories and budgets; dues (bills to pay and money to receive on a date, with part payments); debts with each person, repayments and settling up; contacts; reports for tax, net worth and each contact; and the shared ledger you keep with other Niz Khata users. Your workspaces, members, roles and account can be read but not changed: those stay in the app.
   >
   > Niz Khata is a record-keeping app. It never moves real money and never connects to a bank. Every change Claude makes appears in the app with its history, under your name. Deleting anything asks for confirmation first. Your workspace roles and the app's database security rules apply to every request, and the connector itself stores none of your records.
 
-- **Use cases:** logging expenses and income by chat; month-end spending review; tracking money lent and borrowed; reminders of what is due; budget check-ins.
+- **Use cases:** logging expenses and income by chat; importing a bank statement; month-end spending review; a year's tax summary; tracking money lent and borrowed; splitting a bill with a friend; reminders of what is due; budget check-ins.
 
 ## ChatGPT
 

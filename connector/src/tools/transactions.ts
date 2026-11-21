@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { Books, UserError, toTxn } from '../books.js';
 import { DELETE, newDocId, type Plain } from '../firestore.js';
 import { computeTotal, financialYearOf, needsCategory, needsDebt, parseWhen, type Line } from '../ledger.js';
+import { calOf, hasTokens, renderTokens } from '../jobs/rules.js';
 import { DESTRUCTIVE, READ, WRITE, OVERWRITE, dateArg, day, run, workspaceArg, type Register } from './common.js';
 
 /** How a caller describes a line. A transfer is one line here; it is stored as the app's balancing pair. */
@@ -105,13 +106,39 @@ export async function buildLines(
   return out;
 }
 
+const NOTE_HELP =
+  'May hold placeholders, as in the app: {MMM} month, {MMMM} full month, {MM}, {YYYY}, {YY}, {D}, {DD}, {DATE}, {Q}, {FY}, {#} occurrence, with offsets like {MMM-1}; {{ for a literal brace.';
+
 const txnFields = {
   account_id: z.string().describe('The account the money moves in or out of (list_accounts)'),
   date: dateArg('When it happened').optional(),
-  note: z.string().optional().describe('What it was, e.g. "Groceries at Fresh Mart"'),
-  contact_id: z.string().optional().describe('Who it was with (list_contacts); required for lend/borrow/repayment lines'),
+  note: z.string().optional().describe(`What it was, e.g. "Groceries at Fresh Mart". ${NOTE_HELP}`),
+  contact_id: z
+    .string()
+    .optional()
+    .describe('Who it was with (list_contacts). Without it, a lend/borrow/repayment line takes its debt\'s contact, as in the app.'),
   lines: z.array(lineInput).min(1).describe('One line for a simple entry; several to split one payment'),
+  repeats: z.enum(['weekly', 'monthly', 'yearly']).optional().describe('A repeating entry: the app suggests the next one when it is due'),
 };
+
+/** The note as the app stores it: rendered for the date, the pattern kept when it has placeholders. */
+export function renderNote(b: Books, pattern: string | null | undefined, date: Date, occurrence = 1) {
+  const p = pattern?.trim();
+  if (!p) return { note: null, notePattern: null };
+  return {
+    note: renderTokens(p, calOf(date, b.timeZone), { occurrence, fyStartMonth: b.ws.fyStartMonth }),
+    notePattern: hasTokens(p) ? p : null,
+  };
+}
+
+/** The app's fallback: with no contact given, a debt line's contact. */
+export async function contactFor(b: Books, contactId: string | undefined, inputs: LineInput[]): Promise<string | undefined> {
+  if (contactId) return contactId;
+  const debtLine = inputs.find((l) => l.debt_id && (l.type === 'lend' || l.type === 'borrow' || l.type === 'repayment'));
+  if (!debtLine) return undefined;
+  const d = (await b.debts()).find((x) => x.id === debtLine.debt_id);
+  return d?.contactId;
+}
 
 /** A line's tax block for output, in the connector's own names; nothing when it has none. */
 export function taxOut(l: { tax?: Record<string, unknown> }) {
@@ -201,8 +228,15 @@ export const registerTransactionTools: Register = (server, ctx) => {
     ({ workspace_id, transaction_id }) =>
       run(async () => {
         const b = await ctx().books(workspace_id);
-        const t = toTxn(await b.getOne('transactions', transaction_id));
-        return { currency: b.ws.currency, ...t, date: day(t.date, b.timeZone) };
+        const raw = await b.getOne('transactions', transaction_id);
+        const t = toTxn(raw);
+        return {
+          currency: b.ws.currency,
+          ...t,
+          date: day(t.date, b.timeZone),
+          ...(raw.recurrence ? { repeats: raw.recurrence } : {}),
+          ...(raw.notePattern ? { note_pattern: raw.notePattern } : {}),
+        };
       }),
   );
 
@@ -220,19 +254,23 @@ export const registerTransactionTools: Register = (server, ctx) => {
         const b = await ctx().books(a.workspace_id);
         const tz = b.timeZone;
         if (a.contact_id) await b.getOne('contacts', a.contact_id);
-        const lines = await buildLines(b, a.lines, a.account_id, a.contact_id);
+        const contactId = await contactFor(b, a.contact_id, a.lines);
+        const lines = await buildLines(b, a.lines, a.account_id, contactId);
         const debtsById = new Map((await b.debts()).map((d) => [d.id, d]));
         const date = parseWhen(a.date, tz);
         const id = newDocId();
+        const { note, notePattern } = renderNote(b, a.note, date);
         const doc = b.txnDoc(id, {
           date,
           accountId: a.account_id,
           totalAmount: computeTotal(lines, debtsById, b.round),
           lines,
-          note: a.note?.trim() || null,
-          contactId: a.contact_id ?? null,
+          note,
+          contactId: contactId ?? null,
         });
         doc.financialYear = financialYearOf(date, b.ws.fyStartMonth, tz);
+        if (a.repeats) doc.recurrence = a.repeats;
+        if (notePattern) doc.notePattern = notePattern;
         await b.commit(
           [{ kind: 'set', collection: 'transactions', id, data: doc }, b.revision('transactions', id, 'create')],
           'add transactions',
@@ -252,9 +290,10 @@ export const registerTransactionTools: Register = (server, ctx) => {
         transaction_id: z.string(),
         account_id: z.string().optional(),
         date: dateArg('When it happened').optional(),
-        note: z.string().nullable().optional(),
+        note: z.string().nullable().optional().describe(NOTE_HELP),
         contact_id: z.string().nullable().optional(),
         lines: z.array(lineInput).min(1).optional(),
+        repeats: z.enum(['weekly', 'monthly', 'yearly']).nullable().optional(),
       },
       annotations: OVERWRITE,
     },
@@ -265,12 +304,24 @@ export const registerTransactionTools: Register = (server, ctx) => {
         const cur = await b.getOne('transactions', a.transaction_id);
         const old = toTxn(cur);
         const accountId = a.account_id ?? old.accountId;
-        const contactId = a.contact_id === null ? undefined : (a.contact_id ?? old.contactId);
+        let contactId = a.contact_id === null ? undefined : (a.contact_id ?? old.contactId);
         if (a.contact_id) await b.getOne('contacts', a.contact_id);
+        if (!contactId && a.lines) contactId = await contactFor(b, undefined, a.lines);
         const lines = a.lines ? await buildLines(b, a.lines, accountId, contactId) : old.lines;
         const debtsById = new Map((await b.debts()).map((d) => [d.id, d]));
         const date = a.date ? parseWhen(a.date, tz) : old.date;
-        const note = a.note === null ? undefined : (a.note?.trim() || old.note);
+        // The note: a new one is rendered for the date; otherwise the stored
+        // pattern is re-rendered, so moving the date moves "{MMM}" with it.
+        const rendered =
+          a.note === null
+            ? { note: null, notePattern: null }
+            : a.note !== undefined
+              ? renderNote(b, a.note, date)
+              : cur.notePattern
+                ? renderNote(b, String(cur.notePattern), date)
+                : { note: old.note ?? null, notePattern: null };
+        const note = rendered.note ?? undefined;
+        const recurrence = a.repeats === undefined ? cur.recurrence : a.repeats;
         // As updateTransaction: every field written, optional ones deleted when absent.
         const data: Plain = {
           date,
@@ -282,8 +333,8 @@ export const registerTransactionTools: Register = (server, ctx) => {
           note: note ?? DELETE,
           contactId: contactId ?? DELETE,
           dueId: cur.dueId ?? DELETE,
-          recurrence: cur.recurrence ?? DELETE,
-          notePattern: cur.notePattern ?? DELETE,
+          recurrence: recurrence ?? DELETE,
+          notePattern: rendered.notePattern ?? DELETE,
         };
         const writes = b.updateWrites('transactions', a.transaction_id, data, false);
         await b.commit(writes, 'edit transactions');
