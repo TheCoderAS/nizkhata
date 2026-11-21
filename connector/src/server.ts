@@ -23,6 +23,7 @@ import { registerReportTools } from './tools/reports.js';
 import { registerRecategoriseTools } from './tools/recategorise.js';
 import { registerHistoryTools } from './tools/history.js';
 import { registerSharedTools } from './tools/shared.js';
+import { registerTeamTools } from './tools/team.js';
 
 const INSTRUCTIONS = `Niz Khata is a money ledger: accounts, transactions, dues (bills to pay and money to receive on a date), debts (money lent and borrowed, per person), contacts, categories and budgets, kept in workspaces, plus shared ledgers kept with other Niz Khata users. It records money; it never moves real money or connects to a bank.
 If the person has more than one workspace, call list_workspaces, ask which one they mean, and pass that workspace_id on every call; switch only when they name another.
@@ -64,6 +65,7 @@ export function buildMcpServer(ctx: () => Ctx, publicUrl?: string): McpServer {
     registerRecategoriseTools,
     registerHistoryTools,
     registerSharedTools,
+    registerTeamTools,
   ]) {
     register(server, ctx);
   }
