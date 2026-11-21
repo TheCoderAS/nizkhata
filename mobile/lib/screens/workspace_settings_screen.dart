@@ -13,6 +13,8 @@ import '../data/mutations.dart';
 import '../state/auth_controller.dart';
 import '../state/workspace_controller.dart';
 import '../widgets/common.dart';
+import '../core/ws_time.dart';
+import '../widgets/time_zone_field.dart';
 
 const _kMonths = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -157,6 +159,9 @@ class _WorkspaceSettingsScreenState extends State<WorkspaceSettingsScreen> {
                 ),
                 const SizedBox(height: 12),
                 FixedCurrencyField(currency: ws.currency),
+                const SizedBox(height: 12),
+                // Fixed like the currency: the books' days are this zone's.
+                TimeZoneField(value: ws.activeWorkspace?.timeZone ?? WsTime.defaultZone),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<int>(
                   value: _fyStartMonth,

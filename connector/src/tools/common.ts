@@ -25,7 +25,7 @@ export const workspaceArg = {
 };
 
 export const dateArg = (what: string) =>
-  z.string().describe(`${what}: YYYY-MM-DD (taken as midnight in the workspace's time zone) or a full ISO date-time.`);
+  z.string().describe(`${what}: YYYY-MM-DD (a day in the workspace's time zone, from list_workspaces) or a full ISO date-time.`);
 
 type Result = { content: Array<{ type: 'text'; text: string }>; isError?: boolean };
 

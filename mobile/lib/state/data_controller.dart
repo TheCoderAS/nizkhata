@@ -9,6 +9,7 @@ import 'package:flutter/foundation.dart';
 
 import '../data/derive.dart';
 import '../data/models.dart';
+import '../core/ws_time.dart';
 
 /// What the signed-in member may load: which modules their role can view, and
 /// — for "own records only" roles — the contact their reads are limited to.
@@ -71,10 +72,16 @@ class DataController extends ChangeNotifier {
 
   ContactPosition positionOf(String contactId) => contactPosition(contactId, debts, transactions);
 
-  void setWorkspace(String? workspaceId, {DataScope scope = DataScope.full}) {
-    if (workspaceId == _workspaceId && scope.key == _scopeKey) return;
+  String? _timeZone;
+
+  /// [timeZone] is the workspace's: every date is read and written in it, so
+  /// a change of workspace, or its time zone arriving, reloads the data.
+  void setWorkspace(String? workspaceId, {DataScope scope = DataScope.full, String? timeZone}) {
+    if (workspaceId == _workspaceId && scope.key == _scopeKey && timeZone == _timeZone) return;
     _workspaceId = workspaceId;
     _scopeKey = scope.key;
+    _timeZone = timeZone;
+    WsTime.use(workspaceId == null ? null : (timeZone ?? WsTime.defaultZone));
     for (final s in _subs) {
       s.cancel();
     }

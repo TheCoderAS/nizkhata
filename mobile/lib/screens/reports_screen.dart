@@ -22,6 +22,7 @@ import '../services/pdf_brand.dart';
 import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
 import '../widgets/common.dart';
+import '../core/ws_time.dart';
 
 // Palette for donut slices (top 6 + Other).
 const _donutColors = <Color>[
@@ -53,7 +54,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
     final canViewTxns = ws.can('transactions.view');
 
     // Distinct FYs present in the data, plus the current one, sorted desc.
-    final fySet = <String>{financialYearOf(DateTime.now(), fyStart)};
+    final fySet = <String>{financialYearOf(WsTime.now(), fyStart)};
     for (final t in data.transactions) {
       if (t.financialYear.isNotEmpty) fySet.add(t.financialYear);
     }

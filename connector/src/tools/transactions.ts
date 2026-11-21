@@ -108,7 +108,7 @@ export const registerTransactionTools: Register = (server, ctx) => {
     (a) =>
       run(async () => {
         const b = await ctx().books(a.workspace_id);
-        const tz = ctx().timeZone;
+        const tz = b.timeZone;
         const [txns, cats, contacts, accounts] = await Promise.all([b.txns(), b.load('categories'), b.load('contacts'), b.load('accounts')]);
         const catName = new Map(cats.map((c) => [String(c.id), String(c.name)]));
         const contactName = new Map(contacts.map((c) => [String(c.id), String(c.name)]));
@@ -166,7 +166,7 @@ export const registerTransactionTools: Register = (server, ctx) => {
       run(async () => {
         const b = await ctx().books(workspace_id);
         const t = toTxn(await b.getOne('transactions', transaction_id));
-        return { currency: b.ws.currency, ...t, date: day(t.date, ctx().timeZone) };
+        return { currency: b.ws.currency, ...t, date: day(t.date, b.timeZone) };
       }),
   );
 
@@ -182,7 +182,7 @@ export const registerTransactionTools: Register = (server, ctx) => {
     (a) =>
       run(async () => {
         const b = await ctx().books(a.workspace_id);
-        const tz = ctx().timeZone;
+        const tz = b.timeZone;
         if (a.contact_id) await b.getOne('contacts', a.contact_id);
         const lines = await buildLines(b, a.lines, a.account_id, a.contact_id);
         const debtsById = new Map((await b.debts()).map((d) => [d.id, d]));
@@ -225,7 +225,7 @@ export const registerTransactionTools: Register = (server, ctx) => {
     (a) =>
       run(async () => {
         const b = await ctx().books(a.workspace_id);
-        const tz = ctx().timeZone;
+        const tz = b.timeZone;
         const cur = await b.getOne('transactions', a.transaction_id);
         const old = toTxn(cur);
         const accountId = a.account_id ?? old.accountId;

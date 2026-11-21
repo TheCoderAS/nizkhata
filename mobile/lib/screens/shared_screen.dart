@@ -26,6 +26,7 @@ import '../state/data_controller.dart';
 import '../state/shared_controller.dart';
 import '../state/workspace_controller.dart';
 import '../widgets/common.dart';
+import '../core/ws_time.dart';
 
 class _Partner {
   final String uid;
@@ -743,7 +744,7 @@ class _AddExpenseSheet extends StatefulWidget {
 class _AddExpenseSheetState extends State<_AddExpenseSheet> {
   final _description = TextEditingController();
   final _amount = TextEditingController();
-  DateTime _date = DateTime.now();
+  DateTime _date = WsTime.now();
   String? _accountId;
   String? _categoryId;
   bool _includeMe = true;
@@ -1006,7 +1007,7 @@ class _SettleSheetState extends State<_SettleSheet> {
         connectionId: widget.partner.connectionId,
         amount: amount,
         description: 'Settlement to ${widget.partner.name}',
-        date: DateTime.now(),
+        date: WsTime.now(),
         workspaceId: ws,
         currency: wsC.currency,
         fyStartMonth: fy,

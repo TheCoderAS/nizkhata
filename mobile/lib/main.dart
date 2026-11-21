@@ -17,6 +17,7 @@ import 'router.dart';
 import 'services/app_lock.dart';
 import 'services/due_reminders.dart';
 import 'services/pdf_brand.dart';
+import 'services/min_version.dart';
 import 'services/push_registration.dart';
 import 'services/widget_sync.dart';
 import 'state/auth_controller.dart';
@@ -24,6 +25,7 @@ import 'state/data_controller.dart';
 import 'state/shared_controller.dart';
 import 'state/theme_controller.dart';
 import 'state/workspace_controller.dart';
+import 'core/ws_time.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -66,7 +68,8 @@ class NizkhataApp extends StatelessWidget {
           update: (_, ws, data) {
             final c = data ?? DataController();
             WidgetsBinding.instance
-                .addPostFrameCallback((_) => c.setWorkspace(ws.activeWorkspaceId, scope: ws.dataScope));
+                .addPostFrameCallback((_) => c.setWorkspace(ws.activeWorkspaceId,
+                    scope: ws.dataScope, timeZone: ws.activeWorkspace?.timeZone));
             return c;
           },
         ),
@@ -100,6 +103,10 @@ class _RootState extends State<_Root> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    // A build the books have moved past is asked to update before use.
+    updateRequired().then((v) {
+      if (v && mounted) setState(() => _mustUpdate = true);
+    });
     // Notification taps route into the app (works warm and, via the pending
     // route, cold-started from a tap).
     DueReminders.onOpenRoute = (route) => router.push(route);
@@ -121,7 +128,7 @@ class _RootState extends State<_Root> with WidgetsBindingObserver {
           router.push('/dues-day?add=1');
           break;
         case 'dues_today':
-          final now = DateTime.now();
+          final now = WsTime.now();
           final d =
               '${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
           router.push('/dues-day?date=$d');
@@ -233,8 +240,20 @@ class _RootState extends State<_Root> with WidgetsBindingObserver {
     super.dispose();
   }
 
+  bool _mustUpdate = false;
+
   @override
   Widget build(BuildContext context) {
+    if (_mustUpdate) {
+      return MaterialApp(
+        title: 'Niz Khata',
+        debugShowCheckedModeBanner: false,
+        theme: buildLightTheme(),
+        darkTheme: buildDarkTheme(),
+        themeMode: context.watch<ThemeController>().mode,
+        home: const UpdateRequiredScreen(),
+      );
+    }
     return LockGate(
       child: MaterialApp.router(
         title: 'Niz Khata',

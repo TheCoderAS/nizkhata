@@ -14,6 +14,7 @@ import '../widgets/common.dart';
 import '../widgets/row_actions.dart';
 import '../widgets/undo_delete.dart';
 import 'budget_form.dart';
+import '../core/ws_time.dart';
 
 class BudgetsScreen extends StatelessWidget {
   const BudgetsScreen({super.key});
@@ -68,7 +69,7 @@ class BudgetsScreen extends StatelessWidget {
   // for monthly or "FY 2026-27" for yearly (mirrors periodLabel in the web app,
   // which the mobile BudgetProgress model does not carry).
   static String _resolvedPeriodLabel(String period, int fyStart) {
-    final now = DateTime.now();
+    final now = WsTime.now();
     if (period == 'yearly') {
       // A year that starts in January is a calendar year and has one number.
       return 'FY ${financialYearOf(now, fyStart)}';

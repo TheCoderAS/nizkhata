@@ -16,6 +16,7 @@ import '../widgets/segmented_tabs.dart';
 import '../widgets/row_actions.dart';
 import '../widgets/undo_delete.dart';
 import 'category_form.dart';
+import '../core/ws_time.dart';
 
 class CategoriesScreen extends StatefulWidget {
   const CategoriesScreen({super.key});
@@ -40,7 +41,7 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
   ];
 
   Future<void> _pickCustom(bool isFrom) async {
-    final now = DateTime.now();
+    final now = WsTime.now();
     final initial = isFrom ? (_customFrom ?? DateTime(now.year, now.month, 1)) : (_customTo ?? now);
     final picked = await showDatePicker(
       context: context,
@@ -69,7 +70,7 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
     final currency = ws.currency;
     final fyStartMonth = ws.fyStartMonth;
 
-    final now = DateTime.now();
+    final now = WsTime.now();
     final ({DateTime start, DateTime end}) range;
     if (_period == PeriodKind.custom) {
       final start = _customFrom ?? DateTime(now.year, now.month, 1);

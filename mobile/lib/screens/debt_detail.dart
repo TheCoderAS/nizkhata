@@ -11,6 +11,7 @@ import 'debt_form.dart';
 import 'transaction_detail.dart';
 import 'debts_screen.dart';
 import '../widgets/common.dart';
+import '../core/ws_time.dart';
 
 const _kPurposeLabels = <String, String>{
   'loan': 'Loan',
@@ -98,7 +99,7 @@ class _DebtDetail extends StatelessWidget {
                     roundMoney(outstanding *
                         debt.interestRate! /
                         100 *
-                        DateTime.now().difference(debt.interestFrom ?? DateTime.now()).inDays /
+                        WsTime.now().difference(debt.interestFrom ?? WsTime.now()).inDays /
                         365),
                     currency),
               ),

@@ -98,7 +98,7 @@ export const registerCategoryTools: Register = (server, ctx) => {
     ({ workspace_id }) =>
       run(async () => {
         const b = await ctx().books(workspace_id);
-        const tz = ctx().timeZone;
+        const tz = b.timeZone;
         const [budgets, cats, txns] = await Promise.all([b.load('budgets'), b.load('categories'), b.txns()]);
         const names = new Map(cats.map((c) => [String(c.id), String(c.name)]));
         const now = new Date();

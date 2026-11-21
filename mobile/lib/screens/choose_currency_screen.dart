@@ -13,6 +13,8 @@ import '../core/theme.dart';
 import '../state/auth_controller.dart';
 import '../widgets/common.dart';
 import '../widgets/currency_picker.dart';
+import '../core/ws_time.dart';
+import '../widgets/time_zone_field.dart';
 
 class ChooseCurrencyScreen extends StatelessWidget {
   const ChooseCurrencyScreen({super.key});
@@ -36,7 +38,7 @@ class ChooseCurrencyView extends StatefulWidget {
 
   /// Creates the workspace. The router takes over once it succeeds; a throw is
   /// shown here and the person can try again.
-  final Future<void> Function(String currency) onConfirm;
+  final Future<void> Function(String currency, String timeZone) onConfirm;
   final Future<void> Function() onSignOut;
 
   const ChooseCurrencyView({
@@ -53,6 +55,7 @@ class ChooseCurrencyView extends StatefulWidget {
 
 class _ChooseCurrencyViewState extends State<ChooseCurrencyView> {
   late String _currency = widget.initialCurrency;
+  String _timeZone = WsTime.defaultZone;
   bool _busy = false;
   String? _error;
 
@@ -62,7 +65,7 @@ class _ChooseCurrencyViewState extends State<ChooseCurrencyView> {
       _error = null;
     });
     try {
-      await widget.onConfirm(_currency);
+      await widget.onConfirm(_currency, _timeZone);
       // Leave _busy set: the router is about to replace this screen, and a
       // re-enabled button in the meantime would invite a second workspace.
     } catch (e) {
@@ -103,7 +106,7 @@ class _ChooseCurrencyViewState extends State<ChooseCurrencyView> {
                   Text(greeting, style: text.headlineSmall),
                   const SizedBox(height: 8),
                   Text(
-                    'One quick choice and your workspace is ready. Which currency do you keep your money in?',
+                    'Two quick choices and your workspace is ready: the currency you keep your money in, and your time zone.',
                     style: TextStyle(fontSize: 15, color: cs.onSurfaceVariant),
                   ),
                   const SizedBox(height: 24),
@@ -114,6 +117,14 @@ class _ChooseCurrencyViewState extends State<ChooseCurrencyView> {
                   ),
                   const SizedBox(height: 12),
                   const CurrencyLockNote(),
+                  const SizedBox(height: 20),
+                  const SectionLabel('Time zone'),
+                  TimeZoneField(
+                    value: _timeZone,
+                    onChanged: _busy ? null : (z) => setState(() => _timeZone = z),
+                  ),
+                  const SizedBox(height: 12),
+                  const TimeZoneLockNote(),
                   if (_error != null) ...[
                     const SizedBox(height: 16),
                     Text(_error!, style: const TextStyle(color: AppColors.danger, fontSize: 13)),

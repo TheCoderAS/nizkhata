@@ -10,6 +10,7 @@ import 'package:intl/intl.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 
 import 'pdf_brand.dart';
+import '../core/ws_time.dart';
 
 class TaxHeadSummary {
   final String label;
@@ -68,7 +69,7 @@ Uint8List buildTaxPackPdf({
     fonts: fonts,
     width: w,
     subtitle: 'Tax pack for FY $fy ($workspaceName)',
-    generatedOn: 'Generated ${dateFmt.format(DateTime.now())}',
+    generatedOn: 'Generated ${dateFmt.format(WsTime.now())}',
     logoPng: logoPng,
   );
   // Text bounds have no height (0 = as tall as the text needs): Syncfusion

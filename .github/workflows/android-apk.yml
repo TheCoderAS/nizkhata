@@ -353,7 +353,7 @@ jobs:
             MAJ=${BASH_REMATCH[1]}; MIN=${BASH_REMATCH[2]}; PAT=${BASH_REMATCH[3]}
             if [ "$MIN" -gt 99 ] || [ "$PAT" -gt 99 ]; then echo "::error::minor and patch must be under 100"; exit 1; fi
             CODE=$((MAJ * 10000 + MIN * 100 + PAT))
-            echo "BUILD_FLAGS=--build-name=${MAJ}.${MIN}.${PAT} --build-number=${CODE}" >> "$GITHUB_ENV"
+            echo "BUILD_FLAGS=--build-name=${MAJ}.${MIN}.${PAT} --build-number=${CODE} --dart-define=APP_VERSION_CODE=${CODE}" >> "$GITHUB_ENV"
             echo "Release ${MAJ}.${MIN}.${PAT}, version code ${CODE}"
           elif [ -n "$VERSION" ]; then
             echo "::error::version must look like v1.14.2, got $VERSION"; exit 1

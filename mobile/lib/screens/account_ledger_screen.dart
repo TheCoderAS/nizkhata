@@ -22,6 +22,7 @@ import '../state/data_controller.dart';
 import 'transaction_detail.dart';
 import '../state/workspace_controller.dart';
 import '../widgets/common.dart';
+import '../core/ws_time.dart';
 
 // Human-readable labels for transaction line types (mirrors src/lib/lineTypes.ts).
 const lineTypeLabel = <String, String>{
@@ -67,7 +68,7 @@ class _AccountLedgerScreenState extends State<AccountLedgerScreen> {
   Future<void> _pickFrom() async {
     final picked = await showDatePicker(
       context: context,
-      initialDate: _from ?? DateTime.now(),
+      initialDate: _from ?? WsTime.now(),
       firstDate: DateTime(2000),
       lastDate: DateTime(2100),
     );
@@ -77,7 +78,7 @@ class _AccountLedgerScreenState extends State<AccountLedgerScreen> {
   Future<void> _pickTo() async {
     final picked = await showDatePicker(
       context: context,
-      initialDate: _to ?? DateTime.now(),
+      initialDate: _to ?? WsTime.now(),
       firstDate: DateTime(2000),
       lastDate: DateTime(2100),
     );
@@ -375,7 +376,7 @@ class _SummaryTile extends StatelessWidget {
 /// card whose bill you have already dismissed.
 /// The dues entry raised for [card]'s live statement, if any.
 Due? _liveBill(Account card, List<Due> dues) {
-  final cycle = latestStatement(card, DateTime.now());
+  final cycle = latestStatement(card, WsTime.now());
   if (cycle == null) return null;
   final id = statementDueId(card.id, cycle.statementDate);
   for (final d in dues) {
@@ -390,7 +391,7 @@ Future<void> _restoreBill(BuildContext context, Account card) async {
   final data = context.read<DataController>();
   final wsId = context.read<WorkspaceController>().activeWorkspaceId;
   final user = context.read<AuthController>().user;
-  final position = statementPosition(card, data.transactions, data.debtsById, DateTime.now());
+  final position = statementPosition(card, data.transactions, data.debtsById, WsTime.now());
   if (wsId == null || user == null || position == null) return;
   final doc = statementDueDoc(card, position.cycle, position.billed);
   try {
@@ -442,7 +443,7 @@ class StatementSummary extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final now = this.now ?? DateTime.now();
+    final now = this.now ?? WsTime.now();
     final today = DateTime(now.year, now.month, now.day);
     // The same reading the dues sync makes, so the two never disagree.
     final position = statementPosition(card, txns, debtsById, now);

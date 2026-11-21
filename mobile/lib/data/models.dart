@@ -2,9 +2,10 @@
 // names match the web app 1:1 so both clients read/write the same documents.
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../core/ws_time.dart';
 
 DateTime _ts(dynamic v) {
-  if (v is Timestamp) return v.toDate();
+  if (v is Timestamp) return WsTime.fromStore(v.toDate());
   if (v is DateTime) return v;
   return DateTime.fromMillisecondsSinceEpoch(0);
 }
@@ -17,12 +18,17 @@ class Workspace {
   final String ownerId;
   final String baseCurrency;
   final int fyStartMonth;
+
+  /// Where the books' days begin and end, fixed when the workspace is made.
+  /// Workspaces from before it was stored keep India time.
+  final String timeZone;
   Workspace({
     required this.id,
     required this.name,
     required this.ownerId,
     required this.baseCurrency,
     required this.fyStartMonth,
+    this.timeZone = WsTime.defaultZone,
   });
   factory Workspace.fromDoc(DocumentSnapshot d) {
     final m = d.data() as Map<String, dynamic>;
@@ -32,6 +38,7 @@ class Workspace {
       ownerId: m['ownerId'] ?? '',
       baseCurrency: m['baseCurrency'] ?? 'INR',
       fyStartMonth: (m['fyStartMonth'] as num?)?.toInt() ?? 4,
+      timeZone: (m['timeZone'] is String && (m['timeZone'] as String).isNotEmpty) ? m['timeZone'] as String : WsTime.defaultZone,
     );
   }
 }

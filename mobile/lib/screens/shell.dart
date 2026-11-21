@@ -7,6 +7,7 @@ import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
 import '../widgets/common.dart';
 import '../widgets/floating_nav_bar.dart';
+import '../core/ws_time.dart';
 
 class AppShell extends StatefulWidget {
   final Widget child;
@@ -44,7 +45,7 @@ class _AppShellState extends State<AppShell> {
       context.go('/dashboard');
       return;
     }
-    final now = DateTime.now();
+    final now = WsTime.now();
     if (_lastBackAt != null && now.difference(_lastBackAt!) < const Duration(seconds: 2)) {
       SystemNavigator.pop();
       return;

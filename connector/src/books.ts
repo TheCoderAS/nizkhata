@@ -40,6 +40,21 @@ export interface WorkspaceInfo {
   currency: string;
   fyStartMonth: number;
   ownerId: string;
+  /** Where the books' days begin and end; fixed at creation. Older workspaces: India. */
+  timeZone: string;
+}
+
+/** A workspace's time zone; workspaces made before it was stored keep their books in India time. */
+export const DEFAULT_TIME_ZONE = 'Asia/Kolkata';
+export function workspaceTimeZone(ws: Plain | null | undefined): string {
+  const tz = ws?.timeZone;
+  if (typeof tz !== 'string' || !tz) return DEFAULT_TIME_ZONE;
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: tz });
+    return tz;
+  } catch {
+    return DEFAULT_TIME_ZONE;
+  }
 }
 
 export async function listWorkspaces(fs: Firestore, uid: string): Promise<WorkspaceInfo[]> {
@@ -56,6 +71,7 @@ export async function listWorkspaces(fs: Firestore, uid: string): Promise<Worksp
       currency: String(ws.baseCurrency ?? 'INR'),
       fyStartMonth: Number(ws.fyStartMonth ?? 4),
       ownerId: String(ws.ownerId ?? ''),
+      timeZone: workspaceTimeZone(ws),
     });
   }
   return out;
@@ -95,7 +111,9 @@ export class Books {
       );
     }
     if (!ws) throw new UserError('No workspace found.');
-    return new Books(fs, actor, ws, timeZone);
+    // Dates are the workspace's own: its time zone, not the caller's.
+    void timeZone;
+    return new Books(fs, actor, ws, ws.timeZone);
   }
 
   /** Books for a workspace already known, for the scheduled jobs' system actor. */

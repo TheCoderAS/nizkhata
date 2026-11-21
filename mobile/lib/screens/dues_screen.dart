@@ -20,6 +20,7 @@ import '../widgets/row_actions.dart';
 import '../widgets/undo_delete.dart';
 import 'due_detail.dart';
 import 'due_form.dart';
+import '../core/ws_time.dart';
 
 // Status filter values map to sentinels; '__unsettled' is the default view
 // (open + partial), '__all' shows every status. Others match a single status.
@@ -552,7 +553,7 @@ class _DuePaymentSheetState extends State<_DuePaymentSheet> {
     if (amount <= 0) return;
 
     final due = widget.due;
-    final now = DateTime.now();
+    final now = WsTime.now();
     final lid = now.microsecondsSinceEpoch;
     final newSettled = data.settledOf(due.id) + amount;
     setState(() => _busy = true);

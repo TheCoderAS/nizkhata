@@ -18,6 +18,8 @@ dependencies:
   # Push notifications: due reminders are sent by the backend, not scheduled
   # on the phone.
   firebase_messaging: ^15.2.10
+  # Opens the Play listing when this version is too old to keep the books.
+  url_launcher: ^6.3.3
   cloud_firestore: ^5.5.1
   google_sign_in: ^6.2.2
 

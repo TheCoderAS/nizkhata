@@ -14,6 +14,7 @@ import '../core/format.dart';
 import '../state/data_controller.dart';
 import '../state/workspace_controller.dart';
 import '../widgets/common.dart';
+import '../core/ws_time.dart';
 
 // Per-entity-type display label + trailing icon (mirrors web ENTITY_META).
 const _entityMeta = <String, ({String label, IconData icon})>{
@@ -92,7 +93,7 @@ class _ActivityScreenState extends State<ActivityScreen> {
                 for (final d in docs) {
                   final m = d.data() as Map<String, dynamic>;
                   final at = m['at'];
-                  final date = at is Timestamp ? at.toDate() : DateTime.now();
+                  final date = at is Timestamp ? WsTime.fromStore(at.toDate()) : WsTime.now();
                   final key = '${date.year}-${date.month}-${date.day}';
                   var gi = indexByKey[key];
                   if (gi == null) {
@@ -165,7 +166,7 @@ class _RevisionTile extends StatelessWidget {
     final entityId = (m['entityId'] ?? '') as String;
     final by = m['by'] is Map ? (m['by'] as Map)['name'] as String? : null;
     final at = m['at'];
-    final when = at is Timestamp ? _relative(at.toDate()) : 'just now';
+    final when = at is Timestamp ? _relative(WsTime.fromStore(at.toDate())) : 'just now';
     final snapshot = m['snapshot'] is Map ? Map<String, dynamic>.from(m['snapshot'] as Map) : null;
 
     final meta = _entityMeta[entityType];
@@ -251,7 +252,7 @@ class _RevisionTile extends StatelessWidget {
   }
 
   static String _relative(DateTime date) {
-    final diff = DateTime.now().difference(date);
+    final diff = WsTime.now().difference(date);
     if (diff.inSeconds < 60) return 'just now';
     if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
     if (diff.inHours < 24) return '${diff.inHours}h ago';

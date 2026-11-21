@@ -127,7 +127,7 @@ describe('signing in', () => {
       'get_contact', 'get_summary', 'get_transaction',
       'list_accounts', 'list_activity', 'list_budgets', 'list_categories', 'list_contacts', 'list_debts', 'list_dues', 'list_shared', 'list_transactions', 'list_workspaces',
       'recategorise_transactions', 'record_debt_repayment', 'record_due_payment', 'record_shared_settlement',
-      'respond_shared_entry', 'restore_deleted',
+      'respond_shared_entry', 'restore_deleted', 'stop_repeating_due',
       'update_account', 'update_budget', 'update_category', 'update_contact', 'update_debt', 'update_due', 'update_transaction',
     ]);
     const deletes = (await client.listTools()).tools.filter((x) => x.name.startsWith('delete_'));
@@ -135,7 +135,7 @@ describe('signing in', () => {
     // ChatGPT's rule: every hint explicit, and only additive writes non-destructive.
     for (const t of (await client.listTools()).tools) {
       for (const h of ['readOnlyHint', 'destructiveHint', 'openWorldHint'] as const) expect(typeof t.annotations?.[h], `${t.name} ${h}`).toBe('boolean');
-      if (/^(update|delete|recategorise)_/.test(t.name)) expect(t.annotations?.destructiveHint, t.name).toBe(true);
+      if (/^(update|delete|recategorise|stop)_/.test(t.name)) expect(t.annotations?.destructiveHint, t.name).toBe(true);
       if (/^(list|get)_/.test(t.name)) expect(t.annotations?.readOnlyHint, t.name).toBe(true);
     }
     // The assistant shows Niz Khata's own icon, not the parent domain's.
@@ -147,7 +147,7 @@ describe('signing in', () => {
 
   it('reports its build, tool count and jobs on /healthz', async () => {
     const h = await (await fetch(base + '/healthz')).json();
-    expect(h).toMatchObject({ ok: true, tools: 41, jobs: 'off' });
+    expect(h).toMatchObject({ ok: true, tools: 42, jobs: 'off' });
     expect(typeof h.version).toBe('string');
   });
 

@@ -15,6 +15,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../core/format.dart';
 import '../data/derive.dart';
 import '../data/models.dart';
+import '../core/ws_time.dart';
 
 /// One billing cycle: the period it covers, the day it was drawn, and the day
 /// the payment is due.
@@ -185,7 +186,7 @@ Map<String, dynamic> statementDueDoc(
     'direction': 'payable',
     'title': '${card.name} bill',
     'amount': roundMoney(outstanding),
-    'dueDate': Timestamp.fromDate(cycle.paymentDue),
+    'dueDate': Timestamp.fromDate(WsTime.toStore(cycle.paymentDue)),
     'note': 'Statement of ${formatDate(cycle.statementDate)}',
     'lines': [
       {
@@ -204,7 +205,7 @@ Map<String, dynamic> statementDueDoc(
     // A statement is not a recurring due: each one is generated from its own
     // cycle, so the recurrence engine must keep its hands off them.
     'statementAccountId': card.id,
-    'statementDate': Timestamp.fromDate(cycle.statementDate),
+    'statementDate': Timestamp.fromDate(WsTime.toStore(cycle.statementDate)),
   };
 }
 

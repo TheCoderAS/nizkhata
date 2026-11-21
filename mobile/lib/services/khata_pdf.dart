@@ -10,6 +10,7 @@ import 'package:intl/intl.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 
 import 'pdf_brand.dart';
+import '../core/ws_time.dart';
 
 class KhataDueLine {
   final String title;
@@ -73,7 +74,7 @@ Uint8List buildKhataPdf({
     fonts: fonts,
     width: w,
     subtitle: 'Ledger statement from $workspaceName',
-    generatedOn: 'Generated ${dateFmt.format(DateTime.now())}',
+    generatedOn: 'Generated ${dateFmt.format(WsTime.now())}',
     logoPng: logoPng,
   );
 
@@ -241,7 +242,7 @@ String buildDueReminderText({
   required String direction, // payable | receivable
 }) {
   final dateFmt = DateFormat('dd MMM yyyy');
-  final overdue = dueDate.isBefore(DateTime.now());
+  final overdue = dueDate.isBefore(WsTime.now());
   final amount = _money(remaining, currency);
   final when = dateFmt.format(dueDate);
   final b = StringBuffer();

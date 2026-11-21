@@ -9,6 +9,7 @@ import type { Plain } from '../../src/firestore.js';
 import {
   atMidnight,
   calOf,
+  closedDay,
   formatDate,
   iso,
   missingDueInstances,
@@ -39,48 +40,78 @@ describe('nextOccurrence', () => {
   });
 });
 
+describe('closedDay: scheduled work happens at the end of the day', () => {
+  it('a day counts as over from 23:55 in the workspace time zone', () => {
+    // 23:54 and 23:55 in Kolkata on 30 Nov.
+    expect(closedDay(new Date('2026-11-30T18:24:00Z'), TZ)).toEqual(c(2026, 11, 29));
+    expect(closedDay(new Date('2026-11-30T18:25:00Z'), TZ)).toEqual(c(2026, 11, 30));
+    // The same instant is still the afternoon of the 30th in New York.
+    expect(closedDay(new Date('2026-11-30T18:25:00Z'), 'America/New_York')).toEqual(c(2026, 11, 29));
+  });
+});
+
 describe('missingDueInstances', () => {
-  const today = c(2026, 9, 2);
+  // The last day that has ended: 1 Sep (it is some time on 2 Sep before 23:55).
+  const closed = c(2026, 9, 1);
   const due = (id: string, date: Date, status: string, o: Plain = {}): Plain => ({
     id, direction: 'payable', title: 'RD', amount: 5000, dueDate: date, status, ...o,
   });
-  it('a settled recurring due spawns exactly one next instance', () => {
-    const m = missingDueInstances([due('d1', at(2026, 8, 31), 'settled', { recurrence: 'monthly' })], today, TZ);
-    expect(m.map((x) => [x.id, iso(x.dueDate)])).toEqual([['rec_d1_20260930', '2026-09-30']]);
+  it('at the end of its own day a due creates the next one, paid or not', () => {
+    for (const status of ['open', 'settled', 'cancelled']) {
+      const m = missingDueInstances([due('d1', at(2026, 8, 31), status, { recurrence: 'monthly' })], closed, TZ);
+      expect(m.map((x) => [x.id, iso(x.dueDate)])).toEqual([['rec_d1_20260930', '2026-09-30']]);
+    }
+  });
+  it('not before its day has ended, even if it is paid early', () => {
+    expect(missingDueInstances([due('d1', at(2026, 9, 2), 'settled', { recurrence: 'monthly' })], closed, TZ)).toEqual([]);
+    expect(missingDueInstances([due('d1', at(2026, 9, 30), 'settled', { recurrence: 'monthly' })], closed, TZ)).toEqual([]);
+    // Once 2 Sep is over, it does.
+    expect(missingDueInstances([due('d1', at(2026, 9, 2), 'open', { recurrence: 'monthly' })], c(2026, 9, 2), TZ)).toHaveLength(1);
   });
   it('is idempotent: the existing instance suppresses re-creation', () => {
     const dues = [
       due('d1', at(2026, 8, 31), 'settled', { recurrence: 'monthly' }),
       due('rec_d1_20260930', at(2026, 9, 30), 'open', { recurrence: 'monthly', recurrenceId: 'd1' }),
     ];
-    expect(missingDueInstances(dues, today, TZ)).toEqual([]);
+    expect(missingDueInstances(dues, closed, TZ)).toEqual([]);
   });
-  it('only the latest instance of a series spawns', () => {
+  it('only the newest instance of a series spawns', () => {
     const dues = [
       due('d1', at(2026, 7, 31), 'settled', { recurrence: 'monthly' }),
-      due('rec_d1_20260831', at(2026, 8, 31), 'settled', { recurrence: 'monthly', recurrenceId: 'd1' }),
+      due('rec_d1_20260831', at(2026, 8, 31), 'open', { recurrence: 'monthly', recurrenceId: 'd1' }),
     ];
-    expect(missingDueInstances(dues, today, TZ).map((x) => x.id)).toEqual(['rec_d1_20260930']);
+    expect(missingDueInstances(dues, closed, TZ).map((x) => x.id)).toEqual(['rec_d1_20260930']);
   });
-  it('an open future due does not spawn; an open past-due one does', () => {
-    expect(missingDueInstances([due('d1', at(2026, 9, 30), 'open', { recurrence: 'monthly' })], today, TZ)).toEqual([]);
-    expect(missingDueInstances([due('d1', at(2026, 8, 31), 'open', { recurrence: 'monthly' })], today, TZ)).toHaveLength(1);
+  it('a deleted instance is never made again, which ends the series', () => {
+    const dues = [due('d1', at(2026, 8, 31), 'open', { recurrence: 'monthly' })];
+    expect(missingDueInstances(dues, closed, TZ, new Set(['rec_d1_20260930']))).toEqual([]);
   });
-  it('a due on today itself is not past', () => {
-    expect(missingDueInstances([due('d1', at(2026, 9, 2), 'open', { recurrence: 'monthly' })], today, TZ)).toEqual([]);
-  });
-  it('non-recurring dues never spawn', () => {
-    expect(missingDueInstances([due('d1', at(2026, 8, 1), 'settled')], today, TZ)).toEqual([]);
+  it('a series whose newest due stopped repeating has ended; non-recurring dues never spawn', () => {
+    const dues = [
+      due('d1', at(2026, 7, 31), 'settled', { recurrence: 'monthly' }),
+      due('rec_d1_20260831', at(2026, 8, 31), 'open', { recurrenceId: 'd1' }),
+    ];
+    // The July one is not the newest, and the August one no longer repeats.
+    expect(missingDueInstances(dues, closed, TZ)).toEqual([]);
+    expect(missingDueInstances([due('d1', at(2026, 8, 1), 'settled')], closed, TZ)).toEqual([]);
   });
   it('the next document re-renders its title and carries the series forward', () => {
     const [inst] = missingDueInstances(
       [due('d1', at(2026, 8, 31), 'settled', { recurrence: 'monthly', titlePattern: 'RD Payment - {MMM}', occurrence: 3, lines: [{ lineId: 'l0', type: 'expense', amount: 5000 }] })],
-      today,
+      closed,
       TZ,
     );
     const doc = nextDueDoc(inst!, { fyStartMonth: 4, tz: TZ });
     expect(doc).toMatchObject({ title: 'RD Payment - Sept', occurrence: 4, recurrenceId: 'd1', recurrence: 'monthly', amount: 5000, titlePattern: 'RD Payment - {MMM}' });
     expect(calOf(doc.dueDate as Date, TZ)).toEqual(c(2026, 9, 30));
+  });
+  it('dates are days in the workspace time zone, wherever the server is', () => {
+    const ny = 'America/New_York';
+    const nyMidnight = atMidnight(c(2026, 8, 31), ny);
+    const [inst] = missingDueInstances([due('d1', nyMidnight, 'open', { recurrence: 'monthly' })], c(2026, 9, 1), ny);
+    const doc = nextDueDoc(inst!, { fyStartMonth: 4, tz: ny });
+    expect(iso(calOf(doc.dueDate as Date, ny))).toBe('2026-09-30');
+    expect((doc.dueDate as Date).toISOString()).toBe('2026-09-30T04:00:00.000Z');
   });
 });
 

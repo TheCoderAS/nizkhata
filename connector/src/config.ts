@@ -45,7 +45,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     openaiAppsChallenge: env.OPENAI_APPS_CHALLENGE?.trim() ?? '',
     serviceAccount: env.FIREBASE_SERVICE_ACCOUNT?.trim() ?? '',
     remindEveryMinutes: Number(env.SCHEDULER_REMIND_MINUTES ?? 5),
-    duesEveryMinutes: Number(env.SCHEDULER_DUES_MINUTES ?? 30),
+    duesEveryMinutes: Number(env.SCHEDULER_DUES_MINUTES ?? 5),
     sharedEverySeconds: Math.max(5, Number(env.SCHEDULER_SHARED_SECONDS ?? 20)),
     fcmBaseUrl: env.FCM_BASE_URL?.trim() || 'https://fcm.googleapis.com',
     // Render sets RENDER_EXTERNAL_URL itself; PUBLIC_URL wins (a custom domain).

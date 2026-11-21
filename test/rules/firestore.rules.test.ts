@@ -815,3 +815,47 @@ describe("devices: where push reminders go", () => {
     await assertFails(setDoc(doc(db, "pushLog", "alice_2026-11-20_9"), { uid: "alice" }));
   });
 });
+
+describe("a workspace's time zone is fixed at creation", () => {
+  const base = (id: string, extra: Record<string, unknown> = {}) => ({
+    id, name: "Book", ownerId: "tzowner", baseCurrency: "INR", fyStartMonth: 4, ...extra,
+  });
+
+  it("is chosen when the workspace is made, and must be a real zone name", async () => {
+    const db = env.authenticatedContext("tzowner").firestore();
+    await assertSucceeds(setDoc(doc(db, "workspaces", "tz1"), base("tz1", { timeZone: "Asia/Bangkok" })));
+    await assertSucceeds(setDoc(doc(db, "workspaces", "tz2"), base("tz2"))); // none: India
+    await assertSucceeds(setDoc(doc(db, "workspaces", "tz3"), base("tz3", { timeZone: "America/Argentina/Buenos_Aires" })));
+    await assertFails(setDoc(doc(db, "workspaces", "tz4"), base("tz4", { timeZone: "not a zone" })));
+    await assertFails(setDoc(doc(db, "workspaces", "tz5"), base("tz5", { timeZone: 330 })));
+  });
+
+  it("can never be changed afterwards, not even by the owner", async () => {
+    await seedWorkspace("tzw", "tzo");
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), "workspaces", "tzw"), { timeZone: "Asia/Kolkata" });
+    });
+    const db = env.authenticatedContext("tzo").firestore();
+    await assertSucceeds(updateDoc(doc(db, "workspaces", "tzw"), { name: "Renamed" }));
+    await assertFails(updateDoc(doc(db, "workspaces", "tzw"), { timeZone: "Asia/Bangkok" }));
+  });
+
+  it("an older workspace with none counts as India: writing India is fine, anything else is not", async () => {
+    await seedWorkspace("tzold", "tzo2");
+    const db = env.authenticatedContext("tzo2").firestore();
+    await assertSucceeds(updateDoc(doc(db, "workspaces", "tzold"), { timeZone: "Asia/Kolkata" }));
+    await assertFails(updateDoc(doc(db, "workspaces", "tzold"), { timeZone: "Europe/London" }));
+  });
+});
+
+describe("app settings", () => {
+  it("anyone signed in may read them; nobody may write them", async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), "config", "app"), { minVersionCode: 11500 });
+    });
+    await assertSucceeds(getDoc(doc(env.authenticatedContext("anyone").firestore(), "config", "app")));
+    await assertFails(getDoc(doc(env.unauthenticatedContext().firestore(), "config", "app")));
+    await assertFails(setDoc(doc(env.authenticatedContext("anyone").firestore(), "config", "app"), { minVersionCode: 0 }));
+  });
+});
+

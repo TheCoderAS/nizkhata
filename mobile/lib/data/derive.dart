@@ -6,6 +6,7 @@ import 'dart:math' as math;
 import 'package:intl/intl.dart';
 import 'models.dart';
 import '../core/currency.dart';
+import '../core/ws_time.dart';
 
 /// Round to the active currency's minor units: cents for most, whole yen,
 /// thousandths of a dinar. Every calculation funnels through this, so it reads
@@ -252,7 +253,7 @@ class NetWorthPoint {
 List<NetWorthPoint> netWorthSeries(
     List<Account> accounts, List<Debt> debts, List<Txn> txns, DateTime start, DateTime end,
     {DateTime? now}) {
-  final today = now ?? DateTime.now();
+  final today = now ?? WsTime.now();
   final currentPeriod = DateTime(today.year, today.month, 1);
   final debtsById = {for (final d in debts) d.id: d};
   final sorted = [...txns]..sort((a, b) => a.date.compareTo(b.date));
@@ -383,7 +384,7 @@ String? _lineImpact(String type) {
 /// Income/expense per bucket across [start, end). As with [netWorthSeries],
 /// buckets that have not started yet are omitted rather than drawn as zero.
 TrendResult trendSeries(List<Txn> txns, DateTime start, DateTime end, {DateTime? now}) {
-  final today = now ?? DateTime.now();
+  final today = now ?? WsTime.now();
   final days = end.difference(start).inMilliseconds / 86400000;
   final unitDay = days <= 45;
   final buckets = <TrendBucket>[];
@@ -441,7 +442,7 @@ class BudgetProgress {
 
 List<BudgetProgress> budgetProgress(
     List<Budget> budgets, List<Txn> txns, Map<String, AppCategory> categoriesById, int fyStartMonth) {
-  final now = DateTime.now();
+  final now = WsTime.now();
   final monthRange = resolvePeriod(PeriodKind.month, now, fyStartMonth);
   final fyRange = financialYearRange(now, fyStartMonth);
   final out = <BudgetProgress>[];
