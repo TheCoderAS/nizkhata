@@ -336,3 +336,49 @@ describe('chats that started before an update', () => {
   });
 });
 
+
+describe('tax on income lines (the app\'s tax block)', () => {
+  it('a 3-line due keeps the tax on its income line, shows it, and scales the TDS on a part payment', async () => {
+    const r = await asha.call('create_due', {
+      workspace_id: 'wa', title: 'November pay', due_date: '2026-11-30', account_id: 'wa_bank',
+      lines: [
+        { type: 'income', amount: 100000, category_id: 'wa_pay', tax: { head: 'salary', tds_amount: 10000 } },
+        { type: 'tax', amount: 10000, category_id: 'wa_food' },
+        { type: 'fee', amount: 200, category_id: 'wa_fun' },
+      ],
+    });
+    expect(r).toMatchObject({ created: true, direction: 'receivable', amount: 89800, lines: 3 });
+    const d = await doc('dues', r.id);
+    expect((d.lines as Plain[])[0]).toMatchObject({ type: 'income', amount: 100000, tax: { taxable: true, head: 'salary', tdsAmount: 10000, taxInclusive: false } });
+    expect((d.lines as Plain[])[1]!.tax).toBeUndefined();
+
+    const listed = (await asha.call('list_dues', { workspace_id: 'wa', status: 'all' })).dues.find((x: any) => x.id === r.id);
+    expect(listed.lines[0]).toEqual({ type: 'income', amount: 100000, category: 'Salary', tax: { head: 'salary', tds_amount: 10000, tax_inclusive: false } });
+
+    // Half received: the payment's income line carries half the TDS, as in the app.
+    const p = await asha.call('record_due_payment', { workspace_id: 'wa', due_id: r.id, account_id: 'wa_bank', amount: 44900 });
+    const t = await doc('transactions', p.transaction_id);
+    expect((t.lines as Plain[])[0]).toMatchObject({ type: 'income', amount: 50000, tax: { taxable: true, head: 'salary', tdsAmount: 5000 } });
+  });
+
+  it('a transaction takes the same tax block, and reads it back', async () => {
+    const t = await asha.call('create_transaction', {
+      workspace_id: 'wa', account_id: 'wa_bank', date: '2026-11-15', note: 'FD interest',
+      lines: [{ type: 'interest_income', amount: 4200, category_id: 'wa_pay', tax: { head: 'interest', tds_amount: 420, tax_inclusive: true } }],
+    });
+    expect(((await doc('transactions', t.id)).lines as Plain[])[0]!.tax).toEqual({ taxable: true, head: 'interest', tdsAmount: 420, taxInclusive: true });
+    const listed = (await asha.call('list_transactions', { workspace_id: 'wa', search: 'FD interest' })).transactions[0];
+    expect(listed.lines[0].tax).toEqual({ head: 'interest', tds_amount: 420, tax_inclusive: true });
+  });
+
+  it('refuses what the app\'s tax block would not allow', async () => {
+    const base = { workspace_id: 'wa', account_id: 'wa_bank', date: '2026-11-15' };
+    expect((await asha.call('create_transaction', { ...base, lines: [{ type: 'expense', amount: 10, category_id: 'wa_food', tax: { head: 'other' } }] })).error)
+      .toMatch(/income and interest_income lines only/);
+    expect((await asha.call('create_transaction', { ...base, lines: [{ type: 'income', amount: 10, category_id: 'wa_pay', tax: { head: 'salary', tds_amount: 50 } }] })).error)
+      .toMatch(/TDS \(50\) cannot be more than the line \(10\)/);
+    // A perquisite is an Indian tax head: not in New York books.
+    expect((await asha.call('create_transaction', { workspace_id: 'wny', account_id: 'wny_chase', lines: [{ type: 'income', amount: 10, tax: { head: 'perquisite' } }] })).error)
+      .toMatch(/"perquisite" tax head is for books kept in INR/);
+  });
+});

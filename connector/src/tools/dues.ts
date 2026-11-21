@@ -4,7 +4,7 @@ import { UserError, strip, type Books } from '../books.js';
 import { newDocId, type Plain, type Write } from '../firestore.js';
 import { computeTotal, dueSettledAmount, dueStatusFromSettled, financialYearOf, parseWhen, type Line } from '../ledger.js';
 import { DESTRUCTIVE, READ, WRITE, OVERWRITE, dateArg, day, run, workspaceArg, type Register } from './common.js';
-import { buildLines, lineInput, type LineInput } from './transactions.js';
+import { buildLines, lineInput, taxOut, type LineInput } from './transactions.js';
 
 const direction = z
   .enum(['payable', 'receivable'])
@@ -71,7 +71,8 @@ export const registerDueTools: Register = (server, ctx) => {
       run(async () => {
         const b = await ctx().books(a.workspace_id);
         const tz = b.timeZone;
-        const [dues, txns, contacts] = await Promise.all([b.dues(), b.txns(), b.load('contacts')]);
+        const [dues, txns, contacts, categories] = await Promise.all([b.dues(), b.txns(), b.load('contacts'), b.load('categories')]);
+        const catName = new Map(categories.map((c) => [String(c.id), String(c.name ?? '')]));
         const names = new Map(contacts.map((c) => [String(c.id), String(c.name)]));
         const from = a.from ? parseWhen(a.from, tz) : undefined;
         const to = a.to ? new Date(parseWhen(a.to, tz).getTime() + (a.to.length === 10 ? 86_400_000 : 1)) : undefined;
@@ -101,6 +102,14 @@ export const registerDueTools: Register = (server, ctx) => {
             contact: d.contactId ? names.get(String(d.contactId)) : undefined,
             ...(d.recurrence ? { repeats: d.recurrence } : {}),
             ...(d.statementAccountId ? { credit_card_bill: true } : {}),
+            lines: (((d.lines as Plain[] | undefined) ?? []) as unknown as Line[])
+              .filter((l) => l.type !== 'transfer_in')
+              .map((l) => ({
+                type: l.type === 'transfer_out' ? 'transfer' : l.type,
+                amount: l.amount,
+                ...(l.categoryId ? { category: catName.get(l.categoryId) ?? l.categoryId } : {}),
+                ...taxOut(l),
+              })),
           })),
         };
       }),
