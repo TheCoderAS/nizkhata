@@ -4,7 +4,7 @@ import { UserError, strip, type Books } from '../books.js';
 import { newDocId, type Plain, type Write } from '../firestore.js';
 import { computeTotal, dueSettledAmount, dueStatusFromSettled, financialYearOf, parseWhen, type Line } from '../ledger.js';
 import { DESTRUCTIVE, READ, WRITE, OVERWRITE, dateArg, day, run, workspaceArg, type Register } from './common.js';
-import { buildLines, lineInput, taxOut, type LineInput } from './transactions.js';
+import { buildLines, lineInput, renderNote, taxOut, type LineInput } from './transactions.js';
 
 const direction = z
   .enum(['payable', 'receivable'])
@@ -123,7 +123,7 @@ export const registerDueTools: Register = (server, ctx) => {
         'Add a bill to pay or money to receive on a date, optionally repeating. Its money is given exactly like create_transaction: an account and one or more lines (an expense or income line with its category for a simple due; several lines to split it). Whether it is payable or receivable, and its amount, follow from the lines.',
       inputSchema: {
         ...workspaceArg,
-        title: z.string().min(1),
+        title: z.string().min(1).describe('May hold placeholders such as {MMM} or {#}, as in the app; each repeat renders its own'),
         due_date: dateArg('When it is due'),
         account_id: z.string().describe('The account it will be paid from or into (list_accounts)'),
         note: z.string().optional(),
@@ -143,16 +143,18 @@ export const registerDueTools: Register = (server, ctx) => {
         // The due form's payload, with createDue's status.
         const data: Plain = {
           direction: dir,
-          title: a.title.trim(),
-          titlePattern: null,
-          notePattern: null,
+          // Titles and notes may carry placeholders, rendered for the due's
+          // own date; the pattern is kept so each repeat renders its own.
+          title: renderNote(b, a.title, dueDate).note ?? a.title.trim(),
+          titlePattern: renderNote(b, a.title, dueDate).notePattern,
+          notePattern: renderNote(b, a.note, dueDate).notePattern,
           occurrence: 1,
           amount,
           dueDate,
           contactId: a.contact_id ?? null,
           accountId: a.account_id ?? null,
           categoryId,
-          note: a.note?.trim() || null,
+          note: renderNote(b, a.note, dueDate).note,
           lines: lines.map((l) => strip(l as unknown as Plain)),
           recurrence: a.repeats ?? null,
           recurrenceId: null,
@@ -194,11 +196,28 @@ export const registerDueTools: Register = (server, ctx) => {
         if (a.contact_id) await b.getOne('contacts', a.contact_id);
         if (a.account_id) await b.getOne('accounts', a.account_id);
         const data: Plain = {};
-        if (a.title !== undefined) data.title = a.title.trim();
-        if (a.due_date !== undefined) data.dueDate = parseWhen(a.due_date, tz);
+        // Placeholders render for the due's date and occurrence, as in the
+        // app; a new date re-renders the stored patterns.
+        const when = a.due_date !== undefined ? parseWhen(a.due_date, tz) : (due.dueDate as Date);
+        const occ = Number(due.occurrence ?? 1);
+        if (a.due_date !== undefined) data.dueDate = when;
+        const titleSrc = a.title !== undefined ? a.title : a.due_date !== undefined ? (due.titlePattern as string | undefined) : undefined;
+        if (titleSrc) {
+          const r = renderNote(b, titleSrc, when, occ);
+          data.title = r.note ?? titleSrc.trim();
+          data.titlePattern = r.notePattern;
+        }
         if (a.contact_id !== undefined) data.contactId = a.contact_id;
         if (a.account_id !== undefined) data.accountId = a.account_id;
-        if (a.note !== undefined) data.note = a.note?.trim() || null;
+        const noteSrc = a.note !== undefined ? a.note : a.due_date !== undefined ? (due.notePattern as string | undefined) : undefined;
+        if (a.note === null) {
+          data.note = null;
+          data.notePattern = null;
+        } else if (noteSrc) {
+          const r = renderNote(b, noteSrc, when, occ);
+          data.note = r.note;
+          data.notePattern = r.notePattern;
+        }
         if (a.repeats !== undefined) {
           data.recurrence = a.repeats;
           data.recurrenceId = a.repeats ? (due.recurrenceId ?? a.due_id) : null;

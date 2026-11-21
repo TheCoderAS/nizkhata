@@ -128,7 +128,7 @@ describe('contacts', () => {
     const d = await doc('contacts', id);
     expect(d).toMatchObject({
       workspaceId: WS, name: 'Kabir Mehta', type: 'person', relationship: 'external',
-      emails: [{ value: 'kabir@example.com', label: 'Other' }], email: 'kabir@example.com',
+      emails: [{ value: 'kabir@example.com', label: 'Personal' }], email: 'kabir@example.com',
       createdBy: { uid: 'u1', name: 'Asha' }, updatedBy: { uid: 'u1', name: 'Asha' },
     });
     expect(d.createdAt).toBeInstanceOf(Date);

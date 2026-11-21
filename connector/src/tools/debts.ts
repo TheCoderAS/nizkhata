@@ -150,13 +150,14 @@ export const registerDebtTools: Register = (server, ctx) => {
     {
       title: 'Update a debt',
       description:
-        "Change a debt's label, note, interest or status. Contact, direction and purpose are fixed once created, as in the app. status 'settled' closes it even with money left (for example written off).",
+        "Change a debt's label, note, interest, principal or status, as the app's debt form does. Contact, direction and purpose are fixed once created, as in the app. status 'settled' closes it even with money left (for example written off).",
       inputSchema: {
         ...workspaceArg,
         debt_id: z.string(),
         label: z.string().nullable().optional(),
         note: z.string().nullable().optional(),
         interest_rate: z.number().min(0).nullable().optional(),
+        principal: z.number().min(0).optional().describe('The amount the debt was made for'),
         status: z.enum(['open', 'settled']).optional(),
       },
       annotations: OVERWRITE,
@@ -169,6 +170,7 @@ export const registerDebtTools: Register = (server, ctx) => {
         if (a.label !== undefined) data.label = a.label?.trim() || null;
         if (a.note !== undefined) data.note = a.note?.trim() || null;
         if (a.interest_rate !== undefined) data.interestRate = a.interest_rate;
+        if (a.principal !== undefined) data.principal = b.round(a.principal);
         if (a.status !== undefined) data.status = a.status;
         if (!Object.keys(data).length) throw new UserError('Nothing to change.');
         await b.commit(b.updateWrites('debts', a.debt_id, data), 'edit debts');

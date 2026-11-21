@@ -56,6 +56,16 @@ function fyLabel(c: Cal, fyStartMonth: number): string {
   return `${startYear}-${String((startYear + 1) % 100).padStart(2, '0')}`;
 }
 
+/** True when [text] carries a placeholder the renderer understands (title_tokens.dart hasTokens). */
+export function hasTokens(text: string | null | undefined): boolean {
+  if (!text) return false;
+  for (const m of text.matchAll(TOKEN)) {
+    const name = m[1]?.toUpperCase();
+    if (name && ['MMM', 'MMMM', 'MM', 'YYYY', 'YY', 'D', 'DD', 'DATE', 'Q', 'FY', '#'].includes(name)) return true;
+  }
+  return false;
+}
+
 export function renderTokens(pattern: string, date: Cal, o: { occurrence?: number; fyStartMonth?: number; locale?: string } = {}): string {
   if (!pattern) return pattern;
   const occurrence = o.occurrence ?? 1;
