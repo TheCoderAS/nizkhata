@@ -323,3 +323,16 @@ describe('dues split over several lines', () => {
     expect((await asha.call('create_due', { workspace_id: 'wa', title: 'Gym', account_id: 'wa_bank', lines: [{ type: 'expense', amount: 1500, category_id: 'wa_fun' }], due_date: '2026-12-05' })).amount).toBe(1500);
   });
 });
+
+describe('chats that started before an update', () => {
+  it('an old-style due (one amount, a direction, a category) is still recorded, as one line', async () => {
+    const r = await asha.call('create_due', {
+      workspace_id: 'wa', title: 'Old-style rent', direction: 'payable', amount: 12000, category_id: 'wa_food', due_date: '2026-12-03', account_id: 'wa_bank',
+    });
+    expect(r).toMatchObject({ created: true, direction: 'payable', amount: 12000, lines: 1 });
+    const d = await doc('dues', r.id);
+    expect(d).toMatchObject({ categoryId: 'wa_food', accountId: 'wa_bank' });
+    expect((d.lines as Plain[]).map((l) => [l.type, l.amount, l.categoryId])).toEqual([['expense', 12000, 'wa_food']]);
+  });
+});
+
