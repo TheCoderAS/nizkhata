@@ -316,7 +316,7 @@ describe('dues split over several lines', () => {
       lines: [{ type: 'income', amount: 40000, category_id: 'wa_pay' }, { type: 'tax', amount: 4000, category_id: 'wa_food' }],
     });
     expect(r).toMatchObject({ direction: 'receivable', amount: 36000 });
-    expect((await asha.call('create_due', { workspace_id: 'wa', title: 'x', due_date: '2026-12-10', lines: [{ type: 'income', amount: 1, category_id: 'wa_pay' }] })).error).toMatch(/needs account_id/);
+    expect((await asha.call('create_due', { workspace_id: 'wa', title: 'x', due_date: '2026-12-10', lines: [{ type: 'income', amount: 1, category_id: 'wa_pay' }] })).error).toMatch(/account_id/); // required, as for a transaction
     // Lines that cancel out leave nothing due.
     expect((await asha.call('create_due', { workspace_id: 'wa', title: 'x', due_date: '2026-12-10', account_id: 'wa_bank', lines: [{ type: 'income', amount: 5, category_id: 'wa_pay' }, { type: 'expense', amount: 5, category_id: 'wa_food' }] })).error).toMatch(/add up to nothing/);
     // A simple due is one line, as a simple transaction is.
