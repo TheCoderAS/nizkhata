@@ -13,6 +13,10 @@ export interface Ctx {
   email: string;
   timeZone: string;
   books(workspaceId?: string): Promise<Books>;
+  /** When the person last signed in with Google (seconds), from their ID token. */
+  authTime?: number;
+  /** Delete the Firebase sign-in itself: the last step of deleting an account. */
+  deleteSignIn?: () => Promise<void>;
 }
 
 export type Register = (server: McpServer, ctx: () => Ctx) => void;

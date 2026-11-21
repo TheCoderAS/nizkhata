@@ -8,7 +8,7 @@ import type { Config } from './config.js';
 import { status } from './status.js';
 import { installCompat } from './compat.js';
 import { Sealer } from './crypto.js';
-import { actorOf, FirebaseAuth, SessionExpired } from './firebase.js';
+import { actorOf, authTimeOf, FirebaseAuth, SessionExpired } from './firebase.js';
 import { Firestore } from './firestore.js';
 import { oauthRouter, type AccessPayload } from './oauth.js';
 import type { Ctx } from './tools/common.js';
@@ -24,6 +24,7 @@ import { registerRecategoriseTools } from './tools/recategorise.js';
 import { registerHistoryTools } from './tools/history.js';
 import { registerSharedTools } from './tools/shared.js';
 import { registerTeamTools } from './tools/team.js';
+import { registerExtraTools } from './tools/extras.js';
 
 const INSTRUCTIONS = `Niz Khata is a money ledger: accounts, transactions, dues (bills to pay and money to receive on a date), debts (money lent and borrowed, per person), contacts, categories and budgets, kept in workspaces, plus shared ledgers kept with other Niz Khata users. It records money; it never moves real money or connects to a bank.
 If the person has more than one workspace, call list_workspaces, ask which one they mean, and pass that workspace_id on every call; switch only when they name another.
@@ -66,6 +67,7 @@ export function buildMcpServer(ctx: () => Ctx, publicUrl?: string): McpServer {
     registerHistoryTools,
     registerSharedTools,
     registerTeamTools,
+    registerExtraTools,
   ]) {
     register(server, ctx);
   }
@@ -135,6 +137,8 @@ export function buildApp(cfg: Config, fetchImpl: typeof fetch = fetch): Express 
       email: (p.email ?? '').toLowerCase(),
       timeZone: cfg.timeZone,
       books: (workspaceId?: string) => Books.open(fs, actor, cfg.timeZone, workspaceId),
+      authTime: authTimeOf(idToken),
+      deleteSignIn: () => auth.deleteAccount(idToken),
     };
     // Stateless: a fresh server and transport per request, as the SDK
     // recommends, so no person's state can leak into another's.

@@ -29,7 +29,7 @@ async function dueFromLines(b: Books, inputs: LineInput[], accountId: string | u
 }
 
 /** buildDueSettlement (mobile/lib/data/due_settlement.dart). */
-function settlement(b: Books, due: Plain, amount: number, debtsById: Map<string, never>, seed: number) {
+export function settlement(b: Books, due: Plain, amount: number, debtsById: Map<string, never>, seed: number) {
   const lines = ((due.lines as Plain[] | undefined) ?? []) as unknown as Line[];
   const dueAmount = Number(due.amount ?? 0);
   if (lines.length && dueAmount > 0.005) {

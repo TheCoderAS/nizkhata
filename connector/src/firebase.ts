@@ -77,6 +77,33 @@ export class FirebaseAuth {
     if (this.cache.size > 5000) this.cache.delete(this.cache.keys().next().value as string);
     return j.id_token;
   }
+
+  /** Delete the signed-in Firebase user (needs a recent sign-in). */
+  async deleteAccount(idToken: string): Promise<void> {
+    const res = await this.fetchImpl(`${this.cfg.identityBaseUrl}/accounts:delete?key=${encodeURIComponent(this.cfg.firebaseApiKey)}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ idToken }),
+    });
+    if (!res.ok) {
+      const j = (await res.json().catch(() => ({}))) as { error?: { message?: string } };
+      throw new Error(
+        /CREDENTIAL_TOO_OLD/.test(j.error?.message ?? '')
+          ? 'Your data is deleted, but removing the sign-in needs a fresh one: reconnect the connector and ask again.'
+          : `Could not delete the sign-in: ${j.error?.message ?? res.status}`,
+      );
+    }
+  }
+}
+
+/** When the ID token's sign-in happened, in seconds (its auth_time claim). */
+export function authTimeOf(idToken: string): number | undefined {
+  try {
+    const claims = JSON.parse(Buffer.from(idToken.split('.')[1] ?? '', 'base64url').toString('utf8')) as { auth_time?: number };
+    return typeof claims.auth_time === 'number' ? claims.auth_time : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /** The Firebase session behind a token no longer works (signed out, account deleted). */

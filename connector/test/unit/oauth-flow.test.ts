@@ -121,14 +121,19 @@ describe('signing in', () => {
     }));
     const tools = (await client.listTools()).tools.map((x) => x.name).sort();
     expect(tools).toEqual([
-      'add_shared_expense',
-      'create_account', 'create_budget', 'create_category', 'create_contact', 'create_debt', 'create_due', 'create_transaction',
-      'delete_account', 'delete_budget', 'delete_category', 'delete_contact', 'delete_debt', 'delete_due', 'delete_transaction',
-      'get_contact', 'get_summary', 'get_transaction',
-      'list_accounts', 'list_activity', 'list_budgets', 'list_categories', 'list_contacts', 'list_debts', 'list_dues', 'list_shared', 'list_transactions', 'list_workspaces',
-      'recategorise_transactions', 'record_debt_repayment', 'record_due_payment', 'record_shared_settlement',
-      'respond_shared_entry', 'restore_deleted', 'stop_repeating_due',
-      'update_account', 'update_budget', 'update_category', 'update_contact', 'update_debt', 'update_due', 'update_transaction',
+      'accept_share_invites', 'add_shared_expense', 'change_member_role',
+      'create_account', 'create_budget', 'create_category', 'create_contact', 'create_debt', 'create_due', 'create_role', 'create_transaction', 'create_workspace',
+      'delete_account', 'delete_budget', 'delete_category', 'delete_contact', 'delete_debt', 'delete_due', 'delete_my_account', 'delete_role', 'delete_transaction', 'delete_workspace',
+      'duplicate_role',
+      'get_contact', 'get_contact_report', 'get_net_worth', 'get_summary', 'get_tax_summary', 'get_transaction',
+      'import_transactions', 'invite_member', 'invite_shared_partner', 'leave_workspace', 'link_member_contact',
+      'list_accounts', 'list_activity', 'list_budgets', 'list_categories', 'list_contacts', 'list_debts', 'list_dues', 'list_invites', 'list_members', 'list_roles',
+      'list_share_invites', 'list_shared', 'list_transactions', 'list_workspaces',
+      'rebill_shared_entry', 'recategorise_transactions', 'record_debt_repayment', 'record_due_payment', 'record_shared_settlement',
+      'remove_member', 'resolve_shared_conflict', 'respond_shared_entry', 'restore_deleted', 'revoke_invite', 'revoke_share_invite',
+      'settle_up', 'stop_repeating_due',
+      'update_account', 'update_budget', 'update_category', 'update_contact', 'update_debt', 'update_due', 'update_role', 'update_transaction', 'update_workspace',
+      'withdraw_shared_entry',
     ]);
     const deletes = (await client.listTools()).tools.filter((x) => x.name.startsWith('delete_'));
     expect(deletes.every((x) => x.annotations?.destructiveHint === true)).toBe(true);
@@ -147,7 +152,7 @@ describe('signing in', () => {
 
   it('reports its build, tool count and jobs on /healthz', async () => {
     const h = await (await fetch(base + '/healthz')).json();
-    expect(h).toMatchObject({ ok: true, tools: 42, jobs: 'off' });
+    expect(h).toMatchObject({ ok: true, tools: 71, jobs: 'off' });
     expect(typeof h.version).toBe('string');
   });
 
