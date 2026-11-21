@@ -13,6 +13,8 @@
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'dart:ui' show Color;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -51,7 +53,8 @@ class DueReminders {
     if (_inited) return;
     _inited = true;
     try {
-      const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
+      // The white Niz Khata silhouette: Android draws status-bar icons as a mask.
+      const androidInit = AndroidInitializationSettings('ic_stat_due');
       await _plugin.initialize(
         const InitializationSettings(android: androidInit),
         onDidReceiveNotificationResponse: (resp) => _open(resp.payload),
@@ -113,6 +116,8 @@ class DueReminders {
           channel.id,
           channel.name,
           channelDescription: channel.description,
+          icon: 'ic_stat_due',
+          color: const Color(0xFF4F46E5),
           importance: Importance.high,
           priority: Priority.high,
           category: channel == _channel ? AndroidNotificationCategory.reminder : AndroidNotificationCategory.social,
